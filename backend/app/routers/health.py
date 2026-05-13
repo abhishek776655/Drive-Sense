@@ -10,9 +10,18 @@ from app.core.config import settings
 router = APIRouter()
 
 
+def _health_payload() -> dict:
+    return {"status": "ok", "app": settings.app_name, "environment": settings.environment}
+
+
+@router.get("/health")
+async def health() -> dict:
+    return _health_payload()
+
+
 @router.get("/healthz")
 async def healthz() -> dict:
-    return {"status": "ok", "app": settings.app_name, "environment": settings.environment}
+    return _health_payload()
 
 
 @router.get("/readyz")
@@ -23,4 +32,3 @@ async def readyz(
     await db.execute(text("SELECT 1"))
     await redis_client.ping()
     return {"status": "ready"}
-

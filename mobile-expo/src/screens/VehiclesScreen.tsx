@@ -35,6 +35,8 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
   const loading = useDashboardStore((state) => state.loading);
   const dashboardError = useDashboardStore((state) => state.error);
   const fetchDashboard = useDashboardStore((state) => state.fetchDashboard);
+  const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
+  const hydrateVehiclePreferences = useVehiclePreferencesStore((state) => state.hydrate);
   const [vehicleStatsById, setVehicleStatsById] = useState<Record<string, VehicleStatsRead['summary']>>({});
 
   useEffect(() => {
@@ -480,5 +482,3 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
     </SafeAreaView>
   );
 };
-  const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
-  const hydrateVehiclePreferences = useVehiclePreferencesStore((state) => state.hydrate);

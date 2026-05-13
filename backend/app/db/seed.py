@@ -436,6 +436,8 @@ async def _get_or_create_demo_user(session: AsyncSession) -> User:
     existing = await session.execute(select(User).where(User.email == DEMO_EMAIL))
     user = existing.scalar_one_or_none()
     if user is not None:
+        user.password_hash = hash_password(DEMO_PASSWORD)
+        await session.flush()
         return user
 
     user = User(

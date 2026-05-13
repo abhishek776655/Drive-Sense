@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://api-drive-sense.abhishek.homes';
 let authExpiredHandler: ((message: string) => void) | null = null;
 
 export const apiClient = axios.create({
@@ -25,9 +25,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && error.config?.url !== '/api/v1/auth/login') {
       await AsyncStorage.removeItem('access_token');
-      authExpiredHandler?.('Your session expired. Sign in again to continue.');
+      authExpiredHandler?.(getApiErrorMessage(error));
     }
     return Promise.reject(error);
   }
@@ -40,6 +40,13 @@ export const setAuthExpiredHandler = (handler: ((message: string) => void) | nul
 export const getApiErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 401) {
+      const detail = typeof error.response.data?.detail === 'string' ? error.response.data.detail : '';
+      if (error.config?.url === '/api/v1/auth/login') {
+        return detail || 'Invalid email or password.';
+      }
+      if (detail === 'User not found') {
+        return 'Your account was not found on this server. Sign in again or check the backend data.';
+      }
       return 'Your session expired. Sign in again to continue.';
     }
     if (!error.response) {
