@@ -1,0 +1,36 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / React Native
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# React Native
+mobile/ios/Pods/
+mobile/ios/build/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile-expo/.expo/
+mobile-expo/dist/
+mobile-expo/ios/Pods/
+mobile-expo/ios/build/
+mobile-expo/android/.gradle/
+mobile-expo/android/app/build/
+
+# IDE
+.idea/
+.vscode/

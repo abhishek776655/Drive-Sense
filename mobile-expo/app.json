@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "mobile-expo",
+    "slug": "mobile-expo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.mobileexpo",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "DriveSense uses your location during a trip to record route, speed, heading, and live driving telemetry.",
+        "NSMotionUsageDescription": "DriveSense uses motion sensors to detect driving events like harsh braking and rapid acceleration."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.mobileexpo",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACTIVITY_RECOGNITION"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
