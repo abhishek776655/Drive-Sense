@@ -6,10 +6,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-drivesense}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drivesense}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_HOST_PORT:-15462}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./infra/postgres/initdb.d:/docker-entrypoint-initdb.d:ro
+    networks:
+      - drivesense_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -19,9 +21,11 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-16382}:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - drivesense_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,6 +48,8 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-local}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - drivesense_network
     depends_on:
       db:
         condition: service_healthy
@@ -53,3 +59,8 @@ services:
 volumes:
   db_data:
   redis_data:
+
+networks:
+  drivesense_network:
+    name: ${DOCKER_NETWORK_NAME:-drivesense_network}
+    driver: bridge
