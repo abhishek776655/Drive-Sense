@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   id                        uuid               PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                   uuid               NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name                      text               NOT NULL,
+  plate_number              text,
   fuel_type                 drivesense_fuel_type NOT NULL DEFAULT 'other',
   tank_capacity_liters      numeric(6,2),
   mileage_baseline_km_per_l numeric(8,3),
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   updated_at                timestamptz        NOT NULL DEFAULT NOW(),
   deleted_at                timestamptz,
   CONSTRAINT vehicles_name_nonempty CHECK (length(trim(name)) > 0),
+  CONSTRAINT vehicles_plate_nonempty CHECK (plate_number IS NULL OR length(trim(plate_number)) > 0),
   CONSTRAINT vehicles_tank_capacity_positive CHECK (tank_capacity_liters IS NULL OR tank_capacity_liters > 0),
   CONSTRAINT vehicles_mileage_baseline_positive CHECK (mileage_baseline_km_per_l IS NULL OR mileage_baseline_km_per_l > 0)
 );
