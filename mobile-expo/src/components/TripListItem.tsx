@@ -19,6 +19,8 @@ interface TripListItemProps {
   onPress?: () => void;
 }
 
+const UNSCORED_CATEGORIES = new Set(['Active', 'In Progress', 'Live']);
+
 const formatDistance = (meters: number): string => {
   if (meters >= 1000) {
     return `${(meters / 1000).toFixed(1)} km`;
@@ -51,13 +53,16 @@ export const TripListItem: React.FC<TripListItemProps> = ({
   onPress,
 }) => {
   const theme = useAppTheme();
-  const scoreColor = score >= 80 ? theme.success : score >= 60 ? theme.warning : theme.danger;
-  const scoreBackground = score >= 80 ? theme.successSoft : score >= 60 ? theme.accentMuted : 'rgba(220,38,38,0.10)';
+  // A trip still in progress hasn't been scored yet — score defaults to 0, which would otherwise
+  // paint it the same alarming red as a genuinely bad completed trip.
+  const isScored = !category || !UNSCORED_CATEGORIES.has(category) || score > 0;
+  const scoreColor = !isScored ? theme.textSubtle : score >= 80 ? theme.success : score >= 60 ? theme.warning : theme.danger;
+  const scoreBackground = !isScored ? theme.cardSoft : score >= 80 ? theme.successSoft : score >= 60 ? theme.warningSoft : theme.dangerSoft;
   const routeStart = startLabel ?? title ?? 'Trip start';
   const routeEnd = endLabel ?? subtitle ?? 'Trip end';
   const riskColor = riskLevel === 'high' ? theme.danger : riskLevel === 'medium' ? theme.warning : theme.success;
   const riskBackground =
-    riskLevel === 'high' ? 'rgba(220,38,38,0.10)' : riskLevel === 'medium' ? 'rgba(245,158,11,0.12)' : theme.successSoft;
+    riskLevel === 'high' ? theme.dangerSoft : riskLevel === 'medium' ? theme.warningSoft : theme.successSoft;
   const riskLabel = riskLevel === 'high' ? 'High Risk' : riskLevel === 'medium' ? 'Watch' : 'Low Risk';
   const showRiskChip = riskLevel !== 'medium';
 
@@ -121,7 +126,7 @@ export const TripListItem: React.FC<TripListItemProps> = ({
             style={{
               backgroundColor: scoreBackground,
             }}>
-            <Text style={{color: scoreColor, fontSize: 11, fontWeight: '800'}}>Score {score}</Text>
+            <Text style={{color: scoreColor, fontSize: 11, fontWeight: '800'}}>{isScored ? `Score ${score}` : 'Not yet scored'}</Text>
           </View>
         </View>
       </View>
@@ -154,7 +159,7 @@ export const TripListItem: React.FC<TripListItemProps> = ({
           <View
             className="mr-2.5 mb-2 rounded-full px-3 py-2"
             style={{
-              backgroundColor: eventCount > 0 ? 'rgba(245,158,11,0.12)' : theme.successSoft,
+              backgroundColor: eventCount > 0 ? theme.warningSoft : theme.successSoft,
             }}>
             <Text style={{color: eventCount > 0 ? theme.warning : theme.success, ...theme.typography.caption, fontWeight: '700'}}>
               {eventCount} events

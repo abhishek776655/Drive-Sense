@@ -13,14 +13,18 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   data: null,
   loading: false,
   error: null,
-  fetchDashboard: async () => {
-    set({loading: true, error: null});
+  fetchDashboard: async (options?: {silent?: boolean}) => {
+    if (!options?.silent) {
+      set({loading: true, error: null});
+    }
     try {
       const data = await dashboardService.getDashboard();
-      set({data, loading: false});
+      set({data, loading: false, error: null});
     } catch (error) {
       const message = getApiErrorMessage(error);
-      set({error: message, loading: false});
+      if (!options?.silent) {
+        set({error: message, loading: false});
+      }
     }
   },
 }));

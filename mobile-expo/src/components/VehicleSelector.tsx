@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, Text, Pressable} from 'react-native';
+import {View, Text, Image, Pressable} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useAppTheme} from '../theme/appTheme';
 
@@ -7,7 +7,7 @@ interface Vehicle {
   id: string;
   name: string;
   type: string;
-  isActive: boolean;
+  imageUrl?: string | null;
 }
 
 interface VehicleSelectorProps {
@@ -70,23 +70,25 @@ export const VehicleSelector: React.FC<VehicleSelectorProps> = ({
               onSelect(vehicle.id);
               onClose();
             }}>
-            <View
-              className="mr-3 size-10 items-center justify-center rounded-[14px]"
-              style={{
-                backgroundColor: palette.accentSoft,
-              }}>
-              <Ionicons name="car" size={20} color={palette.accent} />
-            </View>
+            {vehicle.imageUrl ? (
+              <Image
+                source={{uri: vehicle.imageUrl}}
+                className="mr-3 size-10 rounded-[14px]"
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                className="mr-3 size-10 items-center justify-center rounded-[14px]"
+                style={{
+                  backgroundColor: palette.accentSoft,
+                }}>
+                <Ionicons name="car" size={20} color={palette.accent} />
+              </View>
+            )}
             <View className="flex-1">
               <Text style={{color: palette.text, ...theme.typography.body}}>{vehicle.name}</Text>
               <Text className="mt-0.5" style={{color: palette.textSecondary, ...theme.typography.caption}}>{vehicle.type}</Text>
             </View>
-            {vehicle.isActive && (
-              <View className="flex-row items-center">
-                <View className="mr-1.5 size-2 rounded-full" style={{backgroundColor: '#22C55E'}} />
-                <Text style={{color: palette.accent, ...theme.typography.caption}}>Active</Text>
-              </View>
-            )}
             {selectedId === vehicle.id && (
               <Ionicons name="checkmark-circle" size={22} color={palette.accent} />
             )}

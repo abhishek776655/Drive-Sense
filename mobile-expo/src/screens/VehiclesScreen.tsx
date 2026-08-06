@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Pressable, RefreshControl, ScrollView, Text, View} from 'react-native';
+import {Image, Pressable, RefreshControl, ScrollView, Text, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme/appTheme';
@@ -8,6 +8,7 @@ import {vehicleService, type VehicleStatsRead} from '../services/vehicleService'
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {useAppSidebar} from '../components/AppSidebar';
 
 const formatDistance = (meters: number) => `${(meters / 1000).toFixed(1)} km`;
 const formatDuration = (seconds: number) => {
@@ -31,6 +32,7 @@ const formatLastTrip = (value: string | null) =>
 
 export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
+  const {openSidebar} = useAppSidebar();
   const dashboard = useDashboardStore((state) => state.data);
   const loading = useDashboardStore((state) => state.loading);
   const dashboardError = useDashboardStore((state) => state.error);
@@ -89,6 +91,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         backendStats: vehicleStatsById[vehicle.id],
         id: vehicle.id,
         name: vehicle.name,
+        imageUrl: vehicle.imageUrl,
         fuelType: vehicle.fuelType,
         plate: vehicle.plateNumber ?? 'No plate added',
         mileage: vehicle.mileageBaselineKmPerL != null ? `${vehicle.mileageBaselineKmPerL.toFixed(1)} km/l` : 'Not set',
@@ -143,6 +146,15 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void fetchDashboard()} tintColor={theme.accent} />}>
         <View className="mb-[18px] flex-row items-start justify-between">
+          <Pressable
+            onPress={openSidebar}
+            className="mr-3 size-10 items-center justify-center rounded-[14px] border"
+            style={{
+              backgroundColor: theme.card,
+              borderColor: theme.cardBorder,
+            }}>
+            <Ionicons name="menu" size={18} color={theme.text} />
+          </Pressable>
           <View className="flex-1 pr-3">
             <Text style={{color: theme.text, ...theme.typography.pageTitle}}>Garage</Text>
             <Text className="mt-1" style={{color: theme.textSubtle, ...theme.typography.body}}>
@@ -221,12 +233,16 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
             </View>
 
             <View
-              className="size-[86px] items-center justify-center rounded-3xl border"
+              className="size-[86px] items-center justify-center overflow-hidden rounded-3xl border"
               style={{
                 backgroundColor: theme.card,
                 borderColor: theme.cardBorder,
               }}>
-              <Ionicons name="car-sport" size={40} color={theme.text} />
+              {featuredVehicle.imageUrl ? (
+                <Image source={{uri: featuredVehicle.imageUrl}} style={{width: '100%', height: '100%'}} resizeMode="cover" />
+              ) : (
+                <Ionicons name="car-sport" size={40} color={theme.text} />
+              )}
             </View>
           </View>
 
@@ -272,7 +288,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                   {item.label}
                 </Text>
                 <Text
-                  numberOfLines={1}
+                  numberOfLines={2}
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
                   style={{color: theme.text, fontSize: 20, fontWeight: '800'}}>
@@ -399,11 +415,16 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                   borderRadius: 20,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  overflow: 'hidden',
                   backgroundColor: theme.cardSoft,
                   borderColor: theme.cardBorder,
                   borderWidth: 1,
                 }}>
-                <Ionicons name={index === 1 ? 'car' : 'car-sport'} size={36} color={theme.text} />
+                {vehicle.imageUrl ? (
+                  <Image source={{uri: vehicle.imageUrl}} style={{width: '100%', height: '100%'}} resizeMode="cover" />
+                ) : (
+                  <Ionicons name={index === 1 ? 'car' : 'car-sport'} size={36} color={theme.text} />
+                )}
               </View>
             </View>
 
@@ -422,7 +443,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                   }}>
                   <Text className="mb-[5px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
                   <Text
-                    numberOfLines={1}
+                    numberOfLines={2}
                     adjustsFontSizeToFit
                     minimumFontScale={0.82}
                     style={{color: item.tone, fontSize: 18, fontWeight: '800'}}>
@@ -450,7 +471,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                     {item.label}
                   </Text>
                   <Text
-                    numberOfLines={1}
+                    numberOfLines={2}
                     adjustsFontSizeToFit
                     minimumFontScale={0.8}
                     style={{

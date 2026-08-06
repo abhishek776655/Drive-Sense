@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,7 +11,12 @@ from app.models.event import Event
 from app.models.enums import TripState
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
+from app.models.vehicle_catalog import VehicleCompany, VehicleModel
 from app.services.driving_score_service import update_trip_driving_score
+
+
+def _vehicle_display_name_expr():
+    return func.coalesce(Vehicle.name, func.concat(VehicleCompany.name, " ", VehicleModel.name))
 
 
 async def list_trips(db: AsyncSession, *, user_id: uuid.UUID, vehicle_id: uuid.UUID | None = None) -> list[Trip]:
@@ -30,6 +35,7 @@ async def list_trip_summaries(
     start_time_gte: datetime | None = None,
     start_time_lte: datetime | None = None,
     min_score: int | None = None,
+    search: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
@@ -46,11 +52,23 @@ async def list_trip_summaries(
         filters.append(Trip.start_time <= start_time_lte)
     if min_score is not None:
         filters.append(Trip.driving_score >= min_score)
+    if search:
+        pattern = f"%{search.strip()}%"
+        filters.append(
+            or_(
+                Vehicle.name.ilike(pattern),
+                Vehicle.plate_number.ilike(pattern),
+                VehicleModel.name.ilike(pattern),
+                VehicleCompany.name.ilike(pattern),
+            )
+        )
 
     base_stmt = (
         select(func.count())
         .select_from(Trip)
         .join(Vehicle, Vehicle.id == Trip.vehicle_id)
+        .join(VehicleModel, VehicleModel.id == Vehicle.model_id)
+        .join(VehicleCompany, VehicleCompany.id == VehicleModel.company_id)
         .where(*filters)
     )
     total = int((await db.execute(base_stmt)).scalar_one() or 0)
@@ -68,10 +86,13 @@ async def list_trip_summaries(
             Trip.created_at,
             Trip.driving_score,
             Trip.avg_speed_mps,
-            Vehicle.name.label("vehicle_name"),
+            _vehicle_display_name_expr().label("vehicle_name"),
+            VehicleModel.image_url.label("vehicle_image_url"),
             func.count(Event.id).label("event_count"),
         )
         .join(Vehicle, Vehicle.id == Trip.vehicle_id)
+        .join(VehicleModel, VehicleModel.id == Vehicle.model_id)
+        .join(VehicleCompany, VehicleCompany.id == VehicleModel.company_id)
         .outerjoin(Event, Event.trip_id == Trip.id)
         .where(*filters)
         .group_by(
@@ -87,6 +108,9 @@ async def list_trip_summaries(
             Trip.driving_score,
             Trip.avg_speed_mps,
             Vehicle.name,
+            VehicleModel.name,
+            VehicleModel.image_url,
+            VehicleCompany.name,
         )
         .order_by(Trip.start_time.desc())
         .limit(limit)
@@ -101,7 +125,7 @@ async def get_trip_detail(db: AsyncSession, *, user_id: uuid.UUID, trip_id: uuid
     result = await db.execute(
         select(Trip)
         .options(
-            selectinload(Trip.vehicle),
+            selectinload(Trip.vehicle).selectinload(Vehicle.model).selectinload(VehicleModel.company),
             selectinload(Trip.location_points),
             selectinload(Trip.events),
         )

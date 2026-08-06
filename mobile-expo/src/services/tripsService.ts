@@ -30,6 +30,7 @@ export type TripListParams = {
   startTimeGte?: string;
   startTimeLte?: string;
   minScore?: number;
+  search?: string;
   limit?: number;
   offset?: number;
 };
@@ -65,6 +66,16 @@ export type TripDetailRead = TripRead & {
     latitude: number | null;
     longitude: number | null;
     payload: Record<string, unknown>;
+  }>;
+  insights: Array<{
+    rule_id: string;
+    category: string;
+    tone: 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    metric_label: string;
+    metric_value: string;
+    priority: number;
   }>;
 };
 
@@ -160,6 +171,7 @@ export const mapTripDetailToMockTrip = (trip: TripDetailRead): MockTrip => {
     stops: String(trip.events.filter((event) => event.event_type === 'harsh_brake').length),
     drivingScore: trip.driving_score ?? 0,
     events: trip.events.map(mapEventPayload),
+    insights: trip.insights,
   };
 };
 
@@ -171,6 +183,7 @@ export const tripsService = {
         start_time_gte: params.startTimeGte,
         start_time_lte: params.startTimeLte,
         min_score: params.minScore,
+        search: params.search || undefined,
         limit: params.limit ?? 50,
         offset: params.offset ?? 0,
       },

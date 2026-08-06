@@ -37,6 +37,12 @@ export const setAuthExpiredHandler = (handler: ((message: string) => void) | nul
   authExpiredHandler = handler;
 };
 
+// Reuses the same "return to login" wiring as a 401-triggered session expiry, but with no error
+// message since this is a deliberate, successful logout rather than a failure.
+export const notifyLoggedOut = () => {
+  authExpiredHandler?.('');
+};
+
 export const getApiErrorMessage = (error: unknown) => {
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 401) {

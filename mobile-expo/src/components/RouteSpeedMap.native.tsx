@@ -20,15 +20,29 @@ export const RouteSpeedMap: React.FC<Props> = ({routePoints, startLabel, endLabe
   const region = getRouteRegion(routePoints);
   const startPoint = routePoints[0];
   const endPoint = routePoints[routePoints.length - 1];
+  const routeKey = `${routePoints.length}-${startPoint.latitude}-${startPoint.longitude}-${endPoint.latitude}-${endPoint.longitude}`;
 
   return (
-    <MapView style={{flex: 1}} initialRegion={region} scrollEnabled rotateEnabled={false} pitchEnabled={false}>
+    <MapView
+      key={routeKey}
+      style={{flex: 1}}
+      initialRegion={region}
+      scrollEnabled
+      rotateEnabled={false}
+      pitchEnabled={false}>
+      <Polyline
+        coordinates={routePoints}
+        strokeColor={theme.dark ? 'rgba(255,255,255,0.36)' : 'rgba(15,23,42,0.24)'}
+        strokeWidth={8}
+        zIndex={1}
+      />
       {sections.map((section, index) => (
         <Polyline
           key={`${section.band.key}-${index}`}
           coordinates={section.coordinates}
           strokeColor={section.band.color}
-          strokeWidth={5}
+          strokeWidth={6}
+          zIndex={2}
         />
       ))}
       <Marker coordinate={startPoint} title="Start" description={startLabel} pinColor="#22C55E" />

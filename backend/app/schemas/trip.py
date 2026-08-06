@@ -36,6 +36,7 @@ class TripRead(SchemaBase):
 
 class TripListRead(TripRead):
     vehicle_name: str
+    vehicle_image_url: str | None = None
     driving_score: int | None = None
     avg_speed_mps: float | None = None
     event_count: int = 0
@@ -73,8 +74,20 @@ class TripEventRead(SchemaBase):
     payload: dict = Field(default_factory=dict)
 
 
+class TripInsightRead(SchemaBase):
+    rule_id: str
+    category: str
+    tone: str
+    title: str
+    message: str
+    metric_label: str
+    metric_value: str
+    priority: int
+
+
 class TripDetailRead(TripRead):
     vehicle_name: str
+    vehicle_image_url: str | None = None
     avg_speed_mps: float | None = None
     max_speed_mps: float | None = None
     idle_time_seconds: int
@@ -84,3 +97,4 @@ class TripDetailRead(TripRead):
     driving_score: int | None = None
     location_points: list[TripLocationPointRead] = Field(default_factory=list)
     events: list[TripEventRead] = Field(default_factory=list)
+    insights: list[TripInsightRead] = Field(default_factory=list)

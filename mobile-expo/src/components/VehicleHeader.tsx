@@ -6,7 +6,7 @@ import {useAppTheme} from '../theme/appTheme';
 interface VehicleHeaderProps {
   vehicleName: string;
   vehicleImage?: string;
-  isActive?: boolean;
+  isSelected?: boolean;
   onPress?: () => void;
 }
 
@@ -23,7 +23,7 @@ const CarPlaceholder = ({isDark}: {isDark: boolean}) => (
 export const VehicleHeader: React.FC<VehicleHeaderProps> = ({
   vehicleName,
   vehicleImage,
-  isActive = true,
+  isSelected = true,
   onPress,
 }) => {
   const theme = useAppTheme();
@@ -44,7 +44,7 @@ export const VehicleHeader: React.FC<VehicleHeaderProps> = ({
         ) : (
           <CarPlaceholder isDark={theme.dark} />
         )}
-        {isActive && (
+        {isSelected && (
           <View
             className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2"
             style={{
@@ -58,23 +58,6 @@ export const VehicleHeader: React.FC<VehicleHeaderProps> = ({
 
       <View className="flex-1">
         <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>{vehicleName}</Text>
-        <View className="mt-[3px] flex-row items-center">
-          <View
-            className="flex-row items-center rounded-full px-2 py-[3px]"
-            style={{
-              backgroundColor: isActive ? theme.accentMuted : theme.chip,
-            }}>
-            <View
-              className="mr-1.5 h-1.5 w-1.5 rounded-full"
-              style={{
-                backgroundColor: isActive ? theme.success : theme.textSubtle,
-              }}
-            />
-            <Text style={{...theme.typography.caption, color: isActive ? theme.accent : theme.textSubtle}}>
-              {isActive ? 'Active' : 'Inactive'}
-            </Text>
-          </View>
-        </View>
       </View>
 
       <View className="p-1">

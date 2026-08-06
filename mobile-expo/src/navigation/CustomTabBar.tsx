@@ -1,7 +1,8 @@
 import React from 'react';
-import {StyleSheet, View, useColorScheme} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 import {AnimatedTabButton} from './AnimatedTabButton';
+import {useAppTheme} from '../theme/appTheme';
 
 const TAB_CONFIG = [
   {name: 'DashboardStack', label: 'Home', activeIcon: 'home', inactiveIcon: 'home-outline'},
@@ -13,16 +14,15 @@ const TAB_CONFIG = [
 
 export const CustomTabBar: React.FC<BottomTabBarProps> = ({state, navigation}) => {
   const currentRoute = state.routes[state.index];
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const theme = useAppTheme();
 
   return (
     <View
       style={[
         styles.tabBar,
         {
-          backgroundColor: isDark ? '#0D1422' : 'rgba(255,255,255,0.96)',
-          borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E5E7EB',
+          backgroundColor: theme.dark ? '#0D1422' : 'rgba(255,255,255,0.96)',
+          borderColor: theme.dark ? 'rgba(255,255,255,0.08)' : '#E5E7EB',
         },
       ]}>
       {TAB_CONFIG.map((tab) => (

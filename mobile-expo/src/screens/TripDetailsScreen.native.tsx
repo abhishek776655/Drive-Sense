@@ -1,20 +1,20 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {ScrollView, Text, TouchableOpacity, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme/appTheme';
 import {TripDetailsScreenProps} from '../navigation/types';
-import {getMockTripById, type MockTrip} from '../mocks/trackingData';
+import type {MockTrip} from '../mocks/trackingData';
 import {RouteSpeedMap} from '../components/RouteSpeedMap';
 import {TripRouteInsightsCard} from '../components/TripRouteInsightsCard';
-import {createTimedRouteFallback, getRouteSummary} from '../utils/tripRoute';
+import {getRouteSummary} from '../utils/tripRoute';
 import {mapTripDetailToMockTrip, tripsService} from '../services/tripsService';
 
 export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation, route}) => {
   const theme = useAppTheme();
-  const fallbackTrip = useMemo(() => getMockTripById(route.params.tripId), [route.params.tripId]);
-  const [trip, setTrip] = useState<MockTrip>(fallbackTrip);
+  const [trip, setTrip] = useState<MockTrip | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -24,10 +24,12 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
         const backendTrip = await tripsService.getTripDetail(route.params.tripId);
         if (!cancelled) {
           setTrip(mapTripDetailToMockTrip(backendTrip));
+          setError('');
         }
       } catch {
         if (!cancelled) {
-          setTrip(fallbackTrip);
+          setTrip(null);
+          setError('Unable to load this trip from the API.');
         }
       } finally {
         if (!cancelled) {
@@ -41,9 +43,9 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
     return () => {
       cancelled = true;
     };
-  }, [fallbackTrip, route.params.tripId]);
+  }, [route.params.tripId]);
 
-  const routePoints = trip.routePoints?.length ? trip.routePoints : createTimedRouteFallback(trip.coordinates, '2026-05-10T09:00:00+05:30');
+  const routePoints = trip?.routePoints ?? [];
   const summary = getRouteSummary(routePoints);
 
   return (
@@ -62,20 +64,29 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
           </TouchableOpacity>
         </View>
         <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginBottom: 12}}>
-          {loading ? 'Loading trip details...' : 'Trip details and route insights'}
+          {loading ? 'Loading trip details...' : error || 'Trip details and route insights'}
         </Text>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 120}}>
-          <TripRouteInsightsCard
-            trip={trip}
-            summary={summary}
-            mapContent={
-              <RouteSpeedMap
-                routePoints={routePoints}
-                startLabel={`${trip.title} ${trip.startTime}`}
-                endLabel={`${trip.subtitle} ${trip.endTime}`}
-              />
-            }
-          />
+          {trip ? (
+            <TripRouteInsightsCard
+              trip={trip}
+              summary={summary}
+              mapContent={
+                <RouteSpeedMap
+                  routePoints={routePoints}
+                  startLabel={`${trip.title} ${trip.startTime}`}
+                  endLabel={`${trip.subtitle} ${trip.endTime}`}
+                />
+              }
+            />
+          ) : !loading ? (
+            <View className="rounded-3xl border p-5" style={{backgroundColor: theme.card, borderColor: theme.cardBorder}}>
+              <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip unavailable</Text>
+              <Text style={{color: theme.textSubtle, ...theme.typography.body, marginTop: 8}}>
+                {error || 'No API trip data was returned for this trip.'}
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </SafeAreaView>

@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {View} from 'react-native';
+import {Text, TouchableOpacity, View} from 'react-native';
+import {Ionicons} from '@expo/vector-icons';
 import MapView, {Circle, Marker, Polyline} from 'react-native-maps';
 import {MapScreenProps} from '../navigation/types';
 import {LiveTrackingLayout} from '../components/LiveTrackingLayout';
@@ -12,6 +13,26 @@ import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 const normalizeHeading = (value: number) => {
   const normalized = value % 360;
   return normalized < 0 ? normalized + 360 : normalized;
+};
+
+const CAMERA_ZOOM_2D = 16.4;
+const CAMERA_ZOOM_3D = 19.2;
+const CAMERA_ALTITUDE_2D = 760;
+const CAMERA_ALTITUDE_3D = 240;
+
+const getLookAheadCoordinate = (
+  point: {latitude: number; longitude: number},
+  headingDeg: number,
+  distanceMeters: number,
+) => {
+  const headingRad = (normalizeHeading(headingDeg) * Math.PI) / 180;
+  const latitudeOffset = (Math.cos(headingRad) * distanceMeters) / 111_320;
+  const longitudeOffset = (Math.sin(headingRad) * distanceMeters) / (111_320 * Math.cos((point.latitude * Math.PI) / 180));
+
+  return {
+    latitude: point.latitude + latitudeOffset,
+    longitude: point.longitude + longitudeOffset,
+  };
 };
 
 const getRegion = (coordinates: Array<{latitude: number; longitude: number}>) => {
@@ -43,7 +64,6 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
   const mapRef = useRef<MapView | null>(null);
   const [is3DMode, setIs3DMode] = useState(false);
   const [isFollowMode, setIsFollowMode] = useState(true);
-  const [mapHeading, setMapHeading] = useState(0);
   const [displayedHeading, setDisplayedHeading] = useState(0);
   const dashboard = useDashboardStore((state) => state.data);
   const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
@@ -81,7 +101,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
   const lastFollowUpdateRef = useRef<{latitude: number; longitude: number; heading: number} | null>(null);
   useEffect(() => {
     let frame = 0;
-    const targetHeading = normalizeHeading(live.currentPoint.heading_deg - mapHeading);
+    const targetHeading = normalizeHeading(live.currentPoint.heading_deg);
 
     const animateHeading = () => {
       setDisplayedHeading((current) => {
@@ -96,7 +116,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
 
     frame = requestAnimationFrame(animateHeading);
     return () => cancelAnimationFrame(frame);
-  }, [live.currentPoint.heading_deg, mapHeading]);
+  }, [live.currentPoint.heading_deg]);
 
   const focusCurrentLocation = (next3DMode: boolean, duration = 500, force = false) => {
     if (!mapRef.current || !live.hasLiveLocation) {
@@ -120,16 +140,21 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
       return;
     }
 
+    const currentLocation = {
+      latitude: live.currentPoint.latitude,
+      longitude: live.currentPoint.longitude,
+    };
+    const cameraCenter = next3DMode
+      ? getLookAheadCoordinate(currentLocation, live.currentPoint.heading_deg, 36)
+      : currentLocation;
+
     mapRef.current.animateCamera(
       {
-        center: {
-          latitude: live.currentPoint.latitude,
-          longitude: live.currentPoint.longitude,
-        },
-        pitch: next3DMode ? 64 : 0,
-        heading: next3DMode ? live.currentPoint.heading_deg : 0,
-        zoom: next3DMode ? 17.4 : 15,
-        altitude: 0,
+        center: cameraCenter,
+        pitch: next3DMode ? 68 : 0,
+        heading: next3DMode ? normalizeHeading(live.currentPoint.heading_deg) : 0,
+        zoom: next3DMode ? CAMERA_ZOOM_3D : CAMERA_ZOOM_2D,
+        altitude: next3DMode ? CAMERA_ALTITUDE_3D : CAMERA_ALTITUDE_2D,
       },
       {duration},
     );
@@ -175,9 +200,10 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
   const toggle3DMode = () => {
     setIs3DMode((previous) => {
       const next = !previous;
-      if (isFollowMode) {
-        focusCurrentLocation(next, 650, true);
-      }
+      setIsFollowMode(true);
+      requestAnimationFrame(() => {
+        focusCurrentLocation(next, 850, true);
+      });
       return next;
     });
   };
@@ -190,19 +216,6 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
       }
       return next;
     });
-  };
-
-  const syncMapHeading = async () => {
-    if (!mapRef.current) {
-      return;
-    }
-
-    try {
-      const camera = await mapRef.current.getCamera();
-      setMapHeading(normalizeHeading(camera.heading ?? 0));
-    } catch {
-      // Ignore transient camera read failures from the native map.
-    }
   };
 
   return (
@@ -224,10 +237,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
             scrollEnabled
             rotateEnabled
             pitchEnabled
-            onPanDrag={() => setIsFollowMode(false)}
-            onRegionChangeComplete={() => {
-              void syncMapHeading();
-            }}>
+            onPanDrag={() => setIsFollowMode(false)}>
             {coordinates.length > 1 ? <Polyline coordinates={coordinates} strokeColor={theme.accent} strokeWidth={4} /> : null}
             {live.hasLiveLocation && currentPoint ? (
               <Circle
@@ -241,13 +251,14 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
             {startPoint ? <Marker coordinate={startPoint} title="Trip Start" description={live.start_time} pinColor="#22C55E" /> : null}
             {live.hasLiveLocation && currentPoint ? (
               <Marker
-                key={`live-pointer-${is3DMode ? '3d' : '2d'}-${Math.round(live.currentPoint.heading_deg)}`}
+                key={`live-pointer-${is3DMode ? '3d' : '2d'}`}
                 coordinate={currentPoint}
                 title="Current Fix"
                 description={live.currentPoint.recorded_at}
                 anchor={{x: 0.5, y: 0.5}}
-                flat={false}
-                tracksViewChanges>
+                flat={is3DMode}
+                rotation={is3DMode ? displayedHeading : 0}
+                tracksViewChanges={!is3DMode}>
                 <LiveLocationMarker
                   color={theme.accent}
                   is3D={is3DMode}
@@ -256,6 +267,43 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
               </Marker>
             ) : null}
           </MapView>
+          {live.permissionState === 'denied' ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: 12,
+                left: 12,
+                right: 12,
+                backgroundColor: theme.card,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: theme.cardBorder,
+                padding: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                shadowColor: '#000000',
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+                shadowOffset: {width: 0, height: 4},
+                elevation: 5,
+              }}>
+              <Ionicons name="location-outline" size={18} color={theme.danger} />
+              <Text style={{flex: 1, color: theme.text, ...theme.typography.caption, fontWeight: '700', marginLeft: 8}}>
+                Location access is off. Live tracking needs it to work.
+              </Text>
+              <TouchableOpacity
+                onPress={() => void live.retryLocationPermission()}
+                style={{
+                  backgroundColor: theme.accent,
+                  borderRadius: 999,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  marginLeft: 8,
+                }}>
+                <Text style={{color: theme.onAccent, ...theme.typography.caption, fontWeight: '800'}}>Enable</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       }
     />

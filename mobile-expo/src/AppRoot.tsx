@@ -1,26 +1,29 @@
 import React, {useEffect, useState} from 'react';
 import {ActivityIndicator, View} from 'react-native';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {useFonts} from 'expo-font';
 import {
   Nunito_500Medium,
+  Nunito_600SemiBold,
   Nunito_700Bold,
   Nunito_800ExtraBold,
 } from '@expo-google-fonts/nunito';
 import {LoginScreen} from './screens/LoginScreen';
 import {authService, setAuthExpiredHandler} from './services/apiClient';
-import {getAppTheme} from './theme/appTheme';
+import {ThemeProvider, useAppTheme} from './theme/appTheme';
 import {AppNavigator} from './navigation';
 
-export default function AppRoot() {
+const AppRootContent: React.FC = () => {
   const [fontsLoaded] = useFonts({
     Nunito_500Medium,
+    Nunito_600SemiBold,
     Nunito_700Bold,
     Nunito_800ExtraBold,
   });
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
-  const theme = getAppTheme(false);
+  const theme = useAppTheme();
 
   useEffect(() => {
     setAuthExpiredHandler((message) => {
@@ -75,4 +78,14 @@ export default function AppRoot() {
   }
 
   return <AppNavigator />;
+};
+
+export default function AppRoot() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppRootContent />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
 }

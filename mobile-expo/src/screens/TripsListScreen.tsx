@@ -1,5 +1,5 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View} from 'react-native';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, TextInput, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -8,10 +8,13 @@ import {TripsListScreenProps} from '../navigation/types';
 import {MOCK_TRIPS} from '../mocks/trackingData';
 import {TripListItem} from '../components/TripListItem';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {useAppSidebar} from '../components/AppSidebar';
 import {getApiErrorMessage} from '../services/apiClient';
 import {tripsService, type TripRead} from '../services/tripsService';
 import {useDashboardStore} from '../store/dashboardStore';
 
+const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 350;
 const DATE_FILTERS = ['All Time', 'Today', '7 Days', '30 Days'] as const;
 const SCORE_FILTERS = ['All Scores', '90+', '80+', '70+'] as const;
 type DateFilterKey = (typeof DATE_FILTERS)[number];
@@ -46,18 +49,39 @@ type UiTrip = {
 
 export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
+  const {openSidebar} = useAppSidebar();
   const dashboard = useDashboardStore((state) => state.data);
   const [activeDateFilter, setActiveDateFilter] = useState<DateFilterKey>('7 Days');
   const [activeScoreFilter, setActiveScoreFilter] = useState<ScoreFilterKey>('All Scores');
   const [activeVehicleFilter, setActiveVehicleFilter] = useState<string>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [backendTrips, setBackendTrips] = useState<TripRead[]>([]);
   const [totalTripsCount, setTotalTripsCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadTrips = async () => {
+  useEffect(() => {
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchInput]);
+
+  const loadTrips = async (offset: number, append: boolean) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const now = new Date();
       const startTimeGte =
@@ -75,31 +99,43 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
         vehicleId: activeVehicleFilter === 'all' ? undefined : activeVehicleFilter,
         startTimeGte,
         minScore,
-        limit: 100,
-        offset: 0,
+        search: searchQuery || undefined,
+        limit: PAGE_SIZE,
+        offset,
       });
-      setBackendTrips(response.items);
+      setBackendTrips((current) => (append ? [...current, ...response.items] : response.items));
       setTotalTripsCount(response.total);
+      setHasFetched(true);
     } catch (loadError) {
       setError(getApiErrorMessage(loadError));
-      setTotalTripsCount(0);
+      if (!append) {
+        setTotalTripsCount(0);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    void loadTrips();
-  }, [activeDateFilter, activeScoreFilter, activeVehicleFilter]);
+    void loadTrips(0, false);
+  }, [activeDateFilter, activeScoreFilter, activeVehicleFilter, searchQuery]);
 
   useFocusEffect(
     React.useCallback(() => {
-      void loadTrips();
-    }, [activeDateFilter, activeScoreFilter, activeVehicleFilter])
+      void loadTrips(0, false);
+    }, [activeDateFilter, activeScoreFilter, activeVehicleFilter, searchQuery])
   );
 
+  const loadMoreTrips = () => {
+    if (loadingMore || backendTrips.length >= totalTripsCount) {
+      return;
+    }
+    void loadTrips(backendTrips.length, true);
+  };
+
   const trips = useMemo<UiTrip[]>(() => {
-    if (backendTrips.length > 0) {
+    if (backendTrips.length > 0 || hasFetched) {
       return backendTrips.map((trip) => {
         const avgSpeed = trip.avg_speed_mps != null ? trip.avg_speed_mps * 3.6 : trip.duration_seconds > 0 ? (trip.distance_meters / trip.duration_seconds) * 3.6 : 0;
         return {
@@ -132,15 +168,18 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
       category: trip.category,
       avgSpeedLabel: trip.avgSpeed,
       eventCount: trip.events.length,
-      startTime: trip.date,
+      startTime: trip.date.replace(' • ', ' '),
       vehicleId: undefined,
     }));
-  }, [backendTrips]);
+  }, [backendTrips, hasFetched]);
 
-  const sortedTrips = useMemo(
-    () => [...trips].sort((left, right) => new Date(right.startTime).getTime() - new Date(left.startTime).getTime()),
-    [trips]
-  );
+  const sortedTrips = useMemo(() => {
+    return [...trips].sort((left, right) => {
+      const dateA = new Date(left.startTime).getTime();
+      const dateB = new Date(right.startTime).getTime();
+      return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+    });
+  }, [trips]);
 
   const totals = useMemo(() => {
     const totalTrips = sortedTrips.length;
@@ -161,7 +200,7 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
   }, [sortedTrips]);
 
   const refreshTrips = async () => {
-    await loadTrips();
+    await loadTrips(0, false);
   };
 
   const vehicleFilters = useMemo(
@@ -181,13 +220,13 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refreshTrips()} tintColor={theme.accent} />}>
         <View className="mb-[18px] flex-row items-center justify-between">
           <Pressable
-            onPress={() => navigation.goBack()}
+            onPress={openSidebar}
             className="size-10 items-center justify-center rounded-[14px] border"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
-            <Ionicons name="chevron-back" size={18} color={theme.text} />
+            <Ionicons name="menu" size={18} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
             <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 24}}>Trips</Text>
@@ -248,6 +287,25 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
               </View>
             ))}
           </View>
+        </View>
+
+        <View
+          className="mb-[14px] flex-row items-center rounded-[18px] border px-3"
+          style={{backgroundColor: theme.card, borderColor: theme.cardBorder, height: 46}}>
+          <Ionicons name="search" size={17} color={theme.textSubtle} />
+          <TextInput
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder="Search by vehicle or plate"
+            placeholderTextColor={theme.textSubtle}
+            style={{flex: 1, marginLeft: 10, color: theme.text, ...theme.typography.body, paddingVertical: 0}}
+            returnKeyType="search"
+          />
+          {searchInput.length > 0 ? (
+            <Pressable onPress={() => setSearchInput('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={18} color={theme.textSubtle} />
+            </Pressable>
+          ) : null}
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingRight: 8, marginBottom: 18}}>
@@ -332,9 +390,13 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
-            <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>No trips yet</Text>
+            <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>
+              {searchQuery ? 'No matching trips' : 'No trips yet'}
+            </Text>
             <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.body}}>
-              Your driving history will appear here once a trip is recorded.
+              {searchQuery
+                ? `Nothing matches "${searchQuery}". Try a different vehicle name or plate.`
+                : 'Your driving history will appear here once a trip is recorded.'}
             </Text>
           </View>
         ) : null}
@@ -363,12 +425,37 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
                 category={trip.category}
                 avgSpeedLabel={trip.avgSpeedLabel}
                 eventCount={trip.eventCount}
-                riskLevel={trip.eventCount >= 3 ? 'high' : trip.eventCount > 0 || trip.score < 80 ? 'medium' : 'low'}
+                riskLevel={
+                  trip.eventCount >= 3
+                    ? 'high'
+                    : trip.eventCount > 0 || (trip.category === 'Completed' && trip.score < 80)
+                      ? 'medium'
+                      : 'low'
+                }
                 onPress={() => navigation.navigate('TripDetails', {tripId: trip.id})}
               />
             ))}
           </View>
         ))}
+
+        {!hasFetched || backendTrips.length >= totalTripsCount ? null : (
+          <Pressable
+            onPress={loadMoreTrips}
+            disabled={loadingMore}
+            className="mb-2 flex-row items-center justify-center rounded-[18px] border py-3.5"
+            style={{backgroundColor: theme.card, borderColor: theme.cardBorder}}>
+            {loadingMore ? (
+              <ActivityIndicator size="small" color={theme.accent} />
+            ) : (
+              <>
+                <Ionicons name="chevron-down-circle-outline" size={16} color={theme.accent} />
+                <Text style={{color: theme.accent, ...theme.typography.body, fontWeight: '700', marginLeft: 8}}>
+                  Load more ({totalTripsCount - backendTrips.length} left)
+                </Text>
+              </>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

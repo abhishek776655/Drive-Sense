@@ -18,11 +18,41 @@ from app.models.location_point import LocationPoint
 from app.models.trip import Trip
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_catalog import VehicleCompany, VehicleModel
+
+# Mirrors the curated catalog inserted by the
+# 20260801_0002_vehicle_catalog migration (kept in sync manually, since
+# migrations are self-contained and shouldn't be imported by app code).
+CATALOG = [
+    ("Maruti Suzuki", "Swift", "https://commons.wikimedia.org/wiki/Special:FilePath/Maruti_Suzuki_Swift_4456.JPG?width=600"),
+    ("Maruti Suzuki", "Baleno", "https://commons.wikimedia.org/wiki/Special:FilePath/2016_Suzuki_Baleno_SZ5_Boosterjet_1.0_Front.jpg?width=600"),
+    ("Hyundai", "Creta", "https://commons.wikimedia.org/wiki/Special:FilePath/Hyundai_Creta.jpg?width=600"),
+    ("Hyundai", "i20", "https://commons.wikimedia.org/wiki/Special:FilePath/Hyundai_i20_(BC3)_IMG_4165.jpg?width=600"),
+    ("Tata", "Nexon", "https://commons.wikimedia.org/wiki/Special:FilePath/2018_Tata_Nexon_XM.jpg?width=600"),
+    ("Tata", "Punch", "https://commons.wikimedia.org/wiki/Special:FilePath/Tata_punch.ev.jpg?width=600"),
+    ("Mahindra", "XUV700", "https://commons.wikimedia.org/wiki/Special:FilePath/A_black_Mahindra_XUV700_SUV_in_Ashiana_Brahmananda,_Jamshedpur,_India_(Ank_Kumar,_Infosys_Limited)_02.jpg?width=600"),
+    ("Mahindra", "Scorpio-N", "https://commons.wikimedia.org/wiki/Special:FilePath/2024_Mahindra_Scorpio_Z8L_front.jpg?width=600"),
+    ("Kia", "Seltos", "https://commons.wikimedia.org/wiki/Special:FilePath/White_KIA_Seltos_(Side).jpg?width=600"),
+    ("Kia", "Sonet", "https://commons.wikimedia.org/wiki/Special:FilePath/2022_Kia_Sonet.jpg?width=600"),
+    ("Honda", "City", "https://commons.wikimedia.org/wiki/Special:FilePath/2022_Honda_City_ZX_i-VTEC_(India)_front_view_(cropped).jpg?width=600"),
+    ("Honda", "Amaze", "https://commons.wikimedia.org/wiki/Special:FilePath/Honda_Amaze_front_view.jpg?width=600"),
+    ("Toyota", "Innova Crysta", "https://commons.wikimedia.org/wiki/Special:FilePath/Toyota_Innova_Crysta.jpg?width=600"),
+    ("Toyota", "Fortuner", "https://commons.wikimedia.org/wiki/Special:FilePath/Toyota_Fortuner_(AN160)_Front.jpg?width=600"),
+    ("Skoda", "Slavia", "https://commons.wikimedia.org/wiki/Special:FilePath/Skoda_Slavia_Side_view.jpg?width=600"),
+    ("Skoda", "Kushaq", "https://commons.wikimedia.org/wiki/Special:FilePath/Skoda_Kushaq_Front.jpg?width=600"),
+    ("Volkswagen", "Virtus", "https://commons.wikimedia.org/wiki/Special:FilePath/2023_Volkswagen_Virtus_Topline_front_20230520.jpg?width=600"),
+    ("Volkswagen", "Taigun", "https://commons.wikimedia.org/wiki/Special:FilePath/2020_Volkswagen_Taigun_Side_View.jpg?width=600"),
+    ("MG", "Hector", "https://commons.wikimedia.org/wiki/Special:FilePath/MG(Morris_Garages)_Hector_SUV_in_Jamshedpur,_Jharkhand,_India_(Ank_Kumar,_Infosys_Limited))_01.jpg?width=600"),
+    ("MG", "Astor", "https://commons.wikimedia.org/wiki/Special:FilePath/2021_MG_Astor_Sharp_220_Turbo_(India)_front_view.png?width=600"),
+    ("Other", "Other", None),
+]
 
 
 @dataclass(frozen=True)
 class VehicleSeed:
-    name: str
+    key: str
+    company: str
+    model: str
     plate_number: str
     fuel_type: FuelType
     tank_capacity_liters: float | None
@@ -57,35 +87,45 @@ DEMO_PASSWORD = "password123"
 
 VEHICLE_SEEDS = [
     VehicleSeed(
-        name="Honda City",
+        key="Honda City",
+        company="Honda",
+        model="City",
         plate_number="DL 10 AB 1234",
         fuel_type=FuelType.petrol,
         tank_capacity_liters=40,
         mileage_baseline_km_per_l=16.5,
     ),
     VehicleSeed(
-        name="Hyundai Creta",
+        key="Hyundai Creta",
+        company="Hyundai",
+        model="Creta",
         plate_number="UP 16 CD 5678",
         fuel_type=FuelType.diesel,
         tank_capacity_liters=50,
         mileage_baseline_km_per_l=18.2,
     ),
     VehicleSeed(
-        name="Tata Nexon EV",
+        key="Tata Nexon EV",
+        company="Tata",
+        model="Nexon",
         plate_number="DL 8C AX 8910",
         fuel_type=FuelType.electric,
         tank_capacity_liters=None,
         mileage_baseline_km_per_l=None,
     ),
     VehicleSeed(
-        name="Maruti Swift",
+        key="Maruti Swift",
+        company="Maruti Suzuki",
+        model="Swift",
         plate_number="HR 26 EF 2244",
         fuel_type=FuelType.cng,
         tank_capacity_liters=37,
         mileage_baseline_km_per_l=24.0,
     ),
     VehicleSeed(
-        name="Mahindra XUV700",
+        key="Mahindra XUV700",
+        company="Mahindra",
+        model="XUV700",
         plate_number="DL 12 GH 7788",
         fuel_type=FuelType.diesel,
         tank_capacity_liters=60,
@@ -450,11 +490,46 @@ async def _get_or_create_demo_user(session: AsyncSession) -> User:
     return user
 
 
-async def _get_or_create_vehicle(session: AsyncSession, *, user_id: uuid.UUID, seed: VehicleSeed) -> Vehicle:
+async def _ensure_catalog(session: AsyncSession) -> dict[tuple[str, str], uuid.UUID]:
+    companies_by_name: dict[str, VehicleCompany] = {}
+    for company_name in dict.fromkeys(company for company, _model, _image in CATALOG):
+        result = await session.execute(select(VehicleCompany).where(VehicleCompany.name == company_name))
+        company = result.scalar_one_or_none()
+        if company is None:
+            company = VehicleCompany(id=uuid.uuid4(), name=company_name)
+            session.add(company)
+            await session.flush()
+        companies_by_name[company_name] = company
+
+    model_ids_by_key: dict[tuple[str, str], uuid.UUID] = {}
+    for company_name, model_name, image_url in CATALOG:
+        company = companies_by_name[company_name]
+        result = await session.execute(
+            select(VehicleModel).where(VehicleModel.company_id == company.id, VehicleModel.name == model_name)
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            model = VehicleModel(id=uuid.uuid4(), company_id=company.id, name=model_name, image_url=image_url)
+            session.add(model)
+            await session.flush()
+        model_ids_by_key[(company_name, model_name)] = model.id
+    return model_ids_by_key
+
+
+async def _get_or_create_vehicle(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    seed: VehicleSeed,
+    model_ids_by_key: dict[tuple[str, str], uuid.UUID],
+) -> Vehicle:
+    model_id = model_ids_by_key[(seed.company, seed.model)]
+
     result = await session.execute(
         select(Vehicle).where(
             Vehicle.user_id == user_id,
-            Vehicle.name == seed.name,
+            Vehicle.model_id == model_id,
+            Vehicle.plate_number == seed.plate_number,
             Vehicle.deleted_at.is_(None),
         )
     )
@@ -463,7 +538,8 @@ async def _get_or_create_vehicle(session: AsyncSession, *, user_id: uuid.UUID, s
         vehicle = Vehicle(
             id=uuid.uuid4(),
             user_id=user_id,
-            name=seed.name,
+            model_id=model_id,
+            name=None,
             plate_number=seed.plate_number,
             fuel_type=seed.fuel_type,
             tank_capacity_liters=seed.tank_capacity_liters,
@@ -473,7 +549,6 @@ async def _get_or_create_vehicle(session: AsyncSession, *, user_id: uuid.UUID, s
         await session.flush()
         return vehicle
 
-    vehicle.plate_number = seed.plate_number
     vehicle.fuel_type = seed.fuel_type
     vehicle.tank_capacity_liters = seed.tank_capacity_liters
     vehicle.mileage_baseline_km_per_l = seed.mileage_baseline_km_per_l
@@ -564,14 +639,17 @@ async def seed_database() -> None:
 
     async with async_session() as session:
         user = await _get_or_create_demo_user(session)
+        model_ids_by_key = await _ensure_catalog(session)
 
-        vehicles_by_name: dict[str, Vehicle] = {}
+        vehicles_by_key: dict[str, Vehicle] = {}
         for vehicle_seed in VEHICLE_SEEDS:
-            vehicle = await _get_or_create_vehicle(session, user_id=user.id, seed=vehicle_seed)
-            vehicles_by_name[vehicle_seed.name] = vehicle
+            vehicle = await _get_or_create_vehicle(
+                session, user_id=user.id, seed=vehicle_seed, model_ids_by_key=model_ids_by_key
+            )
+            vehicles_by_key[vehicle_seed.key] = vehicle
 
         for trip_seed in TRIP_SEEDS:
-            vehicle = vehicles_by_name[trip_seed.vehicle_name]
+            vehicle = vehicles_by_key[trip_seed.vehicle_name]
             await _create_trip_bundle(session, user_id=user.id, vehicle=vehicle, seed=trip_seed)
 
         await session.commit()

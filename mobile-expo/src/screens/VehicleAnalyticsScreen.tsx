@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View} from 'react-native';
+import {ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Text, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {getApiErrorMessage} from '../services/apiClient';
@@ -213,12 +213,20 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                   </Text>
                 </View>
                 <View
-                  className="size-[86px] items-center justify-center rounded-3xl border"
+                  className="size-[86px] items-center justify-center overflow-hidden rounded-3xl border"
                   style={{
                     backgroundColor: theme.card,
                     borderColor: theme.cardBorder,
                   }}>
-                  <Ionicons name="car-sport" size={40} color={theme.text} />
+                  {vehicle?.imageUrl ?? summary.vehicle_image_url ? (
+                    <Image
+                      source={{uri: (vehicle?.imageUrl ?? summary.vehicle_image_url) as string}}
+                      style={{width: '100%', height: '100%'}}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Ionicons name="car-sport" size={40} color={theme.text} />
+                  )}
                 </View>
               </View>
 

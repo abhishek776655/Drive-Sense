@@ -18,6 +18,7 @@ interface RecentTrip {
   trip_id: string;
   vehicle_id: string;
   vehicle_name: string;
+  vehicle_image_url: string | null;
   state: string;
   start_time: string;
   end_time: string | null;
@@ -30,6 +31,10 @@ interface RecentTrip {
 interface VehicleSummary {
   vehicle_id: string;
   vehicle_name: string;
+  vehicle_image_url: string | null;
+  company_name: string;
+  model_name: string;
+  nickname: string | null;
   plate_number: string | null;
   fuel_type: string;
   mileage_baseline_km_per_l: number | null;
@@ -55,6 +60,7 @@ interface RecentEvent {
   trip_id: string;
   vehicle_id: string;
   vehicle_name: string;
+  vehicle_image_url: string | null;
   event_type: string;
   occurred_at: string;
   intensity: number | null;
@@ -120,6 +126,7 @@ export interface TransformedDashboard {
     score: number;
     eventCount: number;
     vehicleName: string;
+    vehicleImageUrl: string | null;
     startedAt: string;
     dateLabel: string;
     timeLabel: string;
@@ -128,6 +135,7 @@ export interface TransformedDashboard {
     id: string;
     tripId: string;
     vehicleName: string;
+    vehicleImageUrl: string | null;
     eventType: string;
     occurredAt: string;
     timeLabel: string;
@@ -136,6 +144,10 @@ export interface TransformedDashboard {
   vehicles: Array<{
     id: string;
     name: string;
+    imageUrl: string | null;
+    companyName: string;
+    modelName: string;
+    nickname: string | null;
     plateNumber: string | null;
     fuelType: string;
     totalDistanceMeters: number;
@@ -145,6 +157,14 @@ export interface TransformedDashboard {
     avgScore: number;
   }>;
   activeVehicle: string;
+  ongoingTrip: {
+    id: string;
+    vehicleName: string;
+    startedAt: string;
+    distance: number;
+    duration: number;
+    speed: number;
+  } | null;
 }
 
 const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
@@ -216,6 +236,7 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
       score: t.driving_score ?? 0,
       eventCount: t.event_count,
       vehicleName: t.vehicle_name,
+      vehicleImageUrl: t.vehicle_image_url,
       startedAt: t.start_time,
       dateLabel: new Date(t.start_time).toLocaleDateString('en-IN', {month: 'short', day: 'numeric'}),
       timeLabel: new Date(t.start_time).toLocaleTimeString('en-IN', {
@@ -223,6 +244,21 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
         minute: '2-digit',
       }),
     }));
+
+  const activeTripData = data.recent_trips.find((t) => t.state === 'active' || t.state === 'started');
+  const ongoingTrip = activeTripData
+    ? {
+        id: activeTripData.trip_id,
+        vehicleName: activeTripData.vehicle_name,
+        startedAt: new Date(activeTripData.start_time).toLocaleTimeString('en-IN', {
+          hour: 'numeric',
+          minute: '2-digit',
+        }),
+        distance: activeTripData.distance_meters,
+        duration: activeTripData.duration_seconds,
+        speed: activeTripData.duration_seconds > 0 ? (activeTripData.distance_meters / activeTripData.duration_seconds) * 3.6 : 0,
+      }
+    : null;
 
   const activeVehicle =
     data.vehicles.length > 0 ? data.vehicles[0].vehicle_name : 'No Vehicle';
@@ -283,6 +319,7 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
       id: event.event_id,
       tripId: event.trip_id,
       vehicleName: event.vehicle_name,
+      vehicleImageUrl: event.vehicle_image_url,
       eventType: event.event_type,
       occurredAt: event.occurred_at,
       timeLabel: new Date(event.occurred_at).toLocaleTimeString('en-IN', {
@@ -294,6 +331,10 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
     vehicles: data.vehicles.map((vehicle) => ({
       id: vehicle.vehicle_id,
       name: vehicle.vehicle_name,
+      imageUrl: vehicle.vehicle_image_url,
+      companyName: vehicle.company_name,
+      modelName: vehicle.model_name,
+      nickname: vehicle.nickname,
       plateNumber: vehicle.plate_number,
       fuelType: vehicle.fuel_type,
       totalDistanceMeters: vehicle.total_distance_meters,
@@ -303,6 +344,7 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
       avgScore: Math.round(vehicle.avg_driving_score ?? 0),
     })),
     activeVehicle,
+    ongoingTrip,
   };
 };
 

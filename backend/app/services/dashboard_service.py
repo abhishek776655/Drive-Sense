@@ -10,6 +10,7 @@ from app.models.event import Event
 from app.models.enums import TripState
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
+from app.models.vehicle_catalog import VehicleCompany, VehicleModel
 from app.schemas.dashboard import (
     DashboardResponse,
     EventBreakdown,
@@ -40,6 +41,16 @@ def _to_int(value) -> int:
     if value is None:
         return 0
     return int(value)
+
+
+def _vehicle_display_name_expr():
+    return func.coalesce(Vehicle.name, func.concat(VehicleCompany.name, " ", VehicleModel.name))
+
+
+def _join_vehicle_catalog(stmt):
+    return stmt.join(VehicleModel, VehicleModel.id == Vehicle.model_id).join(
+        VehicleCompany, VehicleCompany.id == VehicleModel.company_id
+    )
 
 
 async def _get_dashboard_summary(
@@ -107,7 +118,8 @@ async def _get_recent_events(
             Event.id.label("event_id"),
             Event.trip_id,
             Trip.vehicle_id,
-            Vehicle.name.label("vehicle_name"),
+            _vehicle_display_name_expr().label("vehicle_name"),
+            VehicleModel.image_url.label("vehicle_image_url"),
             Event.event_type,
             Event.occurred_at,
             Event.intensity,
@@ -115,15 +127,12 @@ async def _get_recent_events(
         .select_from(Event)
         .join(Trip, Trip.id == Event.trip_id)
         .join(Vehicle, Vehicle.id == Trip.vehicle_id)
-        .where(
-            Trip.user_id == user_id,
-            Trip.deleted_at.is_(None),
-            Vehicle.deleted_at.is_(None),
-        )
-        .order_by(Event.occurred_at.desc())
-        .limit(limit)
-        .offset(offset)
     )
+    stmt = _join_vehicle_catalog(stmt).where(
+        Trip.user_id == user_id,
+        Trip.deleted_at.is_(None),
+        Vehicle.deleted_at.is_(None),
+    ).order_by(Event.occurred_at.desc()).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).all()
     items = [
         RecentEventSummary(
@@ -131,6 +140,7 @@ async def _get_recent_events(
             trip_id=row.trip_id,
             vehicle_id=row.vehicle_id,
             vehicle_name=row.vehicle_name,
+            vehicle_image_url=row.vehicle_image_url,
             event_type=row.event_type,
             occurred_at=row.occurred_at,
             intensity=float(row.intensity) if row.intensity is not None else None,
@@ -268,7 +278,8 @@ async def _get_recent_trips(
         select(
             Trip.id.label("trip_id"),
             Trip.vehicle_id,
-            Vehicle.name.label("vehicle_name"),
+            _vehicle_display_name_expr().label("vehicle_name"),
+            VehicleModel.image_url.label("vehicle_image_url"),
             Trip.state,
             Trip.start_time,
             Trip.end_time,
@@ -278,6 +289,9 @@ async def _get_recent_trips(
             func.count(Event.id).label("event_count"),
         )
         .join(Vehicle, Vehicle.id == Trip.vehicle_id)
+    )
+    stmt = (
+        _join_vehicle_catalog(stmt)
         .outerjoin(Event, Event.trip_id == Trip.id)
         .where(
             Trip.user_id == user_id,
@@ -288,6 +302,9 @@ async def _get_recent_trips(
             Trip.id,
             Trip.vehicle_id,
             Vehicle.name,
+            VehicleModel.name,
+            VehicleModel.image_url,
+            VehicleCompany.name,
             Trip.state,
             Trip.start_time,
             Trip.end_time,
@@ -307,6 +324,7 @@ async def _get_recent_trips(
             trip_id=row.trip_id,
             vehicle_id=row.vehicle_id,
             vehicle_name=row.vehicle_name,
+            vehicle_image_url=row.vehicle_image_url,
             state=row.state.value if hasattr(row.state, "value") else str(row.state),
             start_time=row.start_time,
             end_time=row.end_time,
@@ -323,7 +341,11 @@ async def _get_vehicle_summaries(db: AsyncSession, *, user_id: uuid.UUID) -> lis
     stmt = (
         select(
             Vehicle.id.label("vehicle_id"),
-            Vehicle.name.label("vehicle_name"),
+            _vehicle_display_name_expr().label("vehicle_name"),
+            VehicleModel.image_url.label("vehicle_image_url"),
+            VehicleCompany.name.label("company_name"),
+            VehicleModel.name.label("model_name"),
+            Vehicle.name.label("nickname"),
             Vehicle.plate_number,
             Vehicle.fuel_type,
             Vehicle.mileage_baseline_km_per_l,
@@ -334,12 +356,24 @@ async def _get_vehicle_summaries(db: AsyncSession, *, user_id: uuid.UUID) -> lis
             func.max(Trip.start_time).label("last_trip_at"),
         )
         .select_from(Vehicle)
+    )
+    stmt = (
+        _join_vehicle_catalog(stmt)
         .outerjoin(Trip, (Trip.vehicle_id == Vehicle.id) & (Trip.deleted_at.is_(None)))
         .where(
             Vehicle.user_id == user_id,
             Vehicle.deleted_at.is_(None),
         )
-        .group_by(Vehicle.id, Vehicle.name, Vehicle.plate_number, Vehicle.fuel_type, Vehicle.mileage_baseline_km_per_l)
+        .group_by(
+            Vehicle.id,
+            Vehicle.name,
+            VehicleModel.name,
+            VehicleModel.image_url,
+            VehicleCompany.name,
+            Vehicle.plate_number,
+            Vehicle.fuel_type,
+            Vehicle.mileage_baseline_km_per_l,
+        )
         .order_by(func.max(Trip.start_time).desc().nullslast(), Vehicle.created_at.desc())
         .limit(VEHICLE_SUMMARY_LIMIT)
     )
@@ -349,6 +383,10 @@ async def _get_vehicle_summaries(db: AsyncSession, *, user_id: uuid.UUID) -> lis
             VehicleDashboardSummary(
                 vehicle_id=row.vehicle_id,
                 vehicle_name=row.vehicle_name,
+                vehicle_image_url=row.vehicle_image_url,
+                company_name=row.company_name,
+                model_name=row.model_name,
+                nickname=row.nickname,
                 plate_number=row.plate_number,
                 fuel_type=row.fuel_type.value if hasattr(row.fuel_type, "value") else str(row.fuel_type),
                 mileage_baseline_km_per_l=float(row.mileage_baseline_km_per_l) if row.mileage_baseline_km_per_l is not None else None,
@@ -371,7 +409,8 @@ async def _get_vehicle_overview(
     stmt = (
         select(
             Vehicle.id.label("vehicle_id"),
-            Vehicle.name.label("vehicle_name"),
+            _vehicle_display_name_expr().label("vehicle_name"),
+            VehicleModel.image_url.label("vehicle_image_url"),
             Vehicle.fuel_type,
             func.count(Trip.id).label("trip_count"),
             func.coalesce(func.sum(case((Trip.state != TripState.ended, 1), else_=0)), 0).label("active_trip_count"),
@@ -383,13 +422,16 @@ async def _get_vehicle_overview(
             func.max(Trip.start_time).label("last_trip_at"),
         )
         .select_from(Vehicle)
+    )
+    stmt = (
+        _join_vehicle_catalog(stmt)
         .outerjoin(Trip, (Trip.vehicle_id == Vehicle.id) & (Trip.deleted_at.is_(None)))
         .where(
             Vehicle.id == vehicle_id,
             Vehicle.user_id == user_id,
             Vehicle.deleted_at.is_(None),
         )
-        .group_by(Vehicle.id, Vehicle.name, Vehicle.fuel_type)
+        .group_by(Vehicle.id, Vehicle.name, VehicleModel.name, VehicleModel.image_url, VehicleCompany.name, Vehicle.fuel_type)
     )
     row = (await db.execute(stmt)).one_or_none()
     if row is None:
@@ -398,6 +440,7 @@ async def _get_vehicle_overview(
     return VehicleStatsSummary(
         vehicle_id=row.vehicle_id,
         vehicle_name=row.vehicle_name,
+        vehicle_image_url=row.vehicle_image_url,
         fuel_type=row.fuel_type.value if hasattr(row.fuel_type, "value") else str(row.fuel_type),
         trip_count=_to_int(row.trip_count),
         active_trip_count=_to_int(row.active_trip_count),

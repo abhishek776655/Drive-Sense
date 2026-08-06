@@ -12,7 +12,12 @@ export type VehicleFuelType =
 export type VehicleRead = {
   id: string;
   user_id: string;
-  name: string;
+  model_id: string;
+  company_name: string;
+  model_name: string;
+  image_url: string | null;
+  nickname: string | null;
+  display_name: string;
   plate_number: string | null;
   fuel_type: VehicleFuelType;
   tank_capacity_liters: number | null;
@@ -21,7 +26,8 @@ export type VehicleRead = {
 };
 
 export type VehicleUpdatePayload = {
-  name?: string;
+  model_id?: string;
+  nickname?: string | null;
   plate_number?: string | null;
   fuel_type?: VehicleFuelType;
   tank_capacity_liters?: number | null;
@@ -32,6 +38,7 @@ export type VehicleStatsRead = {
   summary: {
     vehicle_id: string;
     vehicle_name: string;
+    vehicle_image_url: string | null;
     fuel_type: VehicleFuelType;
     trip_count: number;
     active_trip_count: number;
@@ -68,6 +75,7 @@ export type VehicleStatsRead = {
     trip_id: string;
     vehicle_id: string;
     vehicle_name: string;
+    vehicle_image_url: string | null;
     state: string;
     start_time: string;
     end_time: string | null;
@@ -88,7 +96,8 @@ export const vehicleService = {
     return response.data;
   },
   createVehicle: async (payload: {
-    name: string;
+    model_id: string;
+    nickname?: string | null;
     plate_number?: string | null;
     fuel_type: VehicleFuelType;
     tank_capacity_liters?: number | null;

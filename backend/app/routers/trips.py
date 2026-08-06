@@ -11,8 +11,9 @@ from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.event import EventCreate, EventIngestResponse
 from app.schemas.location_point import LocationIngestResponse, LocationPointCreate
-from app.schemas.trip import TripDetailRead, TripEndRequest, TripEventRead, TripListPage, TripListRead, TripLocationPointRead, TripRead, TripStartRequest
+from app.schemas.trip import TripDetailRead, TripEndRequest, TripEventRead, TripInsightRead, TripListPage, TripListRead, TripLocationPointRead, TripRead, TripStartRequest
 from app.services.location_ingestion_service import ingest_events, ingest_location_points
+from app.services.trip_insight_service import generate_trip_insights
 from app.services.trip_service import end_trip, get_trip_detail, list_trip_summaries, list_trips, start_trip
 
 router = APIRouter(prefix="/trips")
@@ -24,6 +25,7 @@ async def get_trips(
     start_time_gte: datetime | None = Query(default=None),
     start_time_lte: datetime | None = Query(default=None),
     min_score: int | None = Query(default=None, ge=0, le=100),
+    search: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
@@ -36,6 +38,7 @@ async def get_trips(
         start_time_gte=start_time_gte,
         start_time_lte=start_time_lte,
         min_score=min_score,
+        search=search,
         limit=limit,
         offset=offset,
     )
@@ -51,6 +54,7 @@ async def get_trips(
             duration_seconds=row.duration_seconds,
             created_at=row.created_at,
             vehicle_name=row.vehicle_name,
+            vehicle_image_url=row.vehicle_image_url,
             driving_score=row.driving_score,
             avg_speed_mps=float(row.avg_speed_mps) if row.avg_speed_mps is not None else None,
             event_count=int(row.event_count or 0),
@@ -80,7 +84,8 @@ async def get_trip_by_id(
         distance_meters=float(trip.distance_meters or 0),
         duration_seconds=trip.duration_seconds,
         created_at=trip.created_at,
-        vehicle_name=trip.vehicle.name,
+        vehicle_name=trip.vehicle.display_name,
+        vehicle_image_url=trip.vehicle.image_url,
         avg_speed_mps=float(trip.avg_speed_mps) if trip.avg_speed_mps is not None else None,
         max_speed_mps=float(trip.max_speed_mps) if trip.max_speed_mps is not None else None,
         idle_time_seconds=trip.idle_time_seconds,
@@ -116,6 +121,19 @@ async def get_trip_by_id(
                 payload=event.payload,
             )
             for event in trip.events
+        ],
+        insights=[
+            TripInsightRead(
+                rule_id=insight.rule_id,
+                category=insight.category,
+                tone=insight.tone,
+                title=insight.title,
+                message=insight.message,
+                metric_label=insight.metric_label,
+                metric_value=insight.metric_value,
+                priority=insight.priority,
+            )
+            for insight in generate_trip_insights(trip)
         ],
     )
 

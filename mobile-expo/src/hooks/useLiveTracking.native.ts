@@ -77,6 +77,15 @@ const smoothHeading = (from: number, to: number, factor: number) => {
   return normalizeHeading(from + headingDelta(from, to) * factor);
 };
 
+// `fallbackHeading` is null until we have any real heading reading (compass or GPS-derived).
+// Using null instead of overloading 0 avoids treating a genuine due-north reading as "uninitialized".
+const resolveHeading = (fallbackHeading: number | null, rawHeading: number, smoothingFactor: number) => {
+  if (fallbackHeading == null) {
+    return normalizeHeading(rawHeading);
+  }
+  return smoothHeading(fallbackHeading, rawHeading, smoothingFactor);
+};
+
 const bearingBetween = (left: TrackingPoint, right: Location.LocationObject['coords']) => {
   const toRad = (value: number) => (value * Math.PI) / 180;
   const toDeg = (value: number) => (value * 180) / Math.PI;
@@ -90,7 +99,7 @@ const bearingBetween = (left: TrackingPoint, right: Location.LocationObject['coo
 
 const toTrackingPoint = (
   location: Location.LocationObject,
-  fallbackHeading: number,
+  fallbackHeading: number | null,
   previousPoint: TrackingPoint | null,
 ): TrackingPoint => {
   const {coords, timestamp} = location;
@@ -111,8 +120,8 @@ const toTrackingPoint = (
         }) > 4
       : false;
   const derivedBearing = previousPoint && movedEnough ? bearingBetween(previousPoint, coords) : null;
-  const rawHeading = hasNativeHeading && speed >= 1 ? coords.heading! : derivedBearing ?? fallbackHeading;
-  const resolvedHeading = smoothHeading(fallbackHeading, rawHeading, fallbackHeading === 0 ? 1 : 0.42);
+  const rawHeading = hasNativeHeading && speed >= 1 ? coords.heading! : derivedBearing ?? fallbackHeading ?? 0;
+  const resolvedHeading = resolveHeading(fallbackHeading, rawHeading, 0.42);
 
   return {
     recorded_at: new Date(timestamp).toISOString(),
@@ -174,26 +183,34 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
   const [events, setEvents] = useState<TrackingEvent[]>([]);
   const [latestAcceleration, setLatestAcceleration] = useState({x: 0, y: 0, z: 0, magnitude: 0});
   const [isStarted, setIsStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [hasEnded, setHasEnded] = useState(false);
-  const [hasOverspeeded, setHasOverspeeded] = useState(false);
   const [completedTrip, setCompletedTrip] = useState<CompletedTripSummary | null>(null);
 
   const isStartedRef = useRef(false);
+  const isPausedRef = useRef(false);
   const hasEndedRef = useRef(false);
+  const hasOverspeededRef = useRef(false);
   const lastSentPointCountRef = useRef(0);
   const lastSentEventCountRef = useRef(0);
   const sendingPointsRef = useRef(false);
   const sendingEventsRef = useRef(false);
   const watchSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const headingSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
-  const latestHeadingRef = useRef(0);
+  const latestHeadingRef = useRef<number | null>(null);
   const latestPointRef = useRef<TrackingPoint | null>(null);
+  const pointsRef = useRef<TrackingPoint[]>([]);
   const endingTripRef = useRef(false);
   const lastMovementAtRef = useRef<string | null>(null);
+  const isUnmountedRef = useRef(false);
 
   useEffect(() => {
     isStartedRef.current = isStarted;
   }, [isStarted]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   useEffect(() => {
     hasEndedRef.current = hasEnded;
@@ -211,6 +228,8 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
 
       setCompletedTrip(null);
       setHasEnded(false);
+      setIsPaused(false);
+      isPausedRef.current = false;
       hasEndedRef.current = false;
       isStartedRef.current = true;
       setIsStarted(true);
@@ -222,14 +241,13 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
       lastSentPointCountRef.current = 0;
       lastSentEventCountRef.current = 0;
       lastMovementAtRef.current = startedAt;
-      setPoints((current) => {
-        if (current.length === 0) {
-          return current;
-        }
-        const seedPoint = current[current.length - 1];
+
+      if (pointsRef.current.length > 0) {
+        const seedPoint = pointsRef.current[pointsRef.current.length - 1];
         latestPointRef.current = seedPoint;
-        return [seedPoint];
-      });
+        pointsRef.current = [seedPoint];
+        setPoints(pointsRef.current);
+      }
 
       if (!vehicleId) {
         setSyncState('local_only');
@@ -287,6 +305,8 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
         setSyncState((current) => (current === 'error' ? current : 'saved'));
         setBackendTripId(null);
         setIsStarted(false);
+        setIsPaused(false);
+        isPausedRef.current = false;
         isStartedRef.current = false;
         setHasEnded(true);
         hasEndedRef.current = true;
@@ -309,194 +329,261 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     [backendTripId, events, fetchDashboard, sessionStartTime, vehicleId],
   );
 
+  const pauseTrip = useCallback(() => {
+    if (!isStartedRef.current || hasEndedRef.current) {
+      return;
+    }
+    setIsPaused((current) => {
+      const nextPaused = !current;
+      isPausedRef.current = nextPaused;
+      if (!nextPaused) {
+        // Resuming: restart the idle clock so a long pause doesn't read as idle time and
+        // immediately trip the auto-end-on-idle check on the next stationary point.
+        lastMovementAtRef.current = new Date().toISOString();
+      }
+      return nextPaused;
+    });
+  }, []);
+
+  const endTrip = useCallback(() => {
+    const endedAt = latestPointRef.current?.recorded_at ?? new Date().toISOString();
+    void finalizeTrip(endedAt, pointsRef.current);
+  }, [finalizeTrip]);
+
+  // Side effects (event detection, trip start/end, backend sync triggers) run as plain sequential
+  // code here, never inside a setState updater function — updater functions must stay pure, since
+  // React is free to re-invoke them (e.g. under StrictMode), which would double-fire everything below.
   const handleLocationPoint = useCallback(
     (point: TrackingPoint) => {
-      setPoints((current) => {
-        const previous = current[current.length - 1];
+      const previous = latestPointRef.current;
 
-        if (point.accuracy_m > MAX_ACCEPTABLE_ACCURACY_M && previous) {
-          return current;
-        }
+      if (point.accuracy_m > MAX_ACCEPTABLE_ACCURACY_M && previous) {
+        return;
+      }
 
-        if (previous) {
-          const distanceMeters = metersBetween(previous, point);
-          const deltaSeconds =
-            (new Date(point.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 1000;
+      if (previous) {
+        const distanceMeters = metersBetween(previous, point);
+        const deltaSecondsForFilter =
+          (new Date(point.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 1000;
 
-          if (deltaSeconds > 0) {
-            const maxExpectedDistance =
-              Math.max(MAX_STATIONARY_DRIFT_METERS, Math.max(previous.speed_mps, point.speed_mps) * deltaSeconds * 3.2);
+        if (deltaSecondsForFilter > 0) {
+          const maxExpectedDistance =
+            Math.max(MAX_STATIONARY_DRIFT_METERS, Math.max(previous.speed_mps, point.speed_mps) * deltaSecondsForFilter * 3.2);
 
-            if (distanceMeters > maxExpectedDistance && point.accuracy_m > previous.accuracy_m) {
-              return current;
-            }
+          if (distanceMeters > maxExpectedDistance && point.accuracy_m > previous.accuracy_m) {
+            return;
           }
         }
+      }
 
-        latestPointRef.current = point;
-        const nextPoints = [...current, point];
+      latestPointRef.current = point;
 
-        if (point.is_moving || point.speed_mps >= 0.8) {
-          lastMovementAtRef.current = point.recorded_at;
+      if (isPausedRef.current) {
+        if (pointsRef.current.length === 0) {
+          pointsRef.current = [point];
+          setPoints(pointsRef.current);
         }
+        return;
+      }
 
-        if (!isStartedRef.current && point.speed_mps >= AUTO_START_SPEED_MPS) {
-          void startTrip(point.recorded_at);
-        }
+      const nextPoints = [...pointsRef.current, point];
+      pointsRef.current = nextPoints;
 
-        if (previous) {
-          const deltaSeconds =
-            (new Date(point.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 1000;
-          if (deltaSeconds > 0) {
-            const accelerationMps2 = (point.speed_mps - previous.speed_mps) / deltaSeconds;
-            if (accelerationMps2 >= RAPID_ACCELERATION_MPS2) {
-              pushEvent({
-                event_type: 'rapid_acceleration',
-                intensity: Number((accelerationMps2 / RAPID_ACCELERATION_MPS2).toFixed(3)),
-                occurred_at: point.recorded_at,
-                latitude: point.latitude,
-                longitude: point.longitude,
-                payload: {
-                  speed_mps: point.speed_mps,
-                  previous_speed_mps: previous.speed_mps,
-                  acceleration_mps2: Number(accelerationMps2.toFixed(3)),
-                  delta_seconds: Number(deltaSeconds.toFixed(3)),
-                  sensor_acceleration_mps2: Number(latestAcceleration.magnitude.toFixed(3)),
-                },
-              });
-            } else if (accelerationMps2 <= HARSH_BRAKE_MPS2) {
-              pushEvent({
-                event_type: 'harsh_brake',
-                intensity: Number((Math.abs(accelerationMps2) / Math.abs(HARSH_BRAKE_MPS2)).toFixed(3)),
-                occurred_at: point.recorded_at,
-                latitude: point.latitude,
-                longitude: point.longitude,
-                payload: {
-                  speed_mps: point.speed_mps,
-                  previous_speed_mps: previous.speed_mps,
-                  acceleration_mps2: Number(accelerationMps2.toFixed(3)),
-                  delta_seconds: Number(deltaSeconds.toFixed(3)),
-                  sensor_acceleration_mps2: Number(latestAcceleration.magnitude.toFixed(3)),
-                },
-              });
-            }
+      if (point.is_moving || point.speed_mps >= 0.8) {
+        lastMovementAtRef.current = point.recorded_at;
+      }
+
+      if (!isStartedRef.current && point.speed_mps >= AUTO_START_SPEED_MPS) {
+        void startTrip(point.recorded_at);
+      }
+
+      if (previous) {
+        const deltaSeconds =
+          (new Date(point.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 1000;
+        if (deltaSeconds > 0) {
+          const accelerationMps2 = (point.speed_mps - previous.speed_mps) / deltaSeconds;
+          if (accelerationMps2 >= RAPID_ACCELERATION_MPS2) {
+            pushEvent({
+              event_type: 'rapid_acceleration',
+              intensity: Number((accelerationMps2 / RAPID_ACCELERATION_MPS2).toFixed(3)),
+              occurred_at: point.recorded_at,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              payload: {
+                speed_mps: point.speed_mps,
+                previous_speed_mps: previous.speed_mps,
+                acceleration_mps2: Number(accelerationMps2.toFixed(3)),
+                delta_seconds: Number(deltaSeconds.toFixed(3)),
+                sensor_acceleration_mps2: Number(latestAcceleration.magnitude.toFixed(3)),
+              },
+            });
+          } else if (accelerationMps2 <= HARSH_BRAKE_MPS2) {
+            pushEvent({
+              event_type: 'harsh_brake',
+              intensity: Number((Math.abs(accelerationMps2) / Math.abs(HARSH_BRAKE_MPS2)).toFixed(3)),
+              occurred_at: point.recorded_at,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              payload: {
+                speed_mps: point.speed_mps,
+                previous_speed_mps: previous.speed_mps,
+                acceleration_mps2: Number(accelerationMps2.toFixed(3)),
+                delta_seconds: Number(deltaSeconds.toFixed(3)),
+                sensor_acceleration_mps2: Number(latestAcceleration.magnitude.toFixed(3)),
+              },
+            });
           }
         }
+      }
 
-        if (point.speed_mps > OVERSPEED_MPS) {
-          setHasOverspeeded((currentOverspeed) => {
-            if (!currentOverspeed) {
-              pushEvent({
-                event_type: 'overspeed',
-                intensity: Number((point.speed_mps / OVERSPEED_MPS).toFixed(3)),
-                occurred_at: point.recorded_at,
-                latitude: point.latitude,
-                longitude: point.longitude,
-                payload: {
-                  speed_mps: point.speed_mps,
-                  speed_kph: Number((point.speed_mps * 3.6).toFixed(2)),
-                  threshold_mps: OVERSPEED_MPS,
-                },
-              });
-            }
-            return true;
+      if (point.speed_mps > OVERSPEED_MPS) {
+        if (!hasOverspeededRef.current) {
+          hasOverspeededRef.current = true;
+          pushEvent({
+            event_type: 'overspeed',
+            intensity: Number((point.speed_mps / OVERSPEED_MPS).toFixed(3)),
+            occurred_at: point.recorded_at,
+            latitude: point.latitude,
+            longitude: point.longitude,
+            payload: {
+              speed_mps: point.speed_mps,
+              speed_kph: Number((point.speed_mps * 3.6).toFixed(2)),
+              threshold_mps: OVERSPEED_MPS,
+            },
           });
-        } else {
-          setHasOverspeeded(false);
         }
+      } else {
+        hasOverspeededRef.current = false;
+      }
 
-        if (
-          isStartedRef.current &&
-          !hasEndedRef.current &&
-          !point.is_moving &&
-          lastMovementAtRef.current &&
-          (new Date(point.recorded_at).getTime() - new Date(lastMovementAtRef.current).getTime()) / 1000 >= AUTO_END_IDLE_SECONDS &&
-          hasStableIdleCluster(nextPoints)
-        ) {
-          void finalizeTrip(point.recorded_at, nextPoints);
-        }
+      setPoints(nextPoints);
 
-        return nextPoints;
-      });
+      if (
+        isStartedRef.current &&
+        !isPausedRef.current &&
+        !hasEndedRef.current &&
+        !point.is_moving &&
+        lastMovementAtRef.current &&
+        (new Date(point.recorded_at).getTime() - new Date(lastMovementAtRef.current).getTime()) / 1000 >= AUTO_END_IDLE_SECONDS &&
+        hasStableIdleCluster(nextPoints)
+      ) {
+        void finalizeTrip(point.recorded_at, nextPoints);
+      }
     },
     [finalizeTrip, latestAcceleration.magnitude, pushEvent, startTrip],
   );
 
-  useEffect(() => {
-    let cancelled = false;
+  const startWatchers = useCallback(async () => {
+    if (watchSubscriptionRef.current) {
+      return;
+    }
 
-    const setup = async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (cancelled) {
-        return;
-      }
-
-      if (permission.status !== 'granted') {
-        setPermissionState('denied');
-        setSyncState('error');
-        setSyncError('Location permission denied');
-        return;
-      }
-
-      setPermissionState('granted');
-
-      try {
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (!cancelled) {
-          handleLocationPoint(toTrackingPoint(currentLocation, latestHeadingRef.current, latestPointRef.current));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setSyncError(error instanceof Error ? error.message : 'Unable to read current location');
-        }
-      }
-
-      headingSubscriptionRef.current = await Location.watchHeadingAsync((heading) => {
-        const nextHeading =
-          heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading >= 0 ? heading.magHeading : 0;
-        const resolvedHeading = smoothHeading(latestHeadingRef.current, nextHeading, latestHeadingRef.current === 0 ? 1 : 0.28);
-        latestHeadingRef.current = resolvedHeading;
-        setPoints((current) => {
-          if (current.length === 0) {
-            return current;
-          }
-
-          const lastPoint = current[current.length - 1];
-          const delta = Math.abs(headingDelta(lastPoint.heading_deg, resolvedHeading));
-          if (delta < 2.5) {
-            return current;
-          }
-
-          const nextPoints = [...current];
-          nextPoints[nextPoints.length - 1] = {
-            ...lastPoint,
-            heading_deg: resolvedHeading,
-          };
-          latestPointRef.current = nextPoints[nextPoints.length - 1];
-          return nextPoints;
-        });
+    try {
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
+      if (isUnmountedRef.current) {
+        return;
+      }
+      handleLocationPoint(toTrackingPoint(currentLocation, latestHeadingRef.current, latestPointRef.current));
+    } catch (error) {
+      if (!isUnmountedRef.current) {
+        setSyncError(error instanceof Error ? error.message : 'Unable to read current location');
+      }
+    }
 
-      watchSubscriptionRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 3000,
-          distanceInterval: 5,
-          mayShowUserSettingsDialog: true,
-        },
-        (location) => {
-          if (!cancelled) {
-            handleLocationPoint(toTrackingPoint(location, latestHeadingRef.current, latestPointRef.current));
-          }
-        },
-      );
-    };
+    const headingSubscription = await Location.watchHeadingAsync((heading) => {
+      const nextHeading =
+        heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading >= 0 ? heading.magHeading : 0;
+      const resolvedHeading = resolveHeading(latestHeadingRef.current, nextHeading, 0.28);
+      latestHeadingRef.current = resolvedHeading;
 
-    void setup();
+      if (pointsRef.current.length === 0) {
+        return;
+      }
+
+      const lastPoint = pointsRef.current[pointsRef.current.length - 1];
+      const delta = Math.abs(headingDelta(lastPoint.heading_deg, resolvedHeading));
+      if (delta < 2.5) {
+        return;
+      }
+
+      const nextPoints = [...pointsRef.current];
+      nextPoints[nextPoints.length - 1] = {
+        ...lastPoint,
+        heading_deg: resolvedHeading,
+      };
+      pointsRef.current = nextPoints;
+      latestPointRef.current = nextPoints[nextPoints.length - 1];
+      setPoints(nextPoints);
+    });
+
+    if (isUnmountedRef.current) {
+      headingSubscription.remove();
+      return;
+    }
+    headingSubscriptionRef.current = headingSubscription;
+
+    const positionSubscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 3000,
+        distanceInterval: 5,
+        mayShowUserSettingsDialog: true,
+      },
+      (location) => {
+        handleLocationPoint(toTrackingPoint(location, latestHeadingRef.current, latestPointRef.current));
+      },
+    );
+
+    if (isUnmountedRef.current) {
+      positionSubscription.remove();
+      return;
+    }
+    watchSubscriptionRef.current = positionSubscription;
+  }, [handleLocationPoint]);
+
+  const requestLocationAccess = useCallback(async () => {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (isUnmountedRef.current) {
+      return;
+    }
+
+    if (permission.status !== 'granted') {
+      setPermissionState('denied');
+      setSyncState('error');
+      setSyncError('Location permission denied');
+      return;
+    }
+
+    setPermissionState('granted');
+    setSyncError((current) => (current === 'Location permission denied' ? null : current));
+    setSyncState((current) => (current === 'error' ? 'idle' : current));
+    await startWatchers();
+  }, [startWatchers]);
+
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    void requestLocationAccess();
 
     Accelerometer.setUpdateInterval(800);
+
+    return () => {
+      isUnmountedRef.current = true;
+      watchSubscriptionRef.current?.remove();
+      watchSubscriptionRef.current = null;
+      headingSubscriptionRef.current?.remove();
+      headingSubscriptionRef.current = null;
+    };
+  }, [requestLocationAccess]);
+
+  // Accelerometer output is cosmetic only (paceDelta label + event payload metadata) — actual
+  // event detection is pure GPS speed-delta. Only sample it while a trip is active to save battery.
+  useEffect(() => {
+    if (!isStarted) {
+      return;
+    }
+
     const accelerometerSubscription = Accelerometer.addListener((reading) => {
       const magnitude = Math.sqrt(reading.x ** 2 + reading.y ** 2 + reading.z ** 2) * 9.81;
       setLatestAcceleration({
@@ -508,14 +595,9 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     });
 
     return () => {
-      cancelled = true;
       accelerometerSubscription.remove();
-      watchSubscriptionRef.current?.remove();
-      watchSubscriptionRef.current = null;
-      headingSubscriptionRef.current?.remove();
-      headingSubscriptionRef.current = null;
     };
-  }, [handleLocationPoint]);
+  }, [isStarted]);
 
   useEffect(() => {
     if (!backendTripId || points.length === 0 || sendingPointsRef.current) {
@@ -595,12 +677,14 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     };
   }, [backendTripId, events]);
 
+  // Keep showing the full route while a trip is active, and also right after it ends so the
+  // just-finished route doesn't vanish the instant the "trip saved" card appears.
   const visiblePoints = useMemo(() => {
-    if (isStarted) {
+    if (isStarted || completedTrip) {
       return points;
     }
     return points.length > 0 ? [points[points.length - 1]] : [];
-  }, [isStarted, points]);
+  }, [isStarted, completedTrip, points]);
 
   const hasLiveLocation = points.length > 0;
   const currentPoint = visiblePoints[visiblePoints.length - 1] ?? points[points.length - 1] ?? null;
@@ -635,9 +719,11 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     : 'Waiting for live GPS fix';
   const lastEvent = events[events.length - 1];
 
-  const state = hasEnded ? 'ended' : !isStarted ? 'ready' : resolvedPoint.is_moving ? 'moving' : 'idle';
+  const state = hasEnded ? 'ready' : isPaused ? 'paused' : !isStarted ? 'ready' : resolvedPoint.is_moving ? 'moving' : 'idle';
   const prominentStatus = hasEnded
-    ? 'Trip Saved'
+    ? 'Waiting for Movement'
+    : isPaused
+      ? 'Trip Paused'
     : !hasLiveLocation
       ? 'Waiting for Location'
       : !isStarted
@@ -649,7 +735,9 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     permissionState === 'denied'
       ? 'Location access needed'
       : hasEnded
-        ? 'Trip saved to history'
+        ? 'Ready for live tracking'
+        : isPaused
+          ? 'Trip paused'
         : syncState === 'starting'
           ? 'Starting trip'
         : syncState === 'syncing'
@@ -682,6 +770,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     heading: `${Math.round(resolvedPoint.heading_deg)}°`,
     paceDelta: lastEvent ? `${lastEvent.event_type.replace('_', ' ')} detected` : `${latestAcceleration.magnitude.toFixed(1)} m/s² motion`,
     isStarted,
+    isPaused,
     hasEnded,
     prominentStatus,
     syncLabel,
@@ -690,7 +779,11 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     acceptedEvents,
     syncError,
     completedTrip,
+    permissionState,
+    retryLocationPermission: requestLocationAccess,
     startTrip: () => startTrip(new Date().toISOString()),
+    pauseTrip,
+    endTrip,
     stats: [
       {label: 'avg_speed_mps', value: avgSpeedMps.toFixed(1)},
       {label: 'max_speed_mps', value: maxSpeedMps.toFixed(1)},

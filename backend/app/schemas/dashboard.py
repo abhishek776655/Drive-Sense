@@ -24,6 +24,7 @@ class RecentEventSummary(SchemaBase):
     trip_id: UUID
     vehicle_id: UUID
     vehicle_name: str
+    vehicle_image_url: str | None = None
     event_type: str
     occurred_at: datetime
     intensity: float | None = None
@@ -56,6 +57,7 @@ class RecentTripSummary(SchemaBase):
     trip_id: UUID
     vehicle_id: UUID
     vehicle_name: str
+    vehicle_image_url: str | None = None
     state: str
     start_time: datetime
     end_time: datetime | None
@@ -68,6 +70,10 @@ class RecentTripSummary(SchemaBase):
 class VehicleDashboardSummary(SchemaBase):
     vehicle_id: UUID
     vehicle_name: str
+    vehicle_image_url: str | None = None
+    company_name: str
+    model_name: str
+    nickname: str | None = None
     plate_number: str | None = None
     fuel_type: str
     mileage_baseline_km_per_l: float | None = None
@@ -92,6 +98,7 @@ class DashboardResponse(SchemaBase):
 class VehicleStatsSummary(SchemaBase):
     vehicle_id: UUID
     vehicle_name: str
+    vehicle_image_url: str | None = None
     fuel_type: str
     trip_count: int
     active_trip_count: int

@@ -2,6 +2,7 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useAppTheme} from '../theme/appTheme';
+import {StatTile} from './StatTile';
 import type {MockTrip} from '../mocks/trackingData';
 import type {RouteSummary} from '../utils/tripRoute';
 import {formatDistanceLabel, formatDurationShort, formatSpeedLabel} from '../utils/tripRoute';
@@ -14,6 +15,7 @@ type Props = {
 
 export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapContent}) => {
   const theme = useAppTheme();
+  const tripInsights = trip.insights ?? [];
   const totalEventCount = trip.events.length;
   const eventBreakdown = {
     harsh_brake: trip.events.filter((event) => event.event_type === 'harsh_brake').length,
@@ -21,6 +23,9 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
     overspeed: trip.events.filter((event) => event.event_type === 'overspeed').length,
   };
   const strongestEvent = [...trip.events].sort((left, right) => right.intensity - left.intensity)[0];
+  // A trip still in progress hasn't been scored yet — showing a literal 0 next to a "Clean Drive"
+  // badge reads as contradictory, so show a placeholder until the trip actually ends.
+  const isScored = trip.status === 'Completed' || trip.drivingScore > 0;
   const riskLevel =
     eventBreakdown.overspeed > 0 || eventBreakdown.harsh_brake > 1
       ? 'High Risk'
@@ -29,14 +34,16 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
         : totalEventCount === 1
           ? 'Low Risk'
           : 'Clean Drive';
+  // Low Risk uses a teal distinct from both the brand accent blue and the Clean Drive green,
+  // so risk-tier color never overlaps with a color that already means something else on other screens.
   const riskColor =
     riskLevel === 'High Risk'
-      ? '#EF4444'
+      ? theme.danger
       : riskLevel === 'Moderate Risk'
-        ? '#F59E0B'
+        ? theme.warning
         : riskLevel === 'Low Risk'
-          ? '#2563EB'
-          : '#22C55E';
+          ? '#0D9488'
+          : theme.success;
 
   const topStats = [
     {label: 'Road Distance', value: formatDistanceLabel(summary.totalDistanceMeters)},
@@ -52,26 +59,28 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
     {label: 'Total Events', value: String(totalEventCount)},
   ];
 
+  // Colors match the Dashboard's event-severity mapping (overspeed=danger, harsh_brake=warning,
+  // rapid_acceleration=accent) so the same event type doesn't read as a different color per screen.
   const eventCards = [
     {
       key: 'harsh_brake',
       label: 'Harsh Brake',
       icon: 'remove-circle',
-      color: '#EF4444',
+      color: theme.warning,
       value: eventBreakdown.harsh_brake,
     },
     {
       key: 'rapid_acceleration',
       label: 'Rapid Accel',
       icon: 'trending-up',
-      color: '#F59E0B',
+      color: theme.accent,
       value: eventBreakdown.rapid_acceleration,
     },
     {
       key: 'overspeed',
       label: 'Overspeed',
       icon: 'speedometer',
-      color: '#2563EB',
+      color: theme.danger,
       value: eventBreakdown.overspeed,
     },
   ];
@@ -92,19 +101,49 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
           ? 'stable progress'
           : 'high-speed stretch';
 
+  const getInsightTone = (tone: string) => {
+    if (tone === 'warning') {
+      return {
+        color: theme.warning,
+        backgroundColor: theme.warningSoft,
+        icon: 'alert-circle',
+      };
+    }
+    if (tone === 'success') {
+      return {
+        color: theme.success,
+        backgroundColor: theme.successMuted,
+        icon: 'checkmark-circle',
+      };
+    }
+    return {
+      color: theme.accent,
+      backgroundColor: theme.accentMuted,
+      icon: 'information-circle',
+    };
+  };
+
   return (
     <View>
       <View
         className="mb-[14px] rounded-[28px] border p-4"
         style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 28, borderWidth: 1, padding: 16}}>
-        <View className="mb-3 flex-row items-center justify-between">
-          <Text style={{color: theme.text, ...theme.typography.body, fontWeight: '700'}}>{trip.date}</Text>
-          <View className="flex-row gap-2">
+        <View className="mb-3 flex-row items-start justify-between gap-3">
+          <Text
+            numberOfLines={2}
+            style={{color: theme.text, ...theme.typography.body, fontWeight: '700', flex: 1, minWidth: 0}}>
+            {trip.date}
+          </Text>
+          <View className="flex-shrink-0 flex-row flex-wrap justify-end gap-2" style={{maxWidth: 150}}>
             <View className="rounded-full px-2.5 py-[5px]" style={{backgroundColor: theme.accentMuted}}>
-              <Text style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>{trip.category}</Text>
+              <Text numberOfLines={1} style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>
+                {trip.category}
+              </Text>
             </View>
             <View className="rounded-full px-2.5 py-[5px]" style={{backgroundColor: 'rgba(34,197,94,0.12)'}}>
-              <Text style={{color: '#22C55E', ...theme.typography.caption, fontWeight: '700'}}>{trip.status}</Text>
+              <Text numberOfLines={1} style={{color: '#22C55E', ...theme.typography.caption, fontWeight: '700'}}>
+                {trip.status}
+              </Text>
             </View>
           </View>
         </View>
@@ -124,18 +163,32 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
             </View>
             <View className="flex-1">
               <View className="mb-[14px]">
-                <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center justify-between gap-3">
                   <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>Start</Text>
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{trip.startTime}</Text>
+                  <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, flexShrink: 1, textAlign: 'right'}}>
+                    {trip.startTime}
+                  </Text>
                 </View>
-                <Text className="mt-1" style={{color: theme.text, ...theme.typography.body, fontWeight: '800'}}>{trip.title}</Text>
+                <Text
+                  className="mt-1"
+                  numberOfLines={2}
+                  style={{color: theme.text, ...theme.typography.body, fontWeight: '800', flexShrink: 1}}>
+                  {trip.title}
+                </Text>
               </View>
               <View>
-                <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center justify-between gap-3">
                   <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>End</Text>
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{trip.endTime}</Text>
+                  <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, flexShrink: 1, textAlign: 'right'}}>
+                    {trip.endTime}
+                  </Text>
                 </View>
-                <Text className="mt-1" style={{color: theme.text, ...theme.typography.body, fontWeight: '800'}}>{trip.subtitle}</Text>
+                <Text
+                  className="mt-1"
+                  numberOfLines={2}
+                  style={{color: theme.text, ...theme.typography.body, fontWeight: '800', flexShrink: 1}}>
+                  {trip.subtitle}
+                </Text>
               </View>
             </View>
           </View>
@@ -166,7 +219,9 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
               borderColor: theme.cardBorder,
             }}>
             <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>Driving Score</Text>
-            <Text className="mt-2" style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 30, lineHeight: 34}}>{trip.drivingScore}</Text>
+            <Text className="mt-2" style={{color: theme.text, ...theme.typography.statHero}}>
+              {isScored ? trip.drivingScore : '—'}
+            </Text>
             <View className="mt-2.5 self-start rounded-full px-2.5 py-1.5" style={{backgroundColor: `${riskColor}1F`}}>
               <Text style={{color: riskColor, ...theme.typography.caption, fontWeight: '800'}}>{riskLevel}</Text>
             </View>
@@ -174,29 +229,70 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
 
           <View className="flex-1 gap-2">
             {topStats.slice(0, 2).map((item) => (
-              <View
-                key={item.label}
-                className="rounded-[18px] border px-3 py-3"
-                style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder, borderWidth: 1, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 12}}>
-                <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-                <Text className="mt-1.5" style={{color: theme.text, ...theme.typography.sectionTitle}}>{item.value}</Text>
-              </View>
+              <StatTile key={item.label} label={item.label} value={item.value} background={theme.cardSoft} width="100%" />
             ))}
           </View>
         </View>
 
         <View className="flex-row flex-wrap gap-2">
           {topStats.slice(2).map((item) => (
-            <View
+            <StatTile
               key={item.label}
-              className="min-w-[112px] flex-1 rounded-[18px] border px-3 py-3"
-              style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder, minWidth: 112, flex: 1, borderRadius: 18, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12}}>
-              <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-              <Text className="mt-1.5" style={{color: theme.text, ...theme.typography.sectionTitle}}>{item.value}</Text>
-            </View>
+              label={item.label}
+              value={item.value}
+              background={theme.cardSoft}
+              style={{flex: 1, minWidth: 112}}
+            />
           ))}
         </View>
       </View>
+
+      {tripInsights.length > 0 ? (
+        <View
+          className="mb-[14px] rounded-3xl border p-4"
+          style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 24, borderWidth: 1, padding: 16}}>
+          <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip Insights</Text>
+          <View className="gap-2.5">
+            {tripInsights.map((insight) => {
+              const tone = getInsightTone(insight.tone);
+              return (
+                <View
+                  key={insight.rule_id}
+                  className="rounded-[18px] border px-3 py-3"
+                  style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder, borderRadius: 18, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12}}>
+                  <View className="flex-row items-start gap-3">
+                    <View
+                      className="items-center justify-center rounded-full"
+                      style={{height: 30, width: 30, borderRadius: 999, backgroundColor: tone.backgroundColor}}>
+                      <Ionicons name={tone.icon as any} size={17} color={tone.color} />
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-start justify-between gap-3">
+                        <Text
+                          numberOfLines={2}
+                          style={{color: theme.text, ...theme.typography.body, fontWeight: '800', flex: 1, minWidth: 0}}>
+                          {insight.title}
+                        </Text>
+                        <View className="rounded-full px-2.5 py-1" style={{backgroundColor: tone.backgroundColor}}>
+                          <Text numberOfLines={1} style={{color: tone.color, ...theme.typography.caption, fontWeight: '800'}}>
+                            {insight.metric_value}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                        {insight.message}
+                      </Text>
+                      <Text className="mt-2" style={{color: tone.color, ...theme.typography.caption, fontWeight: '800'}}>
+                        {insight.metric_label}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       <View
         className="mb-[14px] rounded-3xl border p-4"
@@ -204,16 +300,16 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
         <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Behavior Events</Text>
         <View className="mb-3 flex-row flex-wrap gap-2">
           {eventCards.map((item) => (
-            <View
+            <StatTile
               key={item.key}
-              className="min-w-[112px] flex-1 rounded-[18px] border px-3 py-3"
-              style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder, minWidth: 112, flex: 1, borderRadius: 18, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12}}>
-              <View className="flex-row items-center justify-between">
-                <Ionicons name={item.icon as any} size={16} color={item.color} />
-                <Text style={{color: item.color, ...theme.typography.body, fontWeight: '800'}}>{item.value}</Text>
-              </View>
-              <Text className="mt-2.5" style={{color: theme.text, ...theme.typography.body, fontWeight: '700'}}>{item.label}</Text>
-            </View>
+              label={item.label}
+              value={String(item.value)}
+              icon={item.icon as any}
+              iconColor={item.color}
+              variant="inline"
+              background={theme.cardSoft}
+              style={{flex: 1, minWidth: 112}}
+            />
           ))}
         </View>
         {strongestEvent ? (
@@ -271,13 +367,13 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
         <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Supporting Stats</Text>
         <View className="flex-row flex-wrap gap-2">
           {supportStats.map((item) => (
-            <View
+            <StatTile
               key={item.label}
-              className="min-w-[112px] flex-1 rounded-[18px] border px-3 py-3"
-              style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder, minWidth: 112, flex: 1, borderRadius: 18, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12}}>
-              <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-              <Text className="mt-2" style={{color: theme.text, ...theme.typography.body, fontWeight: '800'}}>{item.value}</Text>
-            </View>
+              label={item.label}
+              value={item.value}
+              background={theme.cardSoft}
+              style={{flex: 1, minWidth: 112}}
+            />
           ))}
         </View>
       </View>

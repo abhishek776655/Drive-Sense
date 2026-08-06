@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import {useColorScheme} from 'react-native';
 
 export type AppTheme = {
@@ -5,9 +7,11 @@ export type AppTheme = {
   typography: {
     pageTitle: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     sectionTitle: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
+    sectionTitleSoft: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     body: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     caption: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     metricValue: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
+    statHero: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     scoreValue: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
   };
   screen: string;
@@ -27,7 +31,9 @@ export type AppTheme = {
   onAccent: string;
   onAccentMuted: string;
   warning: string;
+  warningSoft: string;
   danger: string;
+  dangerSoft: string;
   chip: string;
   chipText: string;
   line: string;
@@ -36,7 +42,19 @@ export type AppTheme = {
   onSuccessMuted: string;
 };
 
+type ThemeMode = 'light' | 'dark';
+
+type ThemeContextValue = {
+  mode: ThemeMode;
+  theme: AppTheme;
+  setThemeMode: (mode: ThemeMode) => Promise<void>;
+  toggleThemeMode: () => Promise<void>;
+};
+
+const THEME_MODE_KEY = 'theme_mode';
+
 const appFontMedium = 'Nunito_500Medium';
+const appFontSemiBold = 'Nunito_600SemiBold';
 const appFontBold = 'Nunito_700Bold';
 const appFontExtraBold = 'Nunito_800ExtraBold';
 
@@ -45,9 +63,11 @@ const lightTheme: AppTheme = {
   typography: {
     pageTitle: {fontFamily: appFontExtraBold, fontSize: 28, lineHeight: 34, fontWeight: '800'},
     sectionTitle: {fontFamily: appFontBold, fontSize: 15, lineHeight: 20, fontWeight: '700'},
+    sectionTitleSoft: {fontFamily: appFontSemiBold, fontSize: 14, lineHeight: 18, fontWeight: '600'},
     body: {fontFamily: appFontMedium, fontSize: 14, lineHeight: 20, fontWeight: '500'},
-    caption: {fontFamily: appFontMedium, fontSize: 11, lineHeight: 14, fontWeight: '500'},
+    caption: {fontFamily: appFontMedium, fontSize: 12, lineHeight: 16, fontWeight: '500'},
     metricValue: {fontFamily: appFontBold, fontSize: 20, lineHeight: 24, fontWeight: '700'},
+    statHero: {fontFamily: appFontExtraBold, fontSize: 38, lineHeight: 42, fontWeight: '800'},
     scoreValue: {fontFamily: appFontExtraBold, fontSize: 56, lineHeight: 58, fontWeight: '800'},
   },
   screen: '#F4F7FB',
@@ -67,7 +87,9 @@ const lightTheme: AppTheme = {
   onAccent: '#FFFFFF',
   onAccentMuted: 'rgba(255,255,255,0.80)',
   warning: '#F59E0B',
+  warningSoft: 'rgba(245,158,11,0.12)',
   danger: '#DC2626',
+  dangerSoft: 'rgba(220,38,38,0.10)',
   chip: '#EEF4FF',
   chipText: '#246BFF',
   line: '#246BFF',
@@ -82,9 +104,11 @@ const darkTheme: AppTheme = {
   typography: {
     pageTitle: {fontFamily: appFontExtraBold, fontSize: 28, lineHeight: 34, fontWeight: '800'},
     sectionTitle: {fontFamily: appFontBold, fontSize: 15, lineHeight: 20, fontWeight: '700'},
+    sectionTitleSoft: {fontFamily: appFontSemiBold, fontSize: 14, lineHeight: 18, fontWeight: '600'},
     body: {fontFamily: appFontMedium, fontSize: 14, lineHeight: 20, fontWeight: '500'},
-    caption: {fontFamily: appFontMedium, fontSize: 11, lineHeight: 14, fontWeight: '500'},
+    caption: {fontFamily: appFontMedium, fontSize: 12, lineHeight: 16, fontWeight: '500'},
     metricValue: {fontFamily: appFontBold, fontSize: 20, lineHeight: 24, fontWeight: '700'},
+    statHero: {fontFamily: appFontExtraBold, fontSize: 38, lineHeight: 42, fontWeight: '800'},
     scoreValue: {fontFamily: appFontExtraBold, fontSize: 56, lineHeight: 58, fontWeight: '800'},
   },
   screen: '#050B16',
@@ -113,4 +137,72 @@ const darkTheme: AppTheme = {
 
 export const getAppTheme = (darkMode: boolean) => (darkMode ? darkTheme : lightTheme);
 
-export const useAppTheme = () => getAppTheme(useColorScheme() === 'dark');
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+export const ThemeProvider: React.FC<{children: React.ReactNode}> = ({children}) => {
+  const colorScheme = useColorScheme();
+  const [mode, setMode] = useState<ThemeMode>(colorScheme === 'dark' ? 'dark' : 'light');
+
+  useEffect(() => {
+    let mounted = true;
+
+    const hydrateThemeMode = async () => {
+      try {
+        const storedMode = await AsyncStorage.getItem(THEME_MODE_KEY);
+        if (!mounted) {
+          return;
+        }
+        if (storedMode === 'light' || storedMode === 'dark') {
+          setMode(storedMode);
+        }
+      } catch {
+        // Keep the current mode if stored preferences are unavailable.
+      }
+    };
+
+    void hydrateThemeMode();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const setThemeMode = useCallback(async (nextMode: ThemeMode) => {
+    setMode(nextMode);
+    try {
+      await AsyncStorage.setItem(THEME_MODE_KEY, nextMode);
+    } catch {
+      // The visual change should still apply for this session if persistence fails.
+    }
+  }, []);
+
+  const toggleThemeMode = useCallback(async () => {
+    const nextMode = mode === 'dark' ? 'light' : 'dark';
+    await setThemeMode(nextMode);
+  }, [mode, setThemeMode]);
+
+  const value = useMemo(
+    () => ({
+      mode,
+      theme: getAppTheme(mode === 'dark'),
+      setThemeMode,
+      toggleThemeMode,
+    }),
+    [mode, setThemeMode, toggleThemeMode],
+  );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+};
+
+export const useThemeMode = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useThemeMode must be used within ThemeProvider');
+  }
+  return context;
+};
+
+export const useAppTheme = () => {
+  const context = useContext(ThemeContext);
+  return context?.theme ?? getAppTheme(useColorScheme() === 'dark');
+};

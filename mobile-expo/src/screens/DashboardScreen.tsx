@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View, type DimensionValue, useColorScheme} from 'react-native';
+import {Image, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {StatusBar} from 'expo-status-bar';
 import {Ionicons} from '@expo/vector-icons';
@@ -10,6 +10,9 @@ import {ScoreCard} from '../components/ScoreCard';
 import {TrendChart} from '../components/TrendChart';
 import {TripListItem} from '../components/TripListItem';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {StatTile} from '../components/StatTile';
+import heroCarIllustration from '../assets/illustrations/hero-electric-car.png';
+import {useAppSidebar} from '../components/AppSidebar';
 import {AppTheme, useAppTheme} from '../theme/appTheme';
 import {tripsService, type TripRead} from '../services/tripsService';
 import {useDashboardStore} from '../store/dashboardStore';
@@ -18,69 +21,6 @@ import {DashboardScreenProps} from '../navigation/types';
 
 const FALLBACK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const FALLBACK_BARS = [42, 58, 36, 68, 54, 72, 60];
-type Palette = {
-  screen: string;
-  screenGlow: string;
-  card: string;
-  cardSoft: string;
-  cardBorder: string;
-  text: string;
-  textMuted: string;
-  textSubtle: string;
-  accent: string;
-  accentSoft: string;
-  accentMuted: string;
-  success: string;
-  danger: string;
-  chip: string;
-  chartBase: string;
-  chartLine: string;
-  chartLineMuted: string;
-};
-
-const getPalette = (isDark: boolean): Palette =>
-  isDark
-    ? {
-        screen: '#050B16',
-        screenGlow: '#0B1630',
-        card: '#101826',
-        cardSoft: '#121B2A',
-        cardBorder: 'rgba(255,255,255,0.08)',
-        text: '#F8FAFC',
-        textMuted: '#D6DBE7',
-        textSubtle: '#8A93A6',
-        accent: '#246BFF',
-        accentSoft: 'rgba(36,107,255,0.18)',
-        accentMuted: 'rgba(36,107,255,0.08)',
-        success: '#22C55E',
-        danger: '#EF4444',
-        chip: 'rgba(255,255,255,0.06)',
-        chartBase: 'rgba(255,255,255,0.16)',
-        chartLine: '#246BFF',
-        chartLineMuted: 'rgba(255,255,255,0.28)',
-      }
-    : {
-        screen: '#F4F7FB',
-        screenGlow: '#EAF1FF',
-        card: '#FFFFFF',
-        cardSoft: '#F8FAFF',
-        cardBorder: '#E8EEF7',
-        text: '#0F172A',
-        textMuted: '#334155',
-        textSubtle: '#6B7280',
-        accent: '#246BFF',
-        accentSoft: 'rgba(36,107,255,0.12)',
-        accentMuted: 'rgba(36,107,255,0.06)',
-        success: '#16A34A',
-        danger: '#DC2626',
-        chip: '#EEF4FF',
-        chartBase: '#CBD5E1',
-        chartLine: '#246BFF',
-        chartLineMuted: '#94A3B8',
-      };
-
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-
 const formatDistance = (meters: number) => `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
 
 const formatDuration = (seconds: number) => {
@@ -105,55 +45,16 @@ const formatEventLabel = (eventType: string) => {
   }
 };
 
-const getEventTone = (eventType: string, palette: Palette) => {
+const getEventTone = (eventType: string, palette: AppTheme) => {
   if (eventType === 'overspeed') {
-    return {color: palette.danger, backgroundColor: 'rgba(239,68,68,0.10)', icon: 'alert-circle' as const};
+    return {color: palette.danger, backgroundColor: palette.dangerSoft, icon: 'alert-circle' as const};
   }
   if (eventType === 'harsh_brake') {
-    return {color: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.12)', icon: 'remove-circle' as const};
+    return {color: palette.warning, backgroundColor: palette.warningSoft, icon: 'remove-circle' as const};
   }
   return {color: palette.accent, backgroundColor: palette.accentMuted, icon: 'flash' as const};
 };
 
-const MetricCard = ({
-  title,
-  value,
-  unit,
-  icon,
-  palette,
-  typography,
-  width,
-}: {
-  title: string;
-  value: string;
-  unit?: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  palette: Palette;
-  typography: AppTheme['typography'];
-  width?: DimensionValue;
-}) => (
-  <View
-    className="mb-2.5 min-h-24 rounded-[20px] border px-3 py-3"
-    style={{
-      width: width ?? '48%',
-      backgroundColor: palette.card,
-      borderColor: palette.cardBorder,
-      borderWidth: 1,
-    }}>
-    <View
-      className="mb-2.5 h-8 w-8 items-center justify-center rounded-[11px]"
-      style={{
-        backgroundColor: palette.accentMuted,
-      }}>
-      <Ionicons name={icon} size={16} color={palette.accent} />
-    </View>
-    <Text numberOfLines={1} style={{color: palette.textSubtle, ...typography.caption, marginBottom: 2}}>{title}</Text>
-    <View className="flex-row items-baseline" style={{flexWrap: 'wrap'}}>
-      <Text numberOfLines={1} style={{color: palette.text, ...typography.metricValue, flexShrink: 1}}>{value}</Text>
-      {unit ? <Text numberOfLines={1} style={{color: palette.textSubtle, ...typography.caption, marginLeft: 4}}>{unit}</Text> : null}
-    </View>
-  </View>
-);
 
 const SnapshotChip = ({
   label,
@@ -165,7 +66,7 @@ const SnapshotChip = ({
   label: string;
   value: string;
   icon: keyof typeof Ionicons.glyphMap;
-  palette: Palette;
+  palette: AppTheme;
   typography: AppTheme['typography'];
 }) => (
   <View
@@ -196,12 +97,14 @@ const InsightBanner = ({
 }: {
   message: string;
   type: 'warning' | 'info' | 'success';
-  palette: Palette;
+  palette: AppTheme;
   typography: AppTheme['typography'];
 }) => {
-  const tone = type === 'warning' ? palette.danger : type === 'success' ? palette.success : palette.accent;
+  // Matches TripRouteInsightsCard's getInsightTone mapping so the same insight "type" reads as the
+  // same color regardless of which screen renders it.
+  const tone = type === 'warning' ? palette.warning : type === 'success' ? palette.success : palette.accent;
   const toneBg =
-    type === 'warning' ? 'rgba(239,68,68,0.10)' : type === 'success' ? 'rgba(34,197,94,0.12)' : palette.accentMuted;
+    type === 'warning' ? palette.warningSoft : type === 'success' ? palette.successSoft : palette.accentMuted;
   const icon = type === 'warning' ? 'alert-circle' : type === 'success' ? 'checkmark-circle' : 'sparkles';
 
   return (
@@ -216,78 +119,6 @@ const InsightBanner = ({
   );
 };
 
-const MiniChartCard = ({
-  title,
-  subtitle,
-  current,
-  previous,
-  labels,
-  palette,
-  currentColor,
-  previousColor,
-}: {
-  title: string;
-  subtitle: string;
-  current: number[];
-  previous: number[];
-  labels: string[];
-  palette: Palette;
-  currentColor: string;
-  previousColor: string;
-}) => {
-  const maxValue = Math.max(...current, ...previous, 1);
-
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: palette.card,
-        borderColor: palette.cardBorder,
-        borderWidth: 1,
-        borderRadius: 22,
-        padding: 14,
-        minHeight: 188,
-      }}>
-      <Text style={{color: palette.text, fontSize: 13, fontWeight: '600'}}>{title}</Text>
-      <Text style={{color: palette.textSubtle, fontSize: 10, marginTop: 2}}>{subtitle}</Text>
-      <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 110, marginTop: 10}}>
-        {labels.map((label, index) => {
-          const currentHeight = clamp((current[index] / maxValue) * 100, 8, 100);
-          const previousHeight = clamp((previous[index] / maxValue) * 100, 8, 100);
-
-          return (
-            <View key={`${title}-${label}`} style={{flex: 1, alignItems: 'center', justifyContent: 'flex-end'}}>
-              <View style={{flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', height: 84}}>
-                <View
-                  style={{
-                    height: `${previousHeight}%`,
-                    width: 8,
-                    borderTopLeftRadius: 4,
-                    borderTopRightRadius: 4,
-                    backgroundColor: previousColor,
-                    marginRight: 4,
-                    opacity: 0.75,
-                  }}
-                />
-                <View
-                  style={{
-                    height: `${currentHeight}%`,
-                    width: 8,
-                    borderTopLeftRadius: 4,
-                    borderTopRightRadius: 4,
-                    backgroundColor: currentColor,
-                  }}
-                />
-              </View>
-              <Text style={{color: palette.textSubtle, fontSize: 10, marginTop: 8}}>{label}</Text>
-            </View>
-          );
-        })}
-      </View>
-  </View>
-);
-};
-
 const HeroCarCard = ({
   name,
   plate,
@@ -297,7 +128,7 @@ const HeroCarCard = ({
 }: {
   name: string;
   plate: string;
-  palette: Palette;
+  palette: AppTheme;
   isDark: boolean;
   typography: AppTheme['typography'];
 }) => (
@@ -354,34 +185,33 @@ const HeroCarCard = ({
 
     <View className="items-center justify-center pb-3.5 pt-2">
       <View
-        className="h-[140px] w-[250px] items-center justify-center rounded-[34px]"
+        className="h-[150px] w-[260px] items-center justify-center rounded-[34px]"
         style={{
           backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.58)',
         }}>
         <View
-          className="absolute bottom-5 h-[34px] w-[210px] rounded-[18px]"
+          className="absolute bottom-5 h-[24px] w-[190px] rounded-full"
           style={{
             backgroundColor: palette.accentSoft,
-            opacity: 0.85,
+            opacity: 0.7,
           }}
         />
-        <View
-          className="h-[170px] w-[170px] items-center justify-center rounded-full"
-          style={{
-            backgroundColor: isDark ? 'rgba(36,107,255,0.08)' : 'rgba(36,107,255,0.06)',
-          }}>
-          <Ionicons name="car-sport" size={96} color={palette.text} />
-        </View>
+        <Image
+          source={heroCarIllustration}
+          resizeMode="contain"
+          style={{width: 236, height: 181}}
+          accessibilityLabel={`${name} illustration`}
+        />
       </View>
     </View>
   </View>
 );
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const palette = getPalette(isDark);
   const theme = useAppTheme();
+  const {openSidebar} = useAppSidebar();
+  const isDark = theme.dark;
+  const palette = theme;
   const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
   const hydrateVehiclePreferences = useVehiclePreferencesStore((state) => state.hydrate);
   const persistActiveVehicleId = useVehiclePreferencesStore((state) => state.setActiveVehicleId);
@@ -398,6 +228,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   useEffect(() => {
     void fetchDashboard();
   }, [fetchDashboard]);
+
+  useEffect(() => {
+    // Poll every 10 seconds to keep the dashboard updated (LiveTripCard stats, etc.)
+    const intervalId = setInterval(() => {
+      void fetchDashboard({silent: true});
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [fetchDashboard]);
+
+  useEffect(() => {
+    // Refresh when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      void fetchDashboard({silent: true});
+    });
+    return unsubscribe;
+  }, [navigation, fetchDashboard]);
 
   useEffect(() => {
     void hydrateVehiclePreferences();
@@ -438,8 +285,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           id: vehicle.id,
           name: vehicle.name,
           type: vehicle.fuelType,
+          imageUrl: vehicle.imageUrl,
           plate: vehicle.plateNumber ?? `${vehicle.fuelType} • ${vehicle.tripCount} trips`,
-          isActive: index === 0,
         }))
       : [];
   const selectedVehicle = vehicleOptions.find((vehicle) => vehicle.id === selectedVehicleId) || vehicleOptions[0];
@@ -468,27 +315,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   const currentBars = dashboard?.trend.current.length ? dashboard.trend.current : FALLBACK_BARS;
   const previousBars = dashboard?.trend.previous.length ? dashboard.trend.previous : FALLBACK_BARS.map((value) => Math.max(8, value - 8));
   const labels = dashboard?.trend.labels.length ? dashboard.trend.labels : FALLBACK_LABELS;
-  const tripHistory =
-    dashboard?.recentTrips?.length
-      ? dashboard.recentTrips.slice(0, 3)
-      : fallbackTrips
-          .slice()
-          .sort((left, right) => new Date(right.start_time).getTime() - new Date(left.start_time).getTime())
-          .slice(0, 3)
-          .map((trip) => ({
-            id: trip.id,
-            distance: trip.distance_meters,
-            duration: trip.duration_seconds,
-            score: trip.driving_score ?? 0,
-            eventCount: trip.event_count,
-            vehicleName: trip.vehicle_name,
-            startedAt: trip.start_time,
-            dateLabel: new Date(trip.start_time).toLocaleDateString('en-IN', {month: 'short', day: 'numeric'}),
-            timeLabel: new Date(trip.start_time).toLocaleTimeString('en-IN', {
-              hour: 'numeric',
-              minute: '2-digit',
-            }),
-          }));
+  const tripHistory = [
+    ...(dashboard?.recentTrips?.length
+      ? dashboard.recentTrips
+      : fallbackTrips.map((trip) => ({
+          id: trip.id,
+          distance: trip.distance_meters,
+          duration: trip.duration_seconds,
+          score: trip.driving_score ?? 0,
+          eventCount: trip.event_count,
+          vehicleName: trip.vehicle_name,
+          startedAt: trip.start_time,
+          dateLabel: new Date(trip.start_time).toLocaleDateString('en-IN', {month: 'short', day: 'numeric'}),
+          timeLabel: new Date(trip.start_time).toLocaleTimeString('en-IN', {
+            hour: 'numeric',
+            minute: '2-digit',
+          }),
+        }))),
+  ]
+    .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())
+    .slice(0, 3);
   const recentEvents = dashboard?.recentEvents?.slice(0, 4) ?? [];
   const sortedVehicles = [...(dashboard?.vehicles ?? [])].sort((left, right) => right.avgScore - left.avgScore);
   const bestVehicle = sortedVehicles[0];
@@ -516,7 +362,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
 
           <View className="mb-3.5 flex-row items-center justify-between">
             <Pressable
-              onPress={() => {}}
+              onPress={openSidebar}
               className="h-10 w-10 items-center justify-center rounded-[14px] border"
               style={{
                 backgroundColor: palette.card,
@@ -546,7 +392,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           <View className="mb-3.5">
             <VehicleHeader
               vehicleName={selectedVehicle?.name ?? 'No Vehicle'}
-              isActive={selectedVehicle?.isActive ?? false}
+              vehicleImage={selectedVehicle?.imageUrl ?? undefined}
+              isSelected={Boolean(selectedVehicle)}
               onPress={() => setShowSelector(true)}
             />
           </View>
@@ -600,46 +447,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             </View>
           ) : null}
 
-          <View className="mb-3 flex-row flex-wrap">
-            <SnapshotChip
-              label="Score"
-              value={`${score}/100`}
-              icon="shield-checkmark"
-              palette={palette}
-              typography={theme.typography}
+          {dashboard?.ongoingTrip ? (
+            <LiveTripCard
+              vehicleName={dashboard.ongoingTrip.vehicleName}
+              startedAt={dashboard.ongoingTrip.startedAt}
+              statusLabel="Tracking"
+              speed={Math.round(dashboard.ongoingTrip.speed)}
+              distance={(dashboard.ongoingTrip.distance / 1000).toFixed(2)}
+              duration={formatDuration(dashboard.ongoingTrip.duration)}
+              onPressMap={() => navigation.navigate('MapStack', {screen: 'LiveTrackingMain'})}
             />
-            <SnapshotChip
-              label="Avg speed"
-              value={`${Math.round(avgSpeed)} km/h`}
-              icon="speedometer"
-              palette={palette}
-              typography={theme.typography}
-            />
-            <SnapshotChip
-              label="Fuel cost"
-              value={`₹${Math.round(fuelCostAmount)}`}
-              icon="cash"
-              palette={palette}
-              typography={theme.typography}
-            />
-            <SnapshotChip
-              label="Events"
-              value={String(totalRiskEvents)}
-              icon="warning"
-              palette={palette}
-              typography={theme.typography}
-            />
-          </View>
-
-          <LiveTripCard
-            vehicleName={selectedVehicle?.name ?? 'No Vehicle'}
-            startedAt="9:33 AM"
-            statusLabel="Tracking"
-            speed={activeSpeed}
-            distance={Number((totalDistanceMeters / 1000).toFixed(2))}
-            duration={formatDuration(dashboardDurationSeconds)}
-            onPressMap={() => navigation.navigate('MapStack', {screen: 'LiveTrackingMain'})}
-          />
+          ) : null}
 
           <View
             className="mb-3.5 rounded-3xl border p-4"
@@ -661,10 +479,40 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
                 </Text>
               </View>
             </View>
+            <View className="mb-3 flex-row flex-wrap">
+              <SnapshotChip
+                label="Score"
+                value={`${score}/100`}
+                icon="shield-checkmark"
+                palette={palette}
+                typography={theme.typography}
+              />
+              <SnapshotChip
+                label="Avg speed"
+                value={`${Math.round(avgSpeed)} km/h`}
+                icon="speedometer"
+                palette={palette}
+                typography={theme.typography}
+              />
+              <SnapshotChip
+                label="Fuel cost"
+                value={`₹${Math.round(fuelCostAmount)}`}
+                icon="cash"
+                palette={palette}
+                typography={theme.typography}
+              />
+              <SnapshotChip
+                label="Events"
+                value={String(totalRiskEvents)}
+                icon="warning"
+                palette={palette}
+                typography={theme.typography}
+              />
+            </View>
             <View className="flex-row flex-wrap justify-between">
-              <MetricCard title="Total km" value={formatDistance(dashboard?.stats.totalDistance ?? 0)} icon="trail-sign" palette={palette} typography={theme.typography} width="31.5%" />
-              <MetricCard title="Total time" value={formatDuration(dashboard?.stats.totalDurationSeconds ?? 0)} icon="time" palette={palette} typography={theme.typography} width="31.5%" />
-              <MetricCard title="Avg speed" value={`${Math.round(dashboard?.stats.avgSpeed ?? 0)}`} unit="km/h" icon="speedometer" palette={palette} typography={theme.typography} width="31.5%" />
+              <StatTile label="Total km" value={formatDistance(dashboard?.stats.totalDistance ?? 0)} icon="trail-sign" width="31.5%" />
+              <StatTile label="Total time" value={formatDuration(dashboard?.stats.totalDurationSeconds ?? 0)} icon="time" width="31.5%" />
+              <StatTile label="Avg speed" value={`${Math.round(dashboard?.stats.avgSpeed ?? 0)}`} unit="km/h" icon="speedometer" width="31.5%" />
             </View>
           </View>
 
@@ -707,14 +555,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               </View>
             </View>
             <View className="flex-row flex-wrap justify-between">
-              <MetricCard title="Distance" value={formatDistance(totalDistanceMeters)} icon="speedometer" palette={palette} typography={theme.typography} width="48%" />
-              <MetricCard title="Drive Time" value={formatDuration(dashboardDurationSeconds)} icon="time" palette={palette} typography={theme.typography} width="48%" />
-              <MetricCard title="Trips" value={String(totalTrips)} icon="car" palette={palette} typography={theme.typography} width="48%" />
-              <MetricCard title="Fuel Used" value={fuelUsedLiters.toFixed(1)} unit="L" icon="water" palette={palette} typography={theme.typography} width="48%" />
+              <StatTile label="Distance" value={formatDistance(totalDistanceMeters)} icon="speedometer" width="48%" />
+              <StatTile label="Drive Time" value={formatDuration(dashboardDurationSeconds)} icon="time" width="48%" />
+              <StatTile label="Trips" value={String(totalTrips)} icon="car" width="48%" />
+              <StatTile label="Fuel Used" value={fuelUsedLiters.toFixed(1)} unit="L" icon="water" width="48%" />
             </View>
           </View>
 
-          {bestVehicle && worstVehicle ? (
+          {bestVehicle && worstVehicle && (dashboard?.vehicles.length ?? 0) > 2 ? (
             <View
               className="mb-3.5 rounded-3xl border p-4"
               style={{

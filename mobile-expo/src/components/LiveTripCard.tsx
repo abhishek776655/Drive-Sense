@@ -23,9 +23,10 @@ export const LiveTripCard: React.FC<LiveTripCardProps> = ({
 }) => {
   const theme = useAppTheme();
   const liveMetricText = {
-    ...theme.typography.scoreValue,
-    fontSize: 32,
-    lineHeight: 34,
+    fontFamily: theme.typography.metricValue.fontFamily,
+    fontSize: 25,
+    fontWeight: '800' as const,
+    lineHeight: 29,
   } as const;
 
   return (
@@ -61,13 +62,15 @@ export const LiveTripCard: React.FC<LiveTripCardProps> = ({
         }}
       />
 
-      <View className="mb-4 flex-row items-center justify-between">
-        <View>
+      <View className="mb-4 flex-row items-start justify-between">
+        <View className="mr-3 flex-1">
           <View className="flex-row items-center gap-2">
             <View className="h-2 w-2 rounded-full" style={{backgroundColor: theme.onAccent}} />
             <Text style={{color: theme.onAccent, ...theme.typography.caption, letterSpacing: 0.8}}>LIVE TRIP</Text>
           </View>
-          <Text style={{color: theme.onAccentMuted, ...theme.typography.caption, marginTop: 4}}>{vehicleName}</Text>
+          <Text numberOfLines={1} style={{color: theme.onAccentMuted, ...theme.typography.caption, marginTop: 4}}>
+            {vehicleName}
+          </Text>
         </View>
         <View
           className="rounded-full border px-3 py-[5px]"
@@ -75,30 +78,36 @@ export const LiveTripCard: React.FC<LiveTripCardProps> = ({
             borderColor: theme.onAccentMuted,
             borderWidth: 1,
           }}>
-          <Text style={{color: theme.onAccent, ...theme.typography.caption}}>{statusLabel}</Text>
+          <Text numberOfLines={1} style={{color: theme.onAccent, ...theme.typography.caption}}>{statusLabel}</Text>
         </View>
       </View>
 
-      <View className="flex-row items-center justify-between">
-        <View className="flex-1 items-start">
-          <Text style={{color: theme.onAccent, ...liveMetricText}}>{speed}</Text>
+      <View className="flex-row items-start justify-between">
+        <View className="min-w-0 flex-1 pr-2">
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={{color: theme.onAccent, ...liveMetricText}}>
+            {speed}
+          </Text>
           <Text style={{color: theme.onAccent, ...theme.typography.caption, marginTop: 4}}>Speed</Text>
           <Text style={{color: theme.onAccentMuted, ...theme.typography.caption}}>km/h</Text>
         </View>
-        <View className="flex-1 items-start">
-          <Text style={{color: theme.onAccent, ...liveMetricText}}>{distance}</Text>
+        <View className="min-w-0 flex-1 px-1">
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={{color: theme.onAccent, ...liveMetricText}}>
+            {distance}
+          </Text>
           <Text style={{color: theme.onAccent, ...theme.typography.caption, marginTop: 4}}>Distance</Text>
           <Text style={{color: theme.onAccentMuted, ...theme.typography.caption}}>km</Text>
         </View>
-        <View className="flex-1 items-start">
-          <Text style={{color: theme.onAccent, ...liveMetricText}}>{duration}</Text>
+        <View className="min-w-0 flex-1 pl-2">
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={{color: theme.onAccent, ...liveMetricText}}>
+            {duration}
+          </Text>
           <Text style={{color: theme.onAccent, ...theme.typography.caption, marginTop: 4}}>Duration</Text>
           <Text style={{color: theme.onAccentMuted, ...theme.typography.caption}}>elapsed</Text>
         </View>
       </View>
 
-      <View className="mt-[18px] flex-row items-center justify-between">
-        <Text style={{color: theme.onAccent, ...theme.typography.caption}}>
+      <View className="mt-[18px] flex-row items-center justify-between gap-3">
+        <Text numberOfLines={1} className="min-w-0 flex-1" style={{color: theme.onAccent, ...theme.typography.caption}}>
           Trip started at {startedAt}
         </Text>
         <Pressable

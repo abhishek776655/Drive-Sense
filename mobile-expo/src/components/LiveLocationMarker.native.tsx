@@ -10,8 +10,7 @@ type Props = {
 
 export const LiveLocationMarker: React.FC<Props> = ({color, is3D = false, headingDeg = 0}) => {
   const pulse = useRef(new Animated.Value(0)).current;
-  const strongBlue = '#1D4ED8';
-  const deepBlue = '#FFFFFF';
+  const strongBlue = color || '#1D4ED8';
   const haloBlue = 'rgba(59,130,246,0.24)';
   const haloBorder = 'rgba(255,255,255,0.82)';
 
@@ -68,31 +67,40 @@ export const LiveLocationMarker: React.FC<Props> = ({color, is3D = false, headin
             position: 'absolute',
             alignItems: 'center',
             justifyContent: 'center',
-            transform: [{rotate: `${headingDeg}deg`}],
           }}>
           <View
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: deepBlue,
+              position: 'absolute',
+              top: 36,
+              width: 32,
+              height: 10,
+              borderRadius: 999,
+              backgroundColor: 'rgba(15,23,42,0.20)',
+              transform: [{scaleX: 1.35}],
+            }}
+          />
+          <View
+            style={{
+              width: 46,
+              height: 46,
               alignItems: 'center',
               justifyContent: 'center',
               shadowColor: '#0F172A',
-              shadowOpacity: 0.18,
-              shadowRadius: 14,
-              shadowOffset: {width: 0, height: 8},
+              shadowOpacity: 0.16,
+              shadowRadius: 10,
+              shadowOffset: {width: 0, height: 5},
               elevation: 10,
-              borderWidth: 1.5,
-              borderColor: 'rgba(15,23,42,0.08)',
-              }}>
+            }}>
             <MaterialCommunityIcons
               name="navigation-variant"
-              size={22}
+              size={46}
+              color="#FFFFFF"
+              style={{position: 'absolute'}}
+            />
+            <MaterialCommunityIcons
+              name="navigation-variant"
+              size={32}
               color={strongBlue}
-              style={{
-                transform: [{translateY: -1}],
-              }}
             />
           </View>
         </View>
@@ -100,19 +108,20 @@ export const LiveLocationMarker: React.FC<Props> = ({color, is3D = false, headin
         <View
           style={{
             position: 'absolute',
-            width: 18,
-            height: 18,
-            borderRadius: 9,
-            backgroundColor: strongBlue,
-            borderWidth: 3,
-            borderColor: '#FFFFFF',
+            width: 26,
+            height: 26,
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: [{rotate: `${headingDeg}deg`}],
             shadowColor: '#0F172A',
             shadowOpacity: 0.16,
-            shadowRadius: 10,
-            shadowOffset: {width: 0, height: 6},
+            shadowRadius: 6,
+            shadowOffset: {width: 0, height: 3},
             elevation: 6,
-          }}
-        />
+          }}>
+          <MaterialCommunityIcons name="navigation" size={26} color="#FFFFFF" style={{position: 'absolute'}} />
+          <MaterialCommunityIcons name="navigation" size={18} color={strongBlue} />
+        </View>
       )}
     </View>
   );

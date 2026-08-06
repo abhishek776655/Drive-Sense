@@ -1,8 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import {ScrollView, Text, TouchableOpacity, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme/appTheme';
+import {useAppSidebar} from './AppSidebar';
 
 type LiveTrackingData = {
   trip_id: string;
@@ -17,6 +18,7 @@ type LiveTrackingData = {
   heading: string;
   paceDelta: string;
   isStarted: boolean;
+  isPaused?: boolean;
   hasEnded?: boolean;
   hasLiveLocation: boolean;
   prominentStatus: string;
@@ -32,6 +34,8 @@ type LiveTrackingData = {
     eventCount: number;
   } | null;
   startTrip: () => void | Promise<void>;
+  pauseTrip?: () => void | Promise<void>;
+  endTrip?: () => void | Promise<void>;
   currentPoint: {
     recorded_at: string;
     latitude: number;
@@ -67,8 +71,12 @@ export const LiveTrackingLayout: React.FC<Props> = ({
   onCenterCurrentLocation,
 }) => {
   const theme = useAppTheme();
+  const {openSidebar} = useAppSidebar();
+  const insets = useSafeAreaInsets();
   const [showSavedToast, setShowSavedToast] = useState(false);
-  const liveBadge = data.currentPoint.is_moving ? 'Moving' : 'Idle';
+  const [hideCompletedTripCard, setHideCompletedTripCard] = useState(false);
+  const showCompletedTripCard = Boolean(data.completedTrip && !hideCompletedTripCard);
+  const liveBadge = data.hasEnded ? 'Ready' : data.currentPoint.is_moving ? 'Moving' : 'Idle';
   const syncTone =
     data.syncState === 'recording'
       ? '#34D399'
@@ -83,15 +91,23 @@ export const LiveTrackingLayout: React.FC<Props> = ({
   useEffect(() => {
     if (!data.completedTrip) {
       setShowSavedToast(false);
+      setHideCompletedTripCard(false);
       return;
     }
 
     setShowSavedToast(true);
-    const timeout = setTimeout(() => {
+    setHideCompletedTripCard(false);
+    const toastTimeout = setTimeout(() => {
       setShowSavedToast(false);
     }, 3200);
+    const cardTimeout = setTimeout(() => {
+      setHideCompletedTripCard(true);
+    }, 6500);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(toastTimeout);
+      clearTimeout(cardTimeout);
+    };
   }, [data.completedTrip]);
 
   return (
@@ -113,7 +129,7 @@ export const LiveTrackingLayout: React.FC<Props> = ({
         <View
           style={{
             position: 'absolute',
-            top: 16,
+            top: insets.top + 12,
             left: 20,
             right: 20,
             zIndex: 20,
@@ -157,12 +173,13 @@ export const LiveTrackingLayout: React.FC<Props> = ({
         showsVerticalScrollIndicator={false}>
         <View className="mb-[18px] flex-row items-center justify-between">
           <TouchableOpacity
+            onPress={openSidebar}
             className="size-[42px] items-center justify-center rounded-2xl border"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
-            <Ionicons name="analytics" size={18} color={theme.text} />
+            <Ionicons name="menu" size={18} color={theme.text} />
           </TouchableOpacity>
           <View className="items-center">
             <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 22, lineHeight: 26}}>Live Feed</Text>
@@ -202,10 +219,10 @@ export const LiveTrackingLayout: React.FC<Props> = ({
               </Text>
               <Text className="mt-1" style={{color: theme.textSubtle, ...theme.typography.caption}}>
                 {data.hasEnded
-                  ? `${data.acceptedPoints} points • ${data.acceptedEvents} events saved`
+                  ? 'Ready to auto-start when movement is detected'
                   : `${data.acceptedPoints} points synced`}
               </Text>
-              {!data.isStarted && !data.hasEnded ? (
+              {!data.isStarted ? (
                 <TouchableOpacity
                   onPress={() => void data.startTrip()}
                   className="mt-[14px] self-start rounded-[14px] border px-4 py-2.5"
@@ -218,8 +235,38 @@ export const LiveTrackingLayout: React.FC<Props> = ({
                     shadowOffset: {width: 0, height: 6},
                     elevation: 4,
                   }}>
-                  <Text style={{color: theme.onAccent, ...theme.typography.body, fontWeight: '800'}}>Start Trip</Text>
+                  <Text style={{color: theme.onAccent, ...theme.typography.body, fontWeight: '800'}}>
+                    {data.hasEnded ? 'Start New Trip' : 'Start Trip'}
+                  </Text>
                 </TouchableOpacity>
+              ) : null}
+              {data.isStarted && !data.hasEnded ? (
+                <View className="mt-[14px] flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={() => void data.pauseTrip?.()}
+                    className="flex-1 flex-row items-center justify-center rounded-[14px] border px-3 py-2.5"
+                    style={{
+                      backgroundColor: data.isPaused ? theme.accentMuted : theme.cardSoft,
+                      borderColor: data.isPaused ? theme.accent : theme.cardBorder,
+                    }}>
+                    <Ionicons name={data.isPaused ? 'play' : 'pause'} size={16} color={data.isPaused ? theme.accent : theme.text} />
+                    <Text style={{color: data.isPaused ? theme.accent : theme.text, ...theme.typography.caption, fontWeight: '800', marginLeft: 7}}>
+                      {data.isPaused ? 'Resume' : 'Pause'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => void data.endTrip?.()}
+                    className="flex-1 flex-row items-center justify-center rounded-[14px] border px-3 py-2.5"
+                    style={{
+                      backgroundColor: 'rgba(220,38,38,0.10)',
+                      borderColor: 'rgba(220,38,38,0.28)',
+                    }}>
+                    <Ionicons name="stop-circle" size={16} color={theme.danger} />
+                    <Text style={{color: theme.danger, ...theme.typography.caption, fontWeight: '800', marginLeft: 7}}>
+                      End Trip
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               ) : null}
               {data.syncError ? (
                 <Text className="mt-1.5" style={{color: theme.danger, ...theme.typography.caption}}>
@@ -230,7 +277,7 @@ export const LiveTrackingLayout: React.FC<Props> = ({
           </View>
         </View>
 
-        {data.completedTrip ? (
+        {showCompletedTripCard && data.completedTrip ? (
           <View
             className="mb-[14px] rounded-[22px] border p-4"
             style={{
@@ -254,6 +301,12 @@ export const LiveTrackingLayout: React.FC<Props> = ({
                   })} • ready for the next drive
                 </Text>
               </View>
+              <TouchableOpacity
+                onPress={() => setHideCompletedTripCard(true)}
+                className="ml-2 size-8 items-center justify-center rounded-full"
+                style={{backgroundColor: theme.successMuted}}>
+                <Ionicons name="close" size={16} color={theme.success} />
+              </TouchableOpacity>
             </View>
             <View className="flex-row justify-between">
               {[
@@ -521,11 +574,18 @@ export const LiveTrackingLayout: React.FC<Props> = ({
         </View>
 
         <TouchableOpacity
-          onPress={() => void data.startTrip()}
-          disabled={data.isStarted}
+          onPress={() => {
+            if (!data.isStarted) {
+              void data.startTrip();
+              return;
+            }
+            if (!data.hasEnded) {
+              void data.endTrip?.();
+            }
+          }}
           style={{
-            backgroundColor: data.isStarted ? theme.card : theme.accent,
-            borderColor: data.isStarted ? theme.cardBorder : theme.accent,
+            backgroundColor: data.isStarted ? 'rgba(220,38,38,0.10)' : theme.accent,
+            borderColor: data.isStarted ? 'rgba(220,38,38,0.28)' : theme.accent,
             borderWidth: 1,
             borderRadius: 22,
             paddingVertical: 16,
@@ -534,15 +594,19 @@ export const LiveTrackingLayout: React.FC<Props> = ({
             justifyContent: 'center',
             marginBottom: 8,
           }}>
-          <Ionicons name={data.isStarted ? 'pulse' : 'play'} size={18} color={data.isStarted ? theme.accent : theme.onAccent} />
+          <Ionicons
+            name={data.isStarted ? 'stop-circle' : 'play'}
+            size={18}
+            color={data.isStarted ? theme.danger : theme.onAccent}
+          />
           <Text
             style={{
-              color: data.isStarted ? theme.accent : theme.onAccent,
+              color: data.isStarted ? theme.danger : theme.onAccent,
               ...theme.typography.body,
               fontWeight: '800',
               marginLeft: 8,
             }}>
-            {data.isStarted ? 'Live Feed Active' : 'Auto Start Ready'}
+            {data.isStarted ? 'End Trip' : data.hasEnded ? 'Start New Trip' : 'Auto Start Ready'}
           </Text>
         </TouchableOpacity>
       </ScrollView>

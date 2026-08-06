@@ -35,6 +35,17 @@ export type MockTripEvent = {
   };
 };
 
+export type MockTripInsight = {
+  rule_id: string;
+  category: string;
+  tone: 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  metric_label: string;
+  metric_value: string;
+  priority: number;
+};
+
 export type MockTrip = {
   id: string;
   title: string;
@@ -57,6 +68,7 @@ export type MockTrip = {
   stops: string;
   drivingScore: number;
   events: MockTripEvent[];
+  insights?: MockTripInsight[];
 };
 
 export const MOCK_TRIPS: MockTrip[] = [

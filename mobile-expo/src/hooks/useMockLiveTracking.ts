@@ -39,6 +39,7 @@ type UseMockLiveTrackingOptions = {
 
 export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackingOptions = {}) => {
   const [isStarted, setIsStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [hasEnded, setHasEnded] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
   );
 
   useEffect(() => {
-    if (!isStarted || allSessionPoints.length === 0) {
+    if (!isStarted || isPaused || allSessionPoints.length === 0) {
       return;
     }
 
@@ -74,7 +75,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
     }, 2600);
 
     return () => clearInterval(interval);
-  }, [allSessionPoints.length, isStarted]);
+  }, [allSessionPoints.length, isPaused, isStarted]);
 
   const startTrip = useCallback(async () => {
     if (isStarted) {
@@ -83,6 +84,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
 
     const startedAt = new Date().toISOString();
     setIsStarted(true);
+    setIsPaused(false);
     setHasEnded(false);
     setCompletedTrip(null);
     setFrameIndex(0);
@@ -122,6 +124,13 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
     autoStartedRef.current = true;
     void startTrip();
   }, [isStarted, startTrip]);
+
+  const pauseTrip = useCallback(() => {
+    if (!isStarted || hasEnded) {
+      return;
+    }
+    setIsPaused((current) => !current);
+  }, [hasEnded, isStarted]);
 
   const liveFrames = isStarted ? MOCK_LIVE_STREAM : [MOCK_LIVE_STREAM[0]];
   const frame = liveFrames[Math.min(frameIndex, liveFrames.length - 1)];
@@ -183,11 +192,31 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
       ? locationPoints.reduce((sum, point) => sum + point.speed_mps, 0) / locationPoints.length
       : 0;
   const maxSpeedMps = locationPoints.length > 0 ? Math.max(...locationPoints.map((point) => point.speed_mps)) : 0;
+
+  const endTrip = useCallback(() => {
+    if (!isStarted || hasEnded || allSessionPoints.length === 0) {
+      return;
+    }
+    const endedAt = currentPoint?.recorded_at ?? new Date().toISOString();
+    setIsStarted(false);
+    setIsPaused(false);
+    setHasEnded(true);
+    setSyncState('saved');
+    setCompletedTrip({
+      endedAt,
+      distanceLabel: `${(totalDistanceMeters / 1000).toFixed(1)} km`,
+      durationLabel: `${durationMinutes} min`,
+      eventCount: frame.events,
+    });
+  }, [allSessionPoints.length, currentPoint?.recorded_at, durationMinutes, frame.events, hasEnded, isStarted, totalDistanceMeters]);
+
   const dataState =
-    hasEnded ? 'ended' : !isStarted ? 'ready' : currentPoint.is_moving ? 'moving' : 'idle';
-  const prominentStatus = hasEnded ? 'Trip Saved' : !isStarted ? 'Trip Ready' : currentPoint.is_moving ? 'Trip Started • Moving' : 'Trip Started • Idle';
+    hasEnded ? 'ready' : isPaused ? 'paused' : !isStarted ? 'ready' : currentPoint.is_moving ? 'moving' : 'idle';
+  const prominentStatus = hasEnded ? 'Waiting for Movement' : isPaused ? 'Trip Paused' : !isStarted ? 'Trip Ready' : currentPoint.is_moving ? 'Trip Started • Moving' : 'Trip Started • Idle';
   const syncLabel =
-    syncState === 'starting'
+    hasEnded
+      ? 'Ready for live tracking'
+      : syncState === 'starting'
       ? 'Starting trip'
       : syncState === 'syncing'
         ? 'Updating live trip'
@@ -195,6 +224,8 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
           ? 'Live trip active'
           : syncState === 'saved'
             ? 'Trip saved to history'
+          : isPaused
+            ? 'Trip paused'
           : syncState === 'local_only'
             ? 'Live trip active'
             : syncState === 'error'
@@ -202,7 +233,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
               : 'Ready for live tracking';
 
   useEffect(() => {
-    if (!isStarted || hasEnded || allSessionPoints.length === 0) {
+    if (!isStarted || isPaused || hasEnded || allSessionPoints.length === 0) {
       return;
     }
 
@@ -221,7 +252,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
       durationLabel: `${durationMinutes} min`,
       eventCount: frame.events,
     });
-  }, [allSessionPoints.length, currentPoint.recorded_at, durationMinutes, frame.events, frameIndex, hasEnded, isStarted, totalDistanceMeters]);
+  }, [allSessionPoints.length, currentPoint.recorded_at, durationMinutes, frame.events, frameIndex, hasEnded, isPaused, isStarted, totalDistanceMeters]);
 
   return {
     ...MOCK_LIVE_TRACKING,
@@ -241,6 +272,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
     currentPoint,
     hasLiveLocation: true,
     isStarted,
+    isPaused,
     hasEnded,
     prominentStatus,
     syncLabel,
@@ -250,6 +282,8 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
     syncError,
     completedTrip,
     startTrip,
+    pauseTrip,
+    endTrip,
     stats: [
       {label: 'avg_speed_mps', value: avgSpeedMps.toFixed(1)},
       {label: 'max_speed_mps', value: maxSpeedMps.toFixed(1)},
