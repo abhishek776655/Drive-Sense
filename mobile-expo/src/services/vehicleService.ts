@@ -91,8 +91,10 @@ export const vehicleService = {
     const response = await apiClient.get<VehicleRead[]>('/api/v1/vehicles');
     return response.data;
   },
-  getVehicleStats: async (vehicleId: string) => {
-    const response = await apiClient.get<VehicleStatsRead>(`/api/v1/vehicles/${vehicleId}/stats`);
+  getVehicleStats: async (vehicleId: string, granularity: 'day' | 'week' | 'month' = 'day') => {
+    const response = await apiClient.get<VehicleStatsRead>(`/api/v1/vehicles/${vehicleId}/stats`, {
+      params: {granularity},
+    });
     return response.data;
   },
   createVehicle: async (payload: {
