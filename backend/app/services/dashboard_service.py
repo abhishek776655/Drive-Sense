@@ -164,12 +164,14 @@ async def _get_trip_trend(
     *,
     user_id: uuid.UUID,
     vehicle_id: uuid.UUID | None = None,
-    days: int = DASHBOARD_TREND_DAYS,
+    granularity: str = "day",
+    days: int | None = None,
 ) -> list[TrendPoint]:
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    resolved_days = days if days is not None else resolve_trend_lookback_days(granularity)
+    since = datetime.now(timezone.utc) - timedelta(days=resolved_days)
     stmt = (
         select(
-            func.date_trunc("day", Trip.start_time).label("bucket_start"),
+            func.date_trunc(granularity, Trip.start_time).label("bucket_start"),
             func.count(Trip.id).label("trip_count"),
             func.coalesce(func.sum(Trip.distance_meters), 0).label("distance_meters"),
             func.coalesce(func.sum(Trip.fuel_used_liters), 0).label("fuel_used_liters"),
@@ -542,12 +544,13 @@ async def get_vehicle_stats_data(
     *,
     user_id: uuid.UUID,
     vehicle_id: uuid.UUID,
+    granularity: str = "day",
 ) -> VehicleStatsResponse | None:
     summary = await _get_vehicle_overview(db, user_id=user_id, vehicle_id=vehicle_id)
     if summary is None:
         return None
 
-    trip_trend = await _get_trip_trend(db, user_id=user_id, vehicle_id=vehicle_id)
+    trip_trend = await _get_trip_trend(db, user_id=user_id, vehicle_id=vehicle_id, granularity=granularity)
     fuel_trend = await _get_fuel_trend(db, user_id=user_id, vehicle_id=vehicle_id)
     events = await _get_event_breakdown(db, user_id=user_id, vehicle_id=vehicle_id)
     recent_trips = await _get_recent_trips(db, user_id=user_id, vehicle_id=vehicle_id)

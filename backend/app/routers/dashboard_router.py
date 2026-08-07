@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -61,10 +62,11 @@ async def get_dashboard_insights(
 @router.get("/vehicles/{vehicle_id}/stats", response_model=VehicleStatsResponse)
 async def get_vehicle_stats(
     vehicle_id: UUID,
+    granularity: Literal["day", "week", "month"] = Query(default="day"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> VehicleStatsResponse:
-    stats = await get_vehicle_stats_data(db, user_id=user.id, vehicle_id=vehicle_id)
+    stats = await get_vehicle_stats_data(db, user_id=user.id, vehicle_id=vehicle_id, granularity=granularity)
     if stats is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
     return stats
