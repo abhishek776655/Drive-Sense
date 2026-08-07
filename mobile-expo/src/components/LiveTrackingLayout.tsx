@@ -461,9 +461,11 @@ export const LiveTrackingLayout: React.FC<Props> = ({
               <Text style={{color: '#FFFFFF', ...theme.typography.metricValue, fontSize: 22}}>{data.heading}</Text>
               <Text style={{color: 'rgba(255,255,255,0.74)', ...theme.typography.caption}}>heading_deg</Text>
               <Text style={{color: '#CFFAFE', ...theme.typography.caption, fontWeight: '700', marginTop: 8}}>{data.paceDelta}</Text>
-              <View style={{marginTop: 8}}>
-                <SmoothnessGauge magnitude={data.latestAcceleration} />
-              </View>
+              {data.isStarted ? (
+                <View style={{marginTop: 8}}>
+                  <SmoothnessGauge magnitude={data.latestAcceleration} />
+                </View>
+              ) : null}
             </View>
           </View>
 

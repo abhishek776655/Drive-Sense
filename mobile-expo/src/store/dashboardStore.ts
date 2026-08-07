@@ -6,7 +6,7 @@ interface DashboardState {
   data: TransformedDashboard | null;
   loading: boolean;
   error: string | null;
-  fetchDashboard: () => Promise<void>;
+  fetchDashboard: (options?: {silent?: boolean}) => Promise<void>;
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({

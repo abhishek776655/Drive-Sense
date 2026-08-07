@@ -7,12 +7,20 @@ describe('getSmoothnessBand', () => {
     expect(getSmoothnessBand(9.81)).toBe('smooth');
   });
 
-  it('returns moderate for a mid deviation', () => {
-    expect(getSmoothnessBand(9.81 + 3.2)).toBe('moderate');
+  it('treats a zero (unavailable) reading as smooth, not harsh', () => {
+    expect(getSmoothnessBand(0)).toBe('smooth');
   });
 
-  it('returns harsh for a large deviation', () => {
-    expect(getSmoothnessBand(9.81 + 4.0)).toBe('harsh');
+  it('returns moderate when the horizontal-equivalent acceleration is between 3.0 and 3.5 m/s²', () => {
+    // Total magnitude including gravity for a 3.2 m/s² horizontal acceleration:
+    // sqrt(9.81^2 + 3.2^2) ≈ 10.319
+    expect(getSmoothnessBand(Math.sqrt(9.81 ** 2 + 3.2 ** 2))).toBe('moderate');
+  });
+
+  it('returns harsh when the horizontal-equivalent acceleration is at or above 3.5 m/s²', () => {
+    // Total magnitude including gravity for a 4.0 m/s² horizontal acceleration:
+    // sqrt(9.81^2 + 4.0^2) ≈ 10.594
+    expect(getSmoothnessBand(Math.sqrt(9.81 ** 2 + 4.0 ** 2))).toBe('harsh');
   });
 });
 

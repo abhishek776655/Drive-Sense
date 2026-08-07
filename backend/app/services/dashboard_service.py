@@ -501,10 +501,12 @@ async def get_recent_events_page(
     return RecentEventPage(items=items, total=total, limit=limit, offset=offset)
 
 
+_IST_HOUR_EXPR = extract("hour", Event.occurred_at + timedelta(hours=5, minutes=30))
+
 _HOUR_BUCKET_EXPR = case(
-    (extract("hour", Event.occurred_at) < 6, "night"),
-    (extract("hour", Event.occurred_at) < 12, "morning"),
-    (extract("hour", Event.occurred_at) < 18, "afternoon"),
+    (_IST_HOUR_EXPR < 6, "night"),
+    (_IST_HOUR_EXPR < 12, "morning"),
+    (_IST_HOUR_EXPR < 18, "afternoon"),
     else_="evening",
 )
 

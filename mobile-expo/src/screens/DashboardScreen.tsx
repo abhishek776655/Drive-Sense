@@ -687,6 +687,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop: 12}}>
                 {recurringInsights.map((item) => (
                   <View key={item.rule_id} style={{marginRight: 10, width: 260}}>
+                    <View className="flex-row items-baseline justify-between">
+                      <Text
+                        numberOfLines={1}
+                        style={{color: palette.text, ...theme.typography.caption, fontWeight: '700', flexShrink: 1}}>
+                        {item.title}
+                      </Text>
+                      {item.metric_value ? (
+                        <Text
+                          numberOfLines={1}
+                          style={{color: palette.textSubtle, ...theme.typography.caption, marginLeft: 8}}>
+                          {item.metric_value}
+                        </Text>
+                      ) : null}
+                    </View>
                     <InsightBanner
                       message={item.message}
                       type={item.tone}

@@ -6,11 +6,22 @@ import {GRAVITY_MPS2, HARSH_BRAKE_MPS2, RAPID_ACCELERATION_MPS2} from '../utils/
 export type SmoothnessBand = 'smooth' | 'moderate' | 'harsh';
 
 export const getSmoothnessBand = (magnitude: number): SmoothnessBand => {
-  const deviation = Math.abs(magnitude - GRAVITY_MPS2);
-  if (deviation >= Math.abs(HARSH_BRAKE_MPS2)) {
+  // magnitude <= 0 is the "unavailable / not yet measured" sentinel (e.g. before a trip starts,
+  // or after it ends) — a phone genuinely at rest reads ~GRAVITY_MPS2, never 0, so treat 0 as smooth
+  // rather than a real reading.
+  if (magnitude <= 0) {
+    return 'smooth';
+  }
+
+  // `magnitude` is the total 3D accelerometer reading including gravity. Remove gravity's
+  // contribution (assumed roughly orthogonal to horizontal motion) via Pythagorean subtraction to
+  // get the horizontal-equivalent acceleration, then band that directly against the same
+  // thresholds the event-detection pipeline uses.
+  const horizontalAccel = Math.sqrt(Math.max(0, magnitude * magnitude - GRAVITY_MPS2 * GRAVITY_MPS2));
+  if (horizontalAccel >= Math.abs(HARSH_BRAKE_MPS2)) {
     return 'harsh';
   }
-  if (deviation >= RAPID_ACCELERATION_MPS2) {
+  if (horizontalAccel >= RAPID_ACCELERATION_MPS2) {
     return 'moderate';
   }
   return 'smooth';

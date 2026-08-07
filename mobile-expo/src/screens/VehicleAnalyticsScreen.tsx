@@ -63,15 +63,30 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
     const tripTrend = stats?.trip_trend ?? [];
     const points = tripTrend.slice(-6);
     const maxDistance = Math.max(...points.map((item) => item.distance_meters), 1);
+    // `date_trunc('week'/'month', ...)` always returns the same day-of-month/weekday (a Monday for
+    // weeks, the 1st for months) across every bucket, so a plain `{weekday: 'short'}` formatter
+    // collapses to identical labels ("Mon Mon Mon..."). Format based on the active granularity so
+    // each bucket gets a distinguishable label.
+    const formatLabel = (bucketStart: string) => {
+      const date = new Date(bucketStart);
+      if (granularity === 'day') {
+        return date.toLocaleDateString('en-IN', {weekday: 'short'});
+      }
+      if (granularity === 'week') {
+        return date.toLocaleDateString('en-IN', {day: 'numeric', month: 'short'});
+      }
+      return date.toLocaleDateString('en-IN', {month: 'short', year: '2-digit'});
+    };
 
     return points.map((item) => ({
-      label: new Date(item.bucket_start).toLocaleDateString('en-IN', {weekday: 'short'}),
+      bucketStart: item.bucket_start,
+      label: formatLabel(item.bucket_start),
       value: `${Math.round((item.distance_meters / 1000) * 10) / 10} km`,
       height: Math.max(16, (item.distance_meters / maxDistance) * 88),
       score: item.avg_driving_score,
       scoreDotBottom: item.avg_driving_score != null ? Math.max(4, (item.avg_driving_score / 100) * 88) : null,
     }));
-  }, [stats?.trip_trend]);
+  }, [stats?.trip_trend, granularity]);
 
   const summary = stats?.summary;
   const avgSpeed = summary && summary.total_duration_seconds > 0
@@ -318,7 +333,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
               </View>
               <View className="mt-4 h-[150px] flex-row items-end justify-between">
                 {trendBars.length > 0 ? trendBars.map((item) => (
-                  <View key={item.label} className="flex-1 items-center justify-end" style={{height: '100%'}}>
+                  <View key={item.bucketStart} className="flex-1 items-center justify-end" style={{height: '100%'}}>
                     <View style={{flex: 1, width: 22, justifyContent: 'flex-end'}}>
                       {item.scoreDotBottom != null ? (
                         <View
