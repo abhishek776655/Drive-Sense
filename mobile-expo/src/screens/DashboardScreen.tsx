@@ -15,6 +15,7 @@ import heroCarIllustration from '../assets/illustrations/hero-electric-car.png';
 import {useAppSidebar} from '../components/AppSidebar';
 import {AppTheme, useAppTheme} from '../theme/appTheme';
 import {tripsService, type TripRead} from '../services/tripsService';
+import {dashboardService, type RecurringInsight} from '../services/dashboardService';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {DashboardScreenProps} from '../navigation/types';
@@ -219,6 +220,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   const [showSelector, setShowSelector] = useState(false);
   const [statsRange, setStatsRange] = useState<'week' | 'today'>('week');
   const [fallbackTrips, setFallbackTrips] = useState<TripRead[]>([]);
+  const [recurringInsights, setRecurringInsights] = useState<RecurringInsight[]>([]);
 
   const dashboard = useDashboardStore((state) => state.data);
   const loading = useDashboardStore((state) => state.loading);
@@ -266,6 +268,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   }, [dashboard?.recentTrips]);
 
   useEffect(() => {
+    const loadRecurringInsights = async () => {
+      try {
+        const insights = await dashboardService.getRecurringInsights();
+        setRecurringInsights(insights);
+      } catch {
+        setRecurringInsights([]);
+      }
+    };
+
+    void loadRecurringInsights();
+  }, [dashboard]);
+
+  useEffect(() => {
     if (!dashboard?.vehicles.length) {
       return;
     }
@@ -306,10 +321,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
     rapidAccelerationCount: 1,
     overspeedCount: 1,
     totalEvents: 4,
-  };
-  const insight = dashboard?.insights[0] ?? {
-    type: 'info' as const,
-    message: 'Live trip health looks stable. Keep speed and braking smooth.',
   };
   const totalRiskEvents = eventSummary.harshBrakeCount + eventSummary.rapidAccelerationCount + eventSummary.overspeedCount;
   const currentBars = dashboard?.trend.current.length ? dashboard.trend.current : FALLBACK_BARS;
@@ -562,7 +573,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             </View>
           </View>
 
-          {bestVehicle && worstVehicle && (dashboard?.vehicles.length ?? 0) > 2 ? (
+          {bestVehicle && worstVehicle && (dashboard?.vehicles.length ?? 0) >= 2 ? (
             <View
               className="mb-3.5 rounded-3xl border p-4"
               style={{
@@ -672,7 +683,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               />
             </View>
 
-            <InsightBanner message={insight.message} type={insight.type} palette={palette} typography={theme.typography} />
+            {recurringInsights.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop: 12}}>
+                {recurringInsights.map((item) => (
+                  <View key={item.rule_id} style={{marginRight: 10, width: 260}}>
+                    <InsightBanner
+                      message={item.message}
+                      type={item.tone}
+                      palette={palette}
+                      typography={theme.typography}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
           </View>
 
           <TrendChart
