@@ -291,6 +291,8 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
       {label: 'max_speed_mps', value: maxSpeedMps.toFixed(1)},
       {label: 'accuracy_m', value: currentPoint.accuracy_m.toFixed(1)},
       {label: 'accepted_points', value: String(acceptedPoints)},
+      {label: 'pending_points', value: String(Math.max(0, locationPoints.length - acceptedPoints))},
+      {label: 'pending_events', value: String(Math.max(0, frame.events - acceptedEvents))},
     ],
     timeline: [
       {label: 'recorded_at', value: currentPoint.recorded_at.slice(11, 19)},

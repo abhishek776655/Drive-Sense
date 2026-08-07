@@ -789,6 +789,8 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
       {label: 'max_speed_mps', value: maxSpeedMps.toFixed(1)},
       {label: 'accuracy_m', value: resolvedPoint.accuracy_m.toFixed(1)},
       {label: 'accepted_events', value: String(acceptedEvents)},
+      {label: 'pending_points', value: String(Math.max(0, points.length - acceptedPoints))},
+      {label: 'pending_events', value: String(Math.max(0, events.length - acceptedEvents))},
     ],
     timeline: [
       {label: 'recorded_at', value: resolvedPoint.recorded_at.slice(11, 19)},
