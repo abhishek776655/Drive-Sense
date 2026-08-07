@@ -27,6 +27,13 @@ from app.services.trip_insight_service import RecurringEventGroup, TripInsight, 
 
 
 DASHBOARD_TREND_DAYS = 30
+TREND_LOOKBACK_DAYS = {"day": DASHBOARD_TREND_DAYS, "week": 84, "month": 365}
+
+
+def resolve_trend_lookback_days(granularity: str) -> int:
+    return TREND_LOOKBACK_DAYS[granularity]
+
+
 RECENT_TRIPS_LIMIT = 5
 RECENT_EVENTS_LIMIT = 6
 VEHICLE_SUMMARY_LIMIT = 10
