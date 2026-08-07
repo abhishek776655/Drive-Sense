@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.models.enums import TripState
-from app.services.trip_insight_service import generate_trip_insights
+from app.services.trip_insight_service import (
+    RecurringEventGroup,
+    build_recurring_insights,
+    generate_trip_insights,
+)
 
 
 def make_trip(**overrides):
@@ -82,6 +86,41 @@ class GenerateTripInsightsTest(unittest.TestCase):
             ["safety_overspeed", "safety_harsh_brake", "efficiency_idle_time"],
             [insight.rule_id for insight in insights],
         )
+
+
+class BuildRecurringInsightsTest(unittest.TestCase):
+    def test_below_minimum_total_returns_empty(self):
+        groups = [RecurringEventGroup(event_type="harsh_brake", time_bucket="evening", count=2)]
+
+        self.assertEqual([], build_recurring_insights(groups))
+
+    def test_ranks_by_count_descending(self):
+        groups = [
+            RecurringEventGroup(event_type="harsh_brake", time_bucket="evening", count=5),
+            RecurringEventGroup(event_type="overspeed", time_bucket="morning", count=9),
+            RecurringEventGroup(event_type="rapid_acceleration", time_bucket="afternoon", count=3),
+        ]
+
+        insights = build_recurring_insights(groups)
+
+        self.assertEqual(
+            ["recurring_overspeed_morning", "recurring_harsh_brake_evening", "recurring_rapid_acceleration_afternoon"],
+            [insight.rule_id for insight in insights],
+        )
+        self.assertEqual("warning", insights[0].tone)
+        self.assertEqual("9 events", insights[0].metric_value)
+
+    def test_caps_at_limit(self):
+        groups = [
+            RecurringEventGroup(event_type="harsh_brake", time_bucket="evening", count=10),
+            RecurringEventGroup(event_type="overspeed", time_bucket="morning", count=9),
+            RecurringEventGroup(event_type="rapid_acceleration", time_bucket="afternoon", count=8),
+            RecurringEventGroup(event_type="harsh_brake", time_bucket="morning", count=7),
+        ]
+
+        insights = build_recurring_insights(groups, limit=3)
+
+        self.assertEqual(3, len(insights))
 
 
 if __name__ == "__main__":

@@ -23,6 +23,28 @@ class TripInsight:
     priority: int
 
 
+@dataclass(frozen=True)
+class RecurringEventGroup:
+    event_type: str
+    time_bucket: str
+    count: int
+
+
+RECURRING_INSIGHT_MIN_TOTAL_EVENTS = 3
+
+_RECURRING_INSIGHT_TONE = {
+    OVERSPEED_EVENT: "warning",
+    HARSH_BRAKING_EVENT: "warning",
+    RAPID_ACCELERATION_EVENT: "info",
+}
+
+_RECURRING_INSIGHT_TITLE = {
+    OVERSPEED_EVENT: "Frequent overspeeding",
+    HARSH_BRAKING_EVENT: "Frequent harsh braking",
+    RAPID_ACCELERATION_EVENT: "Frequent rapid acceleration",
+}
+
+
 class TripInsightEvent(Protocol):
     event_type: str
 
@@ -158,3 +180,30 @@ def generate_trip_insights(trip: TripInsightTrip, *, limit: int = 3) -> list[Tri
         )
 
     return sorted(insights, key=lambda insight: insight.priority, reverse=True)[:limit]
+
+
+def build_recurring_insights(
+    groups: Sequence[RecurringEventGroup], *, limit: int = 3
+) -> list[TripInsight]:
+    total = sum(group.count for group in groups)
+    if total < RECURRING_INSIGHT_MIN_TOTAL_EVENTS:
+        return []
+
+    ranked = sorted(groups, key=lambda group: group.count, reverse=True)[:limit]
+    insights: list[TripInsight] = []
+    for group in ranked:
+        tone = _RECURRING_INSIGHT_TONE.get(group.event_type, "info")
+        title = _RECURRING_INSIGHT_TITLE.get(group.event_type, "Recurring pattern")
+        insights.append(
+            TripInsight(
+                rule_id=f"recurring_{group.event_type}_{group.time_bucket}",
+                category="pattern",
+                tone=tone,
+                title=title,
+                message=f"You {group.event_type.replace('_', ' ')} most often in the {group.time_bucket}.",
+                metric_label="Occurrences",
+                metric_value=_format_count(group.count),
+                priority=group.count,
+            )
+        )
+    return insights
