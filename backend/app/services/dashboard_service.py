@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
@@ -23,12 +23,21 @@ from app.schemas.dashboard import (
     VehicleStatsResponse,
     VehicleStatsSummary,
 )
+from app.services.trip_insight_service import RecurringEventGroup, TripInsight, build_recurring_insights
 
 
 DASHBOARD_TREND_DAYS = 30
+TREND_LOOKBACK_DAYS = {"day": DASHBOARD_TREND_DAYS, "week": 84, "month": 365}
+
+
+def resolve_trend_lookback_days(granularity: str) -> int:
+    return TREND_LOOKBACK_DAYS[granularity]
+
+
 RECENT_TRIPS_LIMIT = 5
 RECENT_EVENTS_LIMIT = 6
 VEHICLE_SUMMARY_LIMIT = 10
+RECURRING_INSIGHTS_DAYS = 30
 
 
 def _to_float(value) -> float:
@@ -155,12 +164,14 @@ async def _get_trip_trend(
     *,
     user_id: uuid.UUID,
     vehicle_id: uuid.UUID | None = None,
-    days: int = DASHBOARD_TREND_DAYS,
+    granularity: str = "day",
+    days: int | None = None,
 ) -> list[TrendPoint]:
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    resolved_days = days if days is not None else resolve_trend_lookback_days(granularity)
+    since = datetime.now(timezone.utc) - timedelta(days=resolved_days)
     stmt = (
         select(
-            func.date_trunc("day", Trip.start_time).label("bucket_start"),
+            func.date_trunc(granularity, Trip.start_time).label("bucket_start"),
             func.count(Trip.id).label("trip_count"),
             func.coalesce(func.sum(Trip.distance_meters), 0).label("distance_meters"),
             func.coalesce(func.sum(Trip.fuel_used_liters), 0).label("fuel_used_liters"),
@@ -490,17 +501,58 @@ async def get_recent_events_page(
     return RecentEventPage(items=items, total=total, limit=limit, offset=offset)
 
 
+_IST_HOUR_EXPR = extract("hour", Event.occurred_at + timedelta(hours=5, minutes=30))
+
+_HOUR_BUCKET_EXPR = case(
+    (_IST_HOUR_EXPR < 6, "night"),
+    (_IST_HOUR_EXPR < 12, "morning"),
+    (_IST_HOUR_EXPR < 18, "afternoon"),
+    else_="evening",
+)
+
+
+async def get_recurring_insights_data(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    days: int = RECURRING_INSIGHTS_DAYS,
+) -> list[TripInsight]:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    stmt = (
+        select(
+            Event.event_type,
+            _HOUR_BUCKET_EXPR.label("time_bucket"),
+            func.count(Event.id).label("count"),
+        )
+        .select_from(Event)
+        .join(Trip, Trip.id == Event.trip_id)
+        .where(
+            Trip.user_id == user_id,
+            Trip.deleted_at.is_(None),
+            Event.occurred_at >= since,
+        )
+        .group_by(Event.event_type, "time_bucket")
+    )
+    rows = (await db.execute(stmt)).all()
+    groups = [
+        RecurringEventGroup(event_type=row.event_type, time_bucket=row.time_bucket, count=_to_int(row.count))
+        for row in rows
+    ]
+    return build_recurring_insights(groups)
+
+
 async def get_vehicle_stats_data(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
     vehicle_id: uuid.UUID,
+    granularity: str = "day",
 ) -> VehicleStatsResponse | None:
     summary = await _get_vehicle_overview(db, user_id=user_id, vehicle_id=vehicle_id)
     if summary is None:
         return None
 
-    trip_trend = await _get_trip_trend(db, user_id=user_id, vehicle_id=vehicle_id)
+    trip_trend = await _get_trip_trend(db, user_id=user_id, vehicle_id=vehicle_id, granularity=granularity)
     fuel_trend = await _get_fuel_trend(db, user_id=user_id, vehicle_id=vehicle_id)
     events = await _get_event_breakdown(db, user_id=user_id, vehicle_id=vehicle_id)
     recent_trips = await _get_recent_trips(db, user_id=user_id, vehicle_id=vehicle_id)

@@ -66,6 +66,17 @@ interface RecentEvent {
   intensity: number | null;
 }
 
+export interface RecurringInsight {
+  rule_id: string;
+  category: string;
+  tone: 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  metric_label: string;
+  metric_value: string;
+  priority: number;
+}
+
 export interface DashboardResponse {
   summary: MetricSummary;
   week_summary?: MetricSummary;
@@ -118,7 +129,6 @@ export interface TransformedDashboard {
     previous: number[];
     labels: string[];
   };
-  insights: Array<{type: 'warning' | 'info' | 'success'; message: string}>;
   recentTrips: Array<{
     id: string;
     distance: number;
@@ -190,41 +200,6 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
     return valid.reduce((total, item) => total + (item.avg_driving_score ?? 0), 0) / valid.length;
   };
   const previousAverageScore = averageScore(previousWindow);
-
-  const insights: Array<{type: 'warning' | 'info' | 'success'; message: string}> = [];
-
-  if (events.harsh_brake_count > 5) {
-    insights.push({
-      type: 'warning',
-      message: `You had ${events.harsh_brake_count} harsh brake events this week`,
-    });
-  }
-
-  if (events.rapid_acceleration_count > 5) {
-    insights.push({
-      type: 'warning',
-      message: 'Reduce rapid acceleration for better fuel efficiency',
-    });
-  }
-
-  if (events.overspeed_count > 0) {
-    insights.push({
-      type: 'warning',
-      message: `${events.overspeed_count} overspeed events detected`,
-    });
-  }
-
-  if (summary.avg_driving_score && summary.avg_driving_score >= 80) {
-    insights.push({
-      type: 'success',
-      message: 'Great driving! Keep up the good work',
-    });
-  } else {
-    insights.push({
-      type: 'info',
-      message: 'Drive smoothly to improve your score',
-    });
-  }
 
   const recentTrips = [...data.recent_trips]
     .sort((left, right) => new Date(right.start_time).getTime() - new Date(left.start_time).getTime())
@@ -313,7 +288,6 @@ const transformDashboard = (data: DashboardResponse): TransformedDashboard => {
       previous: previousData.length ? previousData : [0, 0, 0, 0, 0, 0, 0],
       labels: labels.length ? labels : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     },
-    insights,
     recentTrips,
     recentEvents: (data.recent_events ?? []).map((event) => ({
       id: event.event_id,
@@ -352,5 +326,9 @@ export const dashboardService = {
   getDashboard: async (): Promise<TransformedDashboard> => {
     const response = await apiClient.get<DashboardResponse>('/api/v1/dashboard');
     return transformDashboard(response.data);
+  },
+  getRecurringInsights: async (): Promise<RecurringInsight[]> => {
+    const response = await apiClient.get<RecurringInsight[]>('/api/v1/dashboard/insights');
+    return response.data;
   },
 };

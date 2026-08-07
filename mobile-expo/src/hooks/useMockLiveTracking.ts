@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {MOCK_LIVE_STREAM, MOCK_LIVE_TRACKING} from '../mocks/trackingData';
 import {tripService} from '../services/tripService';
+import {GRAVITY_MPS2} from '../utils/drivingThresholds';
 
 const metersBetween = (
   left: {latitude: number; longitude: number},
@@ -269,6 +270,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
     progress: locationPoints.length / Math.max(1, allSessionPoints.length),
     heading: `${Math.round(currentPoint.heading_deg)}°`,
     paceDelta: frame.harshBrake,
+    latestAcceleration: GRAVITY_MPS2 + (frame.events > 0 ? 4.2 : 0.4),
     currentPoint,
     hasLiveLocation: true,
     isStarted,
@@ -289,6 +291,8 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
       {label: 'max_speed_mps', value: maxSpeedMps.toFixed(1)},
       {label: 'accuracy_m', value: currentPoint.accuracy_m.toFixed(1)},
       {label: 'accepted_points', value: String(acceptedPoints)},
+      {label: 'pending_points', value: String(Math.max(0, locationPoints.length - acceptedPoints))},
+      {label: 'pending_events', value: String(Math.max(0, frame.events - acceptedEvents))},
     ],
     timeline: [
       {label: 'recorded_at', value: currentPoint.recorded_at.slice(11, 19)},
