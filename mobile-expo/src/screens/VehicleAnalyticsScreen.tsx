@@ -34,14 +34,15 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<VehicleStatsRead | null>(null);
+  const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('week');
 
   const vehicle = dashboard?.vehicles.find((item) => item.id === route.params.vehicleId);
 
-  const loadStats = async () => {
+  const loadStats = async (nextGranularity: 'day' | 'week' | 'month' = granularity) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await vehicleService.getVehicleStats(route.params.vehicleId);
+      const response = await vehicleService.getVehicleStats(route.params.vehicleId, nextGranularity);
       setStats(response);
     } catch (loadError) {
       setError(getApiErrorMessage(loadError));
@@ -55,8 +56,8 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
   }, [hydrateVehiclePreferences]);
 
   useEffect(() => {
-    void loadStats();
-  }, [route.params.vehicleId]);
+    void loadStats(granularity);
+  }, [route.params.vehicleId, granularity]);
 
   const trendBars = useMemo(() => {
     const tripTrend = stats?.trip_trend ?? [];
@@ -67,6 +68,8 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
       label: new Date(item.bucket_start).toLocaleDateString('en-IN', {weekday: 'short'}),
       value: `${Math.round((item.distance_meters / 1000) * 10) / 10} km`,
       height: Math.max(16, (item.distance_meters / maxDistance) * 88),
+      score: item.avg_driving_score,
+      scoreDotBottom: item.avg_driving_score != null ? Math.max(4, (item.avg_driving_score / 100) * 88) : null,
     }));
   }, [stats?.trip_trend]);
 
@@ -289,26 +292,115 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                 backgroundColor: theme.card,
                 borderColor: theme.cardBorder,
               }}>
-              <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip Trend</Text>
-              <Text className="mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                Recent distance pattern for this vehicle
-              </Text>
+              <View className="flex-row items-center justify-between">
+                <View style={{flex: 1, paddingRight: 10}}>
+                  <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip Trend</Text>
+                  <Text className="mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                    Distance (bars) and score (dots) over time
+                  </Text>
+                </View>
+                <View className="flex-row rounded-full p-1" style={{backgroundColor: theme.cardSoft}}>
+                  {(['week', 'month', 'day'] as const).map((option) => {
+                    const active = granularity === option;
+                    return (
+                      <Pressable
+                        key={option}
+                        onPress={() => setGranularity(option)}
+                        className="rounded-full px-3 py-1.5"
+                        style={{backgroundColor: active ? theme.card : 'transparent'}}>
+                        <Text style={{color: active ? theme.text : theme.textSubtle, ...theme.typography.caption, fontWeight: '700', textTransform: 'capitalize'}}>
+                          {option}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
               <View className="mt-4 h-[150px] flex-row items-end justify-between">
                 {trendBars.length > 0 ? trendBars.map((item) => (
-                  <View key={item.label} className="flex-1 items-center justify-end">
-                    <View
-                      style={{
-                        width: 22,
-                        height: item.height,
-                        borderRadius: 11,
-                        backgroundColor: theme.accent,
-                      }}
-                    />
+                  <View key={item.label} className="flex-1 items-center justify-end" style={{height: '100%'}}>
+                    <View style={{flex: 1, width: 22, justifyContent: 'flex-end'}}>
+                      {item.scoreDotBottom != null ? (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            bottom: item.scoreDotBottom,
+                            left: '50%',
+                            marginLeft: -4,
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: theme.success,
+                          }}
+                        />
+                      ) : null}
+                      <View
+                        style={{
+                          width: 22,
+                          height: item.height,
+                          borderRadius: 11,
+                          backgroundColor: theme.accent,
+                        }}
+                      />
+                    </View>
                     <Text className="mt-2" style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
                   </View>
                 )) : (
                   <Text style={{color: theme.textSubtle, ...theme.typography.body}}>
                     Not enough trip history yet to show a trend.
+                  </Text>
+                )}
+              </View>
+              <View className="mt-3 flex-row items-center">
+                <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent, marginRight: 6}} />
+                <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginRight: 14}}>Distance</Text>
+                <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme.success, marginRight: 6}} />
+                <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>Score</Text>
+              </View>
+            </View>
+
+            <View
+              className="mb-4 rounded-[26px] border p-4"
+              style={{
+                backgroundColor: theme.card,
+                borderColor: theme.cardBorder,
+              }}>
+              <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Fuel</Text>
+              <Text className="mb-3 mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                Usage and cost for this vehicle
+              </Text>
+              <View className="mb-3 flex-row justify-between">
+                <View
+                  className="w-[48.5%] rounded-[18px] border p-[14px]"
+                  style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder}}>
+                  <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>Total fuel used</Text>
+                  <Text style={{color: theme.text, fontSize: 19, fontWeight: '800'}}>{summary.total_fuel_used_liters.toFixed(1)} L</Text>
+                </View>
+                <View
+                  className="w-[48.5%] rounded-[18px] border p-[14px]"
+                  style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder}}>
+                  <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>Total fuel cost</Text>
+                  <Text style={{color: theme.text, fontSize: 19, fontWeight: '800'}}>₹{Math.round(summary.total_fuel_cost_amount)}</Text>
+                </View>
+              </View>
+              <View className="h-[70px] flex-row items-end justify-between">
+                {trendBars.length > 0 ? (stats?.trip_trend ?? []).slice(-6).map((item, index) => {
+                  const maxCost = Math.max(...(stats?.trip_trend ?? []).slice(-6).map((point) => point.fuel_cost_amount), 1);
+                  return (
+                    <View key={`${item.bucket_start}-${index}`} className="flex-1 items-center justify-end">
+                      <View
+                        style={{
+                          width: 16,
+                          height: Math.max(6, (item.fuel_cost_amount / maxCost) * 54),
+                          borderRadius: 8,
+                          backgroundColor: theme.warning,
+                        }}
+                      />
+                    </View>
+                  );
+                }) : (
+                  <Text style={{color: theme.textSubtle, ...theme.typography.body}}>
+                    Not enough trip history yet to show fuel cost trend.
                   </Text>
                 )}
               </View>
