@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
@@ -23,12 +23,14 @@ from app.schemas.dashboard import (
     VehicleStatsResponse,
     VehicleStatsSummary,
 )
+from app.services.trip_insight_service import RecurringEventGroup, TripInsight, build_recurring_insights
 
 
 DASHBOARD_TREND_DAYS = 30
 RECENT_TRIPS_LIMIT = 5
 RECENT_EVENTS_LIMIT = 6
 VEHICLE_SUMMARY_LIMIT = 10
+RECURRING_INSIGHTS_DAYS = 30
 
 
 def _to_float(value) -> float:
@@ -488,6 +490,44 @@ async def get_recent_events_page(
 ) -> RecentEventPage:
     items, total = await _get_recent_events(db, user_id=user_id, limit=limit, offset=offset)
     return RecentEventPage(items=items, total=total, limit=limit, offset=offset)
+
+
+_HOUR_BUCKET_EXPR = case(
+    (extract("hour", Event.occurred_at) < 6, "night"),
+    (extract("hour", Event.occurred_at) < 12, "morning"),
+    (extract("hour", Event.occurred_at) < 18, "afternoon"),
+    else_="evening",
+)
+
+
+async def get_recurring_insights_data(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    days: int = RECURRING_INSIGHTS_DAYS,
+) -> list[TripInsight]:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    stmt = (
+        select(
+            Event.event_type,
+            _HOUR_BUCKET_EXPR.label("time_bucket"),
+            func.count(Event.id).label("count"),
+        )
+        .select_from(Event)
+        .join(Trip, Trip.id == Event.trip_id)
+        .where(
+            Trip.user_id == user_id,
+            Trip.deleted_at.is_(None),
+            Event.occurred_at >= since,
+        )
+        .group_by(Event.event_type, "time_bucket")
+    )
+    rows = (await db.execute(stmt)).all()
+    groups = [
+        RecurringEventGroup(event_type=row.event_type, time_bucket=row.time_bucket, count=_to_int(row.count))
+        for row in rows
+    ]
+    return build_recurring_insights(groups)
 
 
 async def get_vehicle_stats_data(
