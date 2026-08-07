@@ -4,6 +4,7 @@ import {Accelerometer} from 'expo-sensors';
 import {MOCK_LIVE_TRACKING} from '../mocks/trackingData';
 import {tripService} from '../services/tripService';
 import {useDashboardStore} from '../store/dashboardStore';
+import {GRAVITY_MPS2, HARSH_BRAKE_MPS2, RAPID_ACCELERATION_MPS2} from '../utils/drivingThresholds';
 
 type TrackingPoint = {
   recorded_at: string;
@@ -34,8 +35,6 @@ type CompletedTripSummary = {
 };
 
 const OVERSPEED_MPS = 27.78;
-const RAPID_ACCELERATION_MPS2 = 3.0;
-const HARSH_BRAKE_MPS2 = -3.5;
 const AUTO_START_SPEED_MPS = 2.2;
 const AUTO_END_IDLE_SECONDS = 180;
 const MAX_ACCEPTABLE_ACCURACY_M = 55;
@@ -769,6 +768,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     progress: 1,
     heading: `${Math.round(resolvedPoint.heading_deg)}°`,
     paceDelta: lastEvent ? `${lastEvent.event_type.replace('_', ' ')} detected` : `${latestAcceleration.magnitude.toFixed(1)} m/s² motion`,
+    latestAcceleration: latestAcceleration.magnitude,
     isStarted,
     isPaused,
     hasEnded,
