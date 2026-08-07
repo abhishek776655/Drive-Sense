@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Image, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View} from 'react-native';
+import {Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {StatusBar} from 'expo-status-bar';
 import {Ionicons} from '@expo/vector-icons';
@@ -11,7 +11,6 @@ import {TrendChart} from '../components/TrendChart';
 import {TripListItem} from '../components/TripListItem';
 import {SkeletonBlock} from '../components/SkeletonBlock';
 import {StatTile} from '../components/StatTile';
-import heroCarIllustration from '../assets/illustrations/hero-electric-car.png';
 import {useAppSidebar} from '../components/AppSidebar';
 import {AppTheme, useAppTheme} from '../theme/appTheme';
 import {tripsService, type TripRead} from '../services/tripsService';
@@ -191,18 +190,11 @@ const HeroCarCard = ({
           backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.58)',
         }}>
         <View
-          className="absolute bottom-5 h-[24px] w-[190px] rounded-full"
-          style={{
-            backgroundColor: palette.accentSoft,
-            opacity: 0.7,
-          }}
-        />
-        <Image
-          source={heroCarIllustration}
-          resizeMode="contain"
-          style={{width: 236, height: 181}}
-          accessibilityLabel={`${name} illustration`}
-        />
+          className="h-[92px] w-[92px] items-center justify-center rounded-full"
+          style={{backgroundColor: palette.accentMuted}}
+          accessibilityLabel={`${name} logo`}>
+          <Ionicons name="car-sport" size={48} color={palette.accent} />
+        </View>
       </View>
     </View>
   </View>
@@ -389,7 +381,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             </View>
 
             <Pressable
-              onPress={() => {}}
+              onPress={() =>
+                navigation.navigate('ProfileStack', {screen: 'ComingSoon', params: {title: 'Notifications'}} as never)
+              }
               className="h-10 w-10 items-center justify-center rounded-[14px] border"
               style={{
                 backgroundColor: palette.card,
@@ -849,6 +843,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           void persistActiveVehicleId(vehicleId);
         }}
         onClose={() => setShowSelector(false)}
+        onAddVehicle={() => navigation.navigate('VehiclesStack', {screen: 'AddVehicle'} as never)}
       />
       <RNStatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
     </SafeAreaView>

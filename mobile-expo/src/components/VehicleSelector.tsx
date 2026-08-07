@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, Text, Image, Pressable} from 'react-native';
+import {View, Text, Image, Pressable, ScrollView} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useAppTheme} from '../theme/appTheme';
 
@@ -16,6 +16,7 @@ interface VehicleSelectorProps {
   selectedId: string;
   onSelect: (vehicleId: string) => void;
   onClose: () => void;
+  onAddVehicle?: () => void;
 }
 
 export const VehicleSelector: React.FC<VehicleSelectorProps> = ({
@@ -24,6 +25,7 @@ export const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   selectedId,
   onSelect,
   onClose,
+  onAddVehicle,
 }) => {
   const theme = useAppTheme();
   if (!visible) return null;
@@ -58,44 +60,50 @@ export const VehicleSelector: React.FC<VehicleSelectorProps> = ({
           </Pressable>
         </View>
 
-        {vehicles.map((vehicle) => (
-          <Pressable
-            key={vehicle.id}
-            className="mb-2.5 flex-row items-center rounded-[18px] border p-[14px]"
-            style={{
-              backgroundColor: selectedId === vehicle.id ? palette.selected : palette.card,
-              borderColor: selectedId === vehicle.id ? palette.selectedBorder : palette.border,
-            }}
-            onPress={() => {
-              onSelect(vehicle.id);
-              onClose();
-            }}>
-            {vehicle.imageUrl ? (
-              <Image
-                source={{uri: vehicle.imageUrl}}
-                className="mr-3 size-10 rounded-[14px]"
-                resizeMode="cover"
-              />
-            ) : (
-              <View
-                className="mr-3 size-10 items-center justify-center rounded-[14px]"
-                style={{
-                  backgroundColor: palette.accentSoft,
-                }}>
-                <Ionicons name="car" size={20} color={palette.accent} />
+        <ScrollView style={{maxHeight: 360}} showsVerticalScrollIndicator={false}>
+          {vehicles.map((vehicle) => (
+            <Pressable
+              key={vehicle.id}
+              className="mb-2.5 flex-row items-center rounded-[18px] border p-[14px]"
+              style={{
+                backgroundColor: selectedId === vehicle.id ? palette.selected : palette.card,
+                borderColor: selectedId === vehicle.id ? palette.selectedBorder : palette.border,
+              }}
+              onPress={() => {
+                onSelect(vehicle.id);
+                onClose();
+              }}>
+              {vehicle.imageUrl ? (
+                <Image
+                  source={{uri: vehicle.imageUrl}}
+                  className="mr-3 size-10 rounded-[14px]"
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  className="mr-3 size-10 items-center justify-center rounded-[14px]"
+                  style={{
+                    backgroundColor: palette.accentSoft,
+                  }}>
+                  <Ionicons name="car" size={20} color={palette.accent} />
+                </View>
+              )}
+              <View className="flex-1">
+                <Text style={{color: palette.text, ...theme.typography.body}}>{vehicle.name}</Text>
+                <Text className="mt-0.5" style={{color: palette.textSecondary, ...theme.typography.caption}}>{vehicle.type}</Text>
               </View>
-            )}
-            <View className="flex-1">
-              <Text style={{color: palette.text, ...theme.typography.body}}>{vehicle.name}</Text>
-              <Text className="mt-0.5" style={{color: palette.textSecondary, ...theme.typography.caption}}>{vehicle.type}</Text>
-            </View>
-            {selectedId === vehicle.id && (
-              <Ionicons name="checkmark-circle" size={22} color={palette.accent} />
-            )}
-          </Pressable>
-        ))}
+              {selectedId === vehicle.id && (
+                <Ionicons name="checkmark-circle" size={22} color={palette.accent} />
+              )}
+            </Pressable>
+          ))}
+        </ScrollView>
 
         <Pressable
+          onPress={() => {
+            onClose();
+            onAddVehicle?.();
+          }}
           className="mt-1 flex-row items-center justify-center rounded-[18px] border border-dashed p-[14px]"
           style={{
             borderColor: palette.border,

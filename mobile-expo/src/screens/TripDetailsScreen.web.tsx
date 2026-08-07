@@ -48,6 +48,19 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
   const routePoints = trip?.routePoints ?? [];
   const summary = getRouteSummary(routePoints);
 
+  const handleShare = () => {
+    if (!trip) {
+      return;
+    }
+    const text = `My ${trip.title} trip (${trip.date}): ${trip.distance} in ${trip.duration}, driving score ${trip.drivingScore}. Tracked with DriveSense.`;
+    const nav = typeof navigator === 'undefined' ? null : (navigator as Navigator & {share?: (data: {text: string}) => Promise<void>});
+    if (nav?.share) {
+      void nav.share({text}).catch(() => {});
+    } else if (nav?.clipboard) {
+      void nav.clipboard.writeText(text).catch(() => {});
+    }
+  };
+
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: theme.screen}}>
       <View style={{flex: 1, paddingHorizontal: 20, paddingTop: 12}}>
@@ -59,7 +72,9 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
           </TouchableOpacity>
           <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 22, lineHeight: 26}}>Trip Details</Text>
           <TouchableOpacity
-            style={{backgroundColor: theme.card, borderColor: theme.cardBorder, height: 40, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1}}>
+            onPress={handleShare}
+            disabled={!trip}
+            style={{backgroundColor: theme.card, borderColor: theme.cardBorder, height: 40, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, opacity: trip ? 1 : 0.5}}>
             <Ionicons name="share-social-outline" size={18} color={theme.text} />
           </TouchableOpacity>
         </View>

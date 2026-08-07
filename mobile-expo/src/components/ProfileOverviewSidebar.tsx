@@ -25,6 +25,7 @@ export type ProfileOverviewSidebarProps = {
     plate: string;
   };
   menuItems: ProfileMenuItem[];
+  onMenuItemPress?: (item: ProfileMenuItem) => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -33,6 +34,7 @@ export const ProfileOverviewSidebar: React.FC<ProfileOverviewSidebarProps> = ({
   stats,
   activeVehicle,
   menuItems,
+  onMenuItemPress,
   style,
 }) => {
   const theme = useAppTheme();
@@ -56,18 +58,6 @@ export const ProfileOverviewSidebar: React.FC<ProfileOverviewSidebarProps> = ({
         <Text className="mt-1" style={{color: theme.textSubtle, fontSize: 12, textAlign: 'center'}}>
           {user.email || 'No email available'}
         </Text>
-        <View
-          className="mt-3 rounded-full px-2.5 py-[5px]"
-          style={{
-            backgroundColor: theme.successMuted,
-            flexDirection: 'row',
-            alignItems: 'center',
-          }}>
-          <View className="mr-1.5 size-1.5 rounded-full" style={{backgroundColor: theme.success}} />
-          <Text style={{color: theme.success, fontSize: 10, fontWeight: '700'}}>
-            {user.statusLabel || 'Available'}
-          </Text>
-        </View>
       </View>
 
       <View
@@ -135,6 +125,7 @@ export const ProfileOverviewSidebar: React.FC<ProfileOverviewSidebarProps> = ({
         {menuItems.map((item, index) => (
           <TouchableOpacity
             key={item.label}
+            onPress={() => onMenuItemPress?.(item)}
             className="flex-row items-center px-[14px] py-[14px]"
             style={{
               borderBottomWidth: index < menuItems.length - 1 ? 1 : 0,

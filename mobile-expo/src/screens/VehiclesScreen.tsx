@@ -145,32 +145,29 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void fetchDashboard()} tintColor={theme.accent} />}>
-        <View className="mb-[18px] flex-row items-start justify-between">
+        <View className="mb-[18px] flex-row items-center justify-between">
           <Pressable
             onPress={openSidebar}
-            className="mr-3 size-10 items-center justify-center rounded-[14px] border"
+            className="size-10 items-center justify-center rounded-[14px] border"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
             <Ionicons name="menu" size={18} color={theme.text} />
           </Pressable>
-          <View className="flex-1 pr-3">
+          <View className="flex-1 items-center px-2.5">
             <Text style={{color: theme.text, ...theme.typography.pageTitle}}>Garage</Text>
-            <Text className="mt-1" style={{color: theme.textSubtle, ...theme.typography.body}}>
-              Vehicles, trip health, and readiness in one place
+            <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}} numberOfLines={1}>
+              Vehicles, trip health, and readiness
             </Text>
           </View>
           <Pressable
             onPress={() => navigation.navigate('AddVehicle')}
-            className="flex-row items-center rounded-[18px] px-[14px] py-3"
+            className="size-10 items-center justify-center rounded-[14px]"
             style={{
               backgroundColor: theme.accent,
             }}>
-            <Ionicons name="add" size={18} color={theme.onAccent} />
-            <Text className="ml-1.5" style={{color: theme.onAccent, ...theme.typography.caption, fontWeight: '800'}}>
-              Add
-            </Text>
+            <Ionicons name="add" size={20} color={theme.onAccent} />
           </Pressable>
         </View>
 

@@ -23,6 +23,10 @@ export type VehiclesStackParamList = {
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
+  Settings: undefined;
+  HelpSupport: undefined;
+  About: undefined;
+  ComingSoon: {title: string; message?: string};
 };
 
 export type MainTabsParamList = {
@@ -68,3 +72,11 @@ export type ProfileScreenProps = CompositeScreenProps<
   NativeStackScreenProps<ProfileStackParamList, 'ProfileMain'>,
   BottomTabScreenProps<MainTabsParamList>
 >;
+
+export type SettingsScreenProps = NativeStackScreenProps<ProfileStackParamList, 'Settings'>;
+
+export type HelpSupportScreenProps = NativeStackScreenProps<ProfileStackParamList, 'HelpSupport'>;
+
+export type AboutScreenProps = NativeStackScreenProps<ProfileStackParamList, 'About'>;
+
+export type ComingSoonScreenProps = NativeStackScreenProps<ProfileStackParamList, 'ComingSoon'>;

@@ -1,28 +1,39 @@
 import React from 'react';
-import {ScrollView, Switch, Text, TouchableOpacity, View, useWindowDimensions} from 'react-native';
+import {ScrollView, Text, TouchableOpacity, View, useWindowDimensions} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useAppTheme, useThemeMode} from '../theme/appTheme';
+import {useAppTheme} from '../theme/appTheme';
 import {authService, notifyLoggedOut} from '../services/apiClient';
 import {useAppSidebar} from '../components/AppSidebar';
-import {ProfileOverviewSidebar} from '../components/ProfileOverviewSidebar';
+import {ProfileOverviewSidebar, type ProfileMenuItem} from '../components/ProfileOverviewSidebar';
 import {
   ACTIVE_VEHICLE,
   PROFILE_MENU_ITEMS,
   PROFILE_OVERVIEW_DATA,
   PROFILE_STATS,
   PROFILE_USER,
+  resolveProfileMenuRoute,
 } from '../components/profileOverviewData';
+import {ProfileScreenProps} from '../navigation/types';
 
 const WIDE_PROFILE_BREAKPOINT = 900;
 
-export const ProfileScreen: React.FC = () => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
-  const {mode, toggleThemeMode} = useThemeMode();
   const {openSidebar} = useAppSidebar();
   const {width} = useWindowDimensions();
-  const isDarkMode = mode === 'dark';
   const isWideLayout = width >= WIDE_PROFILE_BREAKPOINT;
+
+  const handleMenuItemPress = (item: ProfileMenuItem) => {
+    const destination = resolveProfileMenuRoute(item.label);
+    if ('comingSoon' in destination) {
+      navigation.navigate('ComingSoon', {title: destination.comingSoon});
+    } else if (destination.tab === 'ProfileStack') {
+      navigation.navigate(destination.screen as 'Settings' | 'HelpSupport' | 'About');
+    } else {
+      navigation.navigate(destination.tab, {screen: destination.screen} as never);
+    }
+  };
 
   const renderHeader = () => (
     <View className="mb-[18px] flex-row items-center justify-between">
@@ -37,6 +48,7 @@ export const ProfileScreen: React.FC = () => {
       </TouchableOpacity>
       <Text style={{color: theme.text, fontSize: 22, fontWeight: '800'}}>More</Text>
       <TouchableOpacity
+        onPress={() => navigation.navigate('Settings')}
         className="size-10 items-center justify-center rounded-[14px] border"
         style={{
           backgroundColor: theme.card,
@@ -132,37 +144,25 @@ export const ProfileScreen: React.FC = () => {
     </View>
   );
 
-  const renderAppearance = () => (
-    <View className="mb-[14px]">
-      <Text className="mb-2.5" style={{color: theme.textSubtle, fontSize: 11, fontWeight: '800', letterSpacing: 0.8}}>APPEARANCE</Text>
+  const renderSettingsRow = () => (
+    <TouchableOpacity
+      onPress={() => navigation.navigate('Settings')}
+      className="mb-[14px] flex-row items-center rounded-3xl border px-[14px] py-[14px]"
+      style={{
+        backgroundColor: theme.card,
+        borderColor: theme.cardBorder,
+      }}>
       <View
-        className="rounded-3xl border px-[14px] py-[14px]"
-        style={{
-          backgroundColor: theme.card,
-          borderColor: theme.cardBorder,
-        }}>
-        <View className="flex-row items-center">
-          <View
-            className="mr-3 size-9 items-center justify-center rounded-[14px]"
-            style={{backgroundColor: theme.accentMuted}}>
-            <Ionicons name={isDarkMode ? 'moon' : 'sunny'} size={18} color={theme.accent} />
-          </View>
-          <View className="flex-1">
-            <Text style={{color: theme.text, fontSize: 14, fontWeight: '700'}}>Dark mode</Text>
-            <Text className="mt-0.5" style={{color: theme.textSubtle, fontSize: 11}}>
-              {isDarkMode ? 'Using the darker DriveSense palette' : 'Using the lighter DriveSense palette'}
-            </Text>
-          </View>
-          <Switch
-            value={isDarkMode}
-            onValueChange={() => void toggleThemeMode()}
-            trackColor={{false: theme.lineMuted, true: theme.accentSoft}}
-            thumbColor={isDarkMode ? theme.accent : theme.card}
-            ios_backgroundColor={theme.lineMuted}
-          />
-        </View>
+        className="mr-3 size-9 items-center justify-center rounded-[14px]"
+        style={{backgroundColor: theme.accentMuted}}>
+        <Ionicons name="settings-outline" size={18} color={theme.accent} />
       </View>
-    </View>
+      <View className="flex-1">
+        <Text style={{color: theme.text, fontSize: 14, fontWeight: '700'}}>Settings</Text>
+        <Text className="mt-0.5" style={{color: theme.textSubtle, fontSize: 11}}>Appearance and preferences</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={theme.textSubtle} />
+    </TouchableOpacity>
   );
 
   const renderAccountMenu = () => (
@@ -177,6 +177,7 @@ export const ProfileScreen: React.FC = () => {
         {PROFILE_MENU_ITEMS.map((item, index) => (
           <TouchableOpacity
             key={item.label}
+            onPress={() => handleMenuItemPress(item)}
             className="flex-row items-center px-[14px] py-[14px]"
             style={{
               borderBottomWidth: index < PROFILE_MENU_ITEMS.length - 1 ? 1 : 0,
@@ -211,7 +212,7 @@ export const ProfileScreen: React.FC = () => {
       <SafeAreaView className="flex-1" style={{backgroundColor: theme.screen}}>
         <View className="flex-1 flex-row justify-center px-6 pt-5" style={{gap: 18}}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 132}}>
-            <ProfileOverviewSidebar {...PROFILE_OVERVIEW_DATA} />
+            <ProfileOverviewSidebar {...PROFILE_OVERVIEW_DATA} onMenuItemPress={handleMenuItemPress} />
           </ScrollView>
           <ScrollView
             className="flex-1"
@@ -219,7 +220,7 @@ export const ProfileScreen: React.FC = () => {
             contentContainerStyle={{paddingBottom: 132}}
             showsVerticalScrollIndicator={false}>
             {renderHeader()}
-            {renderAppearance()}
+            {renderSettingsRow()}
             {renderLogout()}
           </ScrollView>
         </View>
@@ -234,7 +235,7 @@ export const ProfileScreen: React.FC = () => {
         {renderProfileSummary()}
         {renderStats()}
         {renderActiveVehicle()}
-        {renderAppearance()}
+        {renderSettingsRow()}
         {renderAccountMenu()}
         {renderLogout()}
       </ScrollView>
