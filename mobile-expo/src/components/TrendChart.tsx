@@ -11,6 +11,8 @@ interface TrendChartProps {
   metricLabel?: string;
   metricValue?: string;
   metricDelta?: string;
+  /** Unit appended to the direct labels and the scale marker. */
+  valueUnit?: string;
 }
 
 type Point = {x: number; y: number};
@@ -92,6 +94,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   metricLabel,
   metricValue,
   metricDelta,
+  valueUnit = 'km',
 }) => {
   const theme = useAppTheme();
   const [chartWidth, setChartWidth] = useState(0);
@@ -106,6 +109,22 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     () => buildPoints(previousData, chartWidth, chartHeight, maxValue),
     [chartWidth, previousData, maxValue],
   );
+
+  /**
+   * Direct-label the peak and the latest reading only. A number on all seven points collides at this
+   * width and buries the shape the chart exists to show.
+   */
+  const labelledIndexes = useMemo(() => {
+    if (currentData.length === 0) {
+      return [] as number[];
+    }
+    const peakIndex = currentData.reduce(
+      (best, value, index) => (value > currentData[best] ? index : best),
+      0,
+    );
+    const latestIndex = currentData.length - 1;
+    return Array.from(new Set([peakIndex, latestIndex]));
+  }, [currentData]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     setChartWidth(event.nativeEvent.layout.width);
@@ -152,8 +171,29 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           <>
             <LineSeries points={previousPoints} color={theme.lineMuted} muted />
             <LineSeries points={currentPoints} color={theme.line} />
+            {labelledIndexes.map((index) => {
+              const point = currentPoints[index];
+              if (!point) {
+                return null;
+              }
+              const labelWidth = 54;
+              const left = Math.min(Math.max(point.x - labelWidth / 2, 0), Math.max(chartWidth - labelWidth, 0));
+              return (
+                <View
+                  key={`value-${index}`}
+                  pointerEvents="none"
+                  style={{position: 'absolute', left, top: Math.max(point.y - 20, 0), width: labelWidth}}>
+                  <Text
+                    numberOfLines={1}
+                    style={{color: theme.text, ...theme.typography.caption, fontWeight: '700', textAlign: 'center'}}>
+                    {currentData[index]} {valueUnit}
+                  </Text>
+                </View>
+              );
+            })}
           </>
         ) : null}
+
 
         <View
           pointerEvents="none"

@@ -51,10 +51,10 @@ export type RouteSummary = {
 };
 
 export const ROUTE_SPEED_BANDS: RouteSpeedBand[] = [
-  {key: 'slow', label: 'Slow', range: '0-20 km/h', color: '#EF4444', min: 0, max: 20},
-  {key: 'urban', label: 'Urban', range: '20-40 km/h', color: '#F59E0B', min: 20, max: 40},
-  {key: 'cruise', label: 'Cruise', range: '40-60 km/h', color: '#22C55E', min: 40, max: 60},
-  {key: 'fast', label: 'Fast', range: '60+ km/h', color: '#2563EB', min: 60, max: Number.POSITIVE_INFINITY},
+  {key: 'slow', label: 'Slow', range: '0-20 km/h', color: '#C05C55', min: 0, max: 20},
+  {key: 'urban', label: 'Urban', range: '20-40 km/h', color: '#C3924F', min: 20, max: 40},
+  {key: 'cruise', label: 'Cruise', range: '40-60 km/h', color: '#4E9B74', min: 40, max: 60},
+  {key: 'fast', label: 'Fast', range: '60+ km/h', color: '#3F6FC4', min: 60, max: Number.POSITIVE_INFINITY},
 ];
 
 const EARTH_RADIUS_METERS = 6371000;

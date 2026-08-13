@@ -1,6 +1,7 @@
 import React from 'react';
 import {View, Text, Image, Pressable} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
+import {vehicleImageSource} from '../utils/vehicleImage';
 import {useAppTheme} from '../theme/appTheme';
 
 interface VehicleHeaderProps {
@@ -9,16 +10,6 @@ interface VehicleHeaderProps {
   isSelected?: boolean;
   onPress?: () => void;
 }
-
-const CarPlaceholder = ({isDark}: {isDark: boolean}) => (
-  <View
-    className="h-9 w-9 items-center justify-center rounded-[10px]"
-    style={{
-      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#E5E7EB',
-    }}>
-    <Ionicons name="car" size={20} color={isDark ? '#D1D5DB' : '#6B7280'} />
-  </View>
-);
 
 export const VehicleHeader: React.FC<VehicleHeaderProps> = ({
   vehicleName,
@@ -34,16 +25,12 @@ export const VehicleHeader: React.FC<VehicleHeaderProps> = ({
       onPress={onPress}
       style={{opacity: 1}}>
       <View className="relative mr-2.5">
-        {vehicleImage ? (
-          <Image
-            source={{uri: vehicleImage}}
-            className="h-9 w-9 rounded-[10px]"
-            style={{backgroundColor: theme.card}}
-            resizeMode="cover"
-          />
-        ) : (
-          <CarPlaceholder isDark={theme.dark} />
-        )}
+        <Image
+          source={vehicleImageSource(vehicleImage)}
+          className="h-10 w-10 rounded-[12px]"
+          style={{backgroundColor: theme.cardSoft}}
+          resizeMode="contain"
+        />
         {isSelected && (
           <View
             className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2"

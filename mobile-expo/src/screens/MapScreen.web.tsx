@@ -2,14 +2,12 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {MapScreenProps} from '../navigation/types';
 import {LiveTrackingLayout} from '../components/LiveTrackingLayout';
-import {useAppTheme} from '../theme/appTheme';
 import {useMockLiveTracking} from '../hooks/useMockLiveTracking';
 import {WebRouteMap} from '../components/WebRouteMap';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 
 export const MapScreen: React.FC<MapScreenProps> = () => {
-  const theme = useAppTheme();
   const dashboard = useDashboardStore((state) => state.data);
   const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
   const hydrateVehiclePreferences = useVehiclePreferencesStore((state) => state.hydrate);
@@ -31,7 +29,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
     <LiveTrackingLayout
       data={live}
       mapContent={
-        <View style={{flex: 1, borderTopWidth: 1, borderColor: theme.cardBorder}}>
+        <View style={{flex: 1}}>
           <WebRouteMap
             coordinates={
               coordinates.length > 0

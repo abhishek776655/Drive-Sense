@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View} from 'react-native';
+import {Image, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {StatusBar} from 'expo-status-bar';
 import {Ionicons} from '@expo/vector-icons';
@@ -18,9 +18,21 @@ import {dashboardService, type RecurringInsight} from '../services/dashboardServ
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {DashboardScreenProps} from '../navigation/types';
+import {vehicleImageSource} from '../utils/vehicleImage';
 
-const FALLBACK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const FALLBACK_BARS = [42, 58, 36, 68, 54, 72, 60];
+/** Radius scale for this screen. Anything outside these three is a bug. */
+const RADIUS = {sm: 16, md: 20, lg: 28} as const;
+/** Minimum comfortable touch target. */
+const HIT = 44;
+/** Shown wherever the API has given us nothing — never an invented number. */
+const DASH = '—';
+
+const RANGE_OPTIONS = [
+  {label: 'Today', value: 'today' as const},
+  {label: 'Week', value: 'week' as const},
+  {label: 'All time', value: 'all' as const},
+];
+
 const formatDistance = (meters: number) => `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
 
 const formatDuration = (seconds: number) => {
@@ -122,18 +134,23 @@ const InsightBanner = ({
 const HeroCarCard = ({
   name,
   plate,
+  imageUrl,
   palette,
   isDark,
   typography,
+  isTracking,
 }: {
   name: string;
   plate: string;
+  imageUrl?: string | null;
   palette: AppTheme;
   isDark: boolean;
   typography: AppTheme['typography'];
+  /** Real tracking state. The dot used to be hardcoded green with nothing behind it. */
+  isTracking: boolean;
 }) => (
   <View
-    className="mb-3.5 min-h-[232px] overflow-hidden rounded-[30px] border"
+    className="mb-3.5 min-h-[286px] overflow-hidden rounded-[28px] border"
     style={{
       backgroundColor: palette.cardSoft,
       borderColor: palette.cardBorder,
@@ -170,8 +187,18 @@ const HeroCarCard = ({
         <Text style={{color: palette.text, ...typography.sectionTitle, fontSize: 16}}>{name}</Text>
         <Text style={{color: palette.textSubtle, ...typography.caption, marginTop: 4}}>{plate}</Text>
         <View className="mt-1.5 flex-row items-center">
-          <View className="mr-1.5 h-2 w-2 rounded-full" style={{backgroundColor: palette.success}} />
-          <Text style={{color: palette.success, ...typography.caption, fontWeight: '600'}}>Online</Text>
+          <View
+            className="mr-1.5 h-2 w-2 rounded-full"
+            style={{backgroundColor: isTracking ? palette.success : palette.textSubtle}}
+          />
+          <Text
+            style={{
+              color: isTracking ? palette.success : palette.textSubtle,
+              ...typography.caption,
+              fontWeight: '600',
+            }}>
+            {isTracking ? 'Tracking' : 'Parked'}
+          </Text>
         </View>
       </View>
       <View
@@ -183,18 +210,18 @@ const HeroCarCard = ({
       </View>
     </View>
 
-    <View className="items-center justify-center pb-3.5 pt-2">
+    <View className="items-center justify-center px-4 pb-4 pt-1">
       <View
-        className="h-[150px] w-[260px] items-center justify-center rounded-[34px]"
+        className="h-[196px] w-full items-center justify-center overflow-hidden rounded-[20px]"
         style={{
           backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.58)',
         }}>
-        <View
-          className="h-[92px] w-[92px] items-center justify-center rounded-full"
-          style={{backgroundColor: palette.accentMuted}}
-          accessibilityLabel={`${name} logo`}>
-          <Ionicons name="car-sport" size={48} color={palette.accent} />
-        </View>
+        <Image
+          source={vehicleImageSource(imageUrl)}
+          style={{width: '100%', height: '100%'}}
+          resizeMode="contain"
+          accessibilityLabel={`${name} photo`}
+        />
       </View>
     </View>
   </View>
@@ -210,7 +237,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   const persistActiveVehicleId = useVehiclePreferencesStore((state) => state.setActiveVehicleId);
   const [selectedVehicleId, setSelectedVehicleId] = useState('1');
   const [showSelector, setShowSelector] = useState(false);
-  const [statsRange, setStatsRange] = useState<'week' | 'today'>('week');
+  const [statsRange, setStatsRange] = useState<'today' | 'week' | 'all'>('week');
   const [fallbackTrips, setFallbackTrips] = useState<TripRead[]>([]);
   const [recurringInsights, setRecurringInsights] = useState<RecurringInsight[]>([]);
 
@@ -223,14 +250,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
     void fetchDashboard();
   }, [fetchDashboard]);
 
+  const hasOngoingTrip = Boolean(dashboard?.ongoingTrip);
+
   useEffect(() => {
-    // Poll every 10 seconds to keep the dashboard updated (LiveTripCard stats, etc.)
+    // Only poll while a trip is actually running. A parked dashboard does not need a request
+    // every 10 seconds.
+    if (!hasOngoingTrip) {
+      return;
+    }
+
     const intervalId = setInterval(() => {
       void fetchDashboard({silent: true});
     }, 10000);
 
     return () => clearInterval(intervalId);
-  }, [fetchDashboard]);
+  }, [fetchDashboard, hasOngoingTrip]);
 
   useEffect(() => {
     // Refresh when screen comes into focus
@@ -297,27 +331,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
         }))
       : [];
   const selectedVehicle = vehicleOptions.find((vehicle) => vehicle.id === selectedVehicleId) || vehicleOptions[0];
-  const score = dashboard?.score ?? 85;
-  const scoreDelta = dashboard?.scoreDelta ?? 5;
-  const activeStats = statsRange === 'week' ? dashboard?.weekStats : dashboard?.todayStats;
-  const totalDistanceMeters = activeStats?.totalDistance ?? 124000;
-  const totalTrips = activeStats?.totalTrips ?? 12;
-  const avgSpeed = activeStats?.avgSpeed ?? 42;
-  const dashboardDurationSeconds = activeStats?.totalDurationSeconds ?? Math.max(60, Math.round((totalDistanceMeters / Math.max(avgSpeed, 1)) * 3.6));
-  const activeSpeed = Math.max(18, Math.round(avgSpeed * 1.45));
-  const activeTrips = activeStats?.activeTrips ?? 1;
-  const fuelUsedLiters = activeStats?.fuelUsedLiters ?? 18.6;
-  const fuelCostAmount = activeStats?.fuelCostAmount ?? 2430;
-  const eventSummary = dashboard?.events ?? {
-    harshBrakeCount: 2,
-    rapidAccelerationCount: 1,
-    overspeedCount: 1,
-    totalEvents: 4,
-  };
-  const totalRiskEvents = eventSummary.harshBrakeCount + eventSummary.rapidAccelerationCount + eventSummary.overspeedCount;
-  const currentBars = dashboard?.trend.current.length ? dashboard.trend.current : FALLBACK_BARS;
-  const previousBars = dashboard?.trend.previous.length ? dashboard.trend.previous : FALLBACK_BARS.map((value) => Math.max(8, value - 8));
-  const labels = dashboard?.trend.labels.length ? dashboard.trend.labels : FALLBACK_LABELS;
+  const score = dashboard?.score ?? null;
+  const scoreDelta = dashboard?.scoreDelta ?? 0;
+  const activeStats =
+    statsRange === 'all' ? dashboard?.stats : statsRange === 'week' ? dashboard?.weekStats : dashboard?.todayStats;
+  const eventSummary = dashboard?.events ?? null;
+  const totalRiskEvents = eventSummary
+    ? eventSummary.harshBrakeCount + eventSummary.rapidAccelerationCount + eventSummary.overspeedCount
+    : null;
+  const hasTrend = Boolean(dashboard?.trend.current.length);
+  const currentBars = hasTrend ? dashboard!.trend.current : [];
+  const previousBars = hasTrend ? dashboard!.trend.previous : [];
+  const labels = hasTrend ? dashboard!.trend.labels : [];
   const tripHistory = [
     ...(dashboard?.recentTrips?.length
       ? dashboard.recentTrips
@@ -342,6 +367,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   const sortedVehicles = [...(dashboard?.vehicles ?? [])].sort((left, right) => right.avgScore - left.avgScore);
   const bestVehicle = sortedVehicles[0];
   const worstVehicle = sortedVehicles[sortedVehicles.length - 1];
+  // Calling one of two cars "needs attention" is harsh when they score 94 and 92. Require a real
+  // fleet and a real gap before singling anyone out.
+  const scoreSpread = bestVehicle && worstVehicle ? bestVehicle.avgScore - worstVehicle.avgScore : 0;
+  const showVehicleInsights = sortedVehicles.length >= 3 && scoreSpread >= 10;
 
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: palette.screen}}>
@@ -366,7 +395,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           <View className="mb-3.5 flex-row items-center justify-between">
             <Pressable
               onPress={openSidebar}
-              className="h-10 w-10 items-center justify-center rounded-[14px] border"
+              className="h-11 w-11 items-center justify-center rounded-[16px] border"
               style={{
                 backgroundColor: palette.card,
                 borderColor: palette.cardBorder,
@@ -384,7 +413,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               onPress={() =>
                 navigation.navigate('ProfileStack', {screen: 'ComingSoon', params: {title: 'Notifications'}} as never)
               }
-              className="h-10 w-10 items-center justify-center rounded-[14px] border"
+              className="h-11 w-11 items-center justify-center rounded-[16px] border"
               style={{
                 backgroundColor: palette.card,
                 borderColor: palette.cardBorder,
@@ -405,7 +434,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
 
           {dashboardError ? (
             <View
-              className="mb-3.5 rounded-3xl border p-4"
+              className="mb-3.5 border p-4"
               style={{
                 backgroundColor: palette.card,
                 borderColor: palette.cardBorder,
@@ -426,14 +455,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           <HeroCarCard
             name={selectedVehicle?.name ?? 'No Vehicle'}
             plate={selectedVehicle?.plate ?? 'Add a vehicle to start tracking'}
+            imageUrl={selectedVehicle?.imageUrl}
             palette={palette}
             isDark={isDark}
             typography={theme.typography}
+            isTracking={hasOngoingTrip}
           />
 
           {!dashboard?.vehicles.length && !dashboardError ? (
             <View
-              className="mb-3.5 rounded-3xl border p-4"
+              className="mb-3.5 border p-4"
               style={{
                 backgroundColor: palette.card,
                 borderColor: palette.cardBorder,
@@ -464,94 +495,39 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             />
           ) : null}
 
+          {/*
+            One Driving card for all three ranges. `stats`, `weekStats` and `todayStats` share a
+            shape, so the range switch is client-side only. The old pair of cards disagreed about
+            which bucket they read — "All-time" tiles used `stats` while its chips used the week.
+          */}
           <View
-            className="mb-3.5 rounded-3xl border p-4"
+            className="mb-3.5 border p-4"
             style={{
+              borderRadius: RADIUS.lg,
               backgroundColor: palette.card,
               borderColor: palette.cardBorder,
               borderWidth: 1,
             }}>
-            <View className="mb-3 flex-row items-center justify-between">
-              <View style={{flex: 1, paddingRight: 10}}>
-                <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>All-time Driving</Text>
-                <Text style={{color: palette.textSubtle, ...theme.typography.caption, marginTop: 2}}>
-                  Lifetime totals across your recorded trips
-                </Text>
-              </View>
-              <View className="rounded-full px-3 py-1.5" style={{backgroundColor: palette.accentMuted}}>
-                <Text style={{color: palette.accent, ...theme.typography.caption, fontWeight: '700'}}>
-                  Always on
-                </Text>
-              </View>
-            </View>
-            <View className="mb-3 flex-row flex-wrap">
-              <SnapshotChip
-                label="Score"
-                value={`${score}/100`}
-                icon="shield-checkmark"
-                palette={palette}
-                typography={theme.typography}
-              />
-              <SnapshotChip
-                label="Avg speed"
-                value={`${Math.round(avgSpeed)} km/h`}
-                icon="speedometer"
-                palette={palette}
-                typography={theme.typography}
-              />
-              <SnapshotChip
-                label="Fuel cost"
-                value={`₹${Math.round(fuelCostAmount)}`}
-                icon="cash"
-                palette={palette}
-                typography={theme.typography}
-              />
-              <SnapshotChip
-                label="Events"
-                value={String(totalRiskEvents)}
-                icon="warning"
-                palette={palette}
-                typography={theme.typography}
-              />
-            </View>
-            <View className="flex-row flex-wrap justify-between">
-              <StatTile label="Total km" value={formatDistance(dashboard?.stats.totalDistance ?? 0)} icon="trail-sign" width="31.5%" />
-              <StatTile label="Total time" value={formatDuration(dashboard?.stats.totalDurationSeconds ?? 0)} icon="time" width="31.5%" />
-              <StatTile label="Avg speed" value={`${Math.round(dashboard?.stats.avgSpeed ?? 0)}`} unit="km/h" icon="speedometer" width="31.5%" />
-            </View>
-          </View>
-
-          <View
-            className="mb-3.5 rounded-3xl border p-4"
-            style={{
-              backgroundColor: palette.card,
-              borderColor: palette.cardBorder,
-              borderWidth: 1,
-            }}>
-            <View className="mb-3 flex-row items-center justify-between">
-              <View style={{flex: 1, paddingRight: 10}}>
-                <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Drive Summary</Text>
-                <Text style={{color: palette.textSubtle, ...theme.typography.caption, marginTop: 2}}>
-                  {statsRange === 'week' ? 'Your last 7 days of driving activity' : 'Your driving activity for today'}
-                </Text>
-              </View>
-              <View
-                className="flex-row rounded-full p-1"
-                style={{
-                  backgroundColor: palette.chip,
-                }}>
-                {[
-                  {label: 'This Week', value: 'week' as const},
-                  {label: 'Today', value: 'today' as const},
-                ].map((option) => {
+            <View className="mb-3.5 flex-row items-center justify-between">
+              <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Driving</Text>
+              <View className="flex-row rounded-full p-1" style={{backgroundColor: palette.chip}}>
+                {RANGE_OPTIONS.map((option) => {
                   const active = statsRange === option.value;
                   return (
                     <Pressable
                       key={option.value}
                       onPress={() => setStatsRange(option.value)}
-                      className="rounded-full px-3 py-1.5"
+                      accessibilityRole="button"
+                      accessibilityLabel={`Show ${option.label} totals`}
+                      accessibilityState={{selected: active}}
+                      className="rounded-full px-3 py-2"
                       style={{backgroundColor: active ? palette.card : 'transparent'}}>
-                      <Text style={{color: active ? palette.text : palette.textSubtle, ...theme.typography.caption, fontWeight: '700'}}>
+                      <Text
+                        style={{
+                          color: active ? palette.text : palette.textSubtle,
+                          ...theme.typography.caption,
+                          fontWeight: '700',
+                        }}>
                         {option.label}
                       </Text>
                     </Pressable>
@@ -559,17 +535,76 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
                 })}
               </View>
             </View>
+
             <View className="flex-row flex-wrap justify-between">
-              <StatTile label="Distance" value={formatDistance(totalDistanceMeters)} icon="speedometer" width="48%" />
-              <StatTile label="Drive Time" value={formatDuration(dashboardDurationSeconds)} icon="time" width="48%" />
-              <StatTile label="Trips" value={String(totalTrips)} icon="car" width="48%" />
-              <StatTile label="Fuel Used" value={fuelUsedLiters.toFixed(1)} unit="L" icon="water" width="48%" />
+              <StatTile
+                label="Distance"
+                value={activeStats ? formatDistance(activeStats.totalDistance) : DASH}
+                icon="trail-sign"
+                width="48%"
+              />
+              <StatTile
+                label="Trips"
+                value={activeStats ? String(activeStats.totalTrips) : DASH}
+                icon="car"
+                width="48%"
+              />
+              <StatTile
+                label="Drive time"
+                value={activeStats ? formatDuration(activeStats.totalDurationSeconds) : DASH}
+                icon="time"
+                width="48%"
+              />
+              <StatTile
+                label="Avg speed"
+                value={activeStats ? String(Math.round(activeStats.avgSpeed)) : DASH}
+                unit={activeStats ? 'km/h' : undefined}
+                icon="speedometer"
+                width="48%"
+              />
+            </View>
+
+            {/* Secondary facts ride as chips so they do not compete with the four totals. */}
+            <View className="mt-1 flex-row flex-wrap">
+              <SnapshotChip
+                label="Fuel used"
+                value={activeStats ? `${activeStats.fuelUsedLiters.toFixed(1)} L` : DASH}
+                icon="water"
+                palette={palette}
+                typography={theme.typography}
+              />
+              <SnapshotChip
+                label="Fuel cost"
+                value={activeStats ? `₹${Math.round(activeStats.fuelCostAmount)}` : DASH}
+                icon="cash"
+                palette={palette}
+                typography={theme.typography}
+              />
+              <SnapshotChip
+                label="Events"
+                value={totalRiskEvents == null ? DASH : String(totalRiskEvents)}
+                icon="warning"
+                palette={palette}
+                typography={theme.typography}
+              />
+              {activeStats && activeStats.activeTrips > 0 ? (
+                <SnapshotChip
+                  label="Active"
+                  value={String(activeStats.activeTrips)}
+                  icon="radio"
+                  palette={palette}
+                  typography={theme.typography}
+                />
+              ) : null}
             </View>
           </View>
 
-          {bestVehicle && worstVehicle && (dashboard?.vehicles.length ?? 0) >= 2 ? (
+          {/* The headline KPI sits directly under the totals it summarises, not below the fold. */}
+          {score != null ? <ScoreCard score={score} scoreDelta={scoreDelta} /> : null}
+
+          {showVehicleInsights && bestVehicle && worstVehicle ? (
             <View
-              className="mb-3.5 rounded-3xl border p-4"
+              className="mb-3.5 border p-4"
               style={{
                 backgroundColor: palette.card,
                 borderColor: palette.cardBorder,
@@ -578,9 +613,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               <View className="mb-3 flex-row items-center justify-between">
                 <View style={{flex: 1, paddingRight: 10}}>
                   <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Vehicle Insights</Text>
-                  <Text style={{color: palette.textSubtle, ...theme.typography.caption, marginTop: 2}}>
-                    Best and weakest performers across your fleet
-                  </Text>
                 </View>
                 <Ionicons name="analytics" size={18} color={palette.accent} />
               </View>
@@ -590,14 +622,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
                     title: 'Best Vehicle',
                     vehicle: bestVehicle,
                     tone: palette.success,
-                    toneBg: 'rgba(34,197,94,0.10)',
+                    toneBg: palette.successSoft,
                     icon: 'trophy',
                   },
                   {
                     title: 'Needs Attention',
                     vehicle: worstVehicle,
-                    tone: '#F59E0B',
-                    toneBg: 'rgba(245,158,11,0.12)',
+                    tone: palette.warning,
+                    toneBg: palette.warningSoft,
                     icon: 'alert-circle',
                   },
                 ].map((item) => (
@@ -605,7 +637,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
                     key={item.title}
                     style={{
                       width: '48.5%',
-                      borderRadius: 20,
+                      borderRadius: RADIUS.md,
                       padding: 14,
                       backgroundColor: item.toneBg,
                     }}>
@@ -630,52 +662,51 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             </View>
           ) : null}
 
+          {/* Counts, insights and the event log are one topic — one card. */}
           <View
-            className="mb-3.5 rounded-3xl border p-4"
+            className="mb-3.5 border p-4"
             style={{
+              borderRadius: RADIUS.lg,
               backgroundColor: palette.card,
               borderColor: palette.cardBorder,
               borderWidth: 1,
             }}>
             <View className="mb-3 flex-row items-center justify-between">
-              <View style={{flex: 1, paddingRight: 10}}>
-                <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Behavior Pulse</Text>
-                <Text style={{color: palette.textSubtle, ...theme.typography.caption, marginTop: 2}}>The events shaping driver risk right now</Text>
-              </View>
-              <View
-                className="rounded-full px-3 py-1.5"
-                style={{
-                  backgroundColor: palette.accentMuted,
-                }}>
-                <Text style={{color: palette.accent, ...theme.typography.caption, fontWeight: '700'}}>
-                  {eventSummary.totalEvents} events
-                </Text>
-              </View>
+              <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Behavior</Text>
+              {eventSummary ? (
+                <View className="rounded-full px-3 py-1.5" style={{backgroundColor: palette.accentMuted}}>
+                  <Text style={{color: palette.accent, ...theme.typography.caption, fontWeight: '700'}}>
+                    {eventSummary.totalEvents} events
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
-            <View className="flex-row flex-wrap">
-              <SnapshotChip
-                label="Harsh Brake"
-                value={String(eventSummary.harshBrakeCount)}
-                icon="remove-circle"
-                palette={palette}
-                typography={theme.typography}
-              />
-              <SnapshotChip
-                label="Rapid Accel"
-                value={String(eventSummary.rapidAccelerationCount)}
-                icon="flash"
-                palette={palette}
-                typography={theme.typography}
-              />
-              <SnapshotChip
-                label="Overspeed"
-                value={String(eventSummary.overspeedCount)}
-                icon="alert"
-                palette={palette}
-                typography={theme.typography}
-              />
-            </View>
+            {eventSummary ? (
+              <View className="flex-row flex-wrap">
+                <SnapshotChip
+                  label="Harsh Brake"
+                  value={String(eventSummary.harshBrakeCount)}
+                  icon="remove-circle"
+                  palette={palette}
+                  typography={theme.typography}
+                />
+                <SnapshotChip
+                  label="Rapid Accel"
+                  value={String(eventSummary.rapidAccelerationCount)}
+                  icon="flash"
+                  palette={palette}
+                  typography={theme.typography}
+                />
+                <SnapshotChip
+                  label="Overspeed"
+                  value={String(eventSummary.overspeedCount)}
+                  icon="alert"
+                  palette={palette}
+                  typography={theme.typography}
+                />
+              </View>
+            ) : null}
 
             {recurringInsights.length > 0 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop: 12}}>
@@ -705,41 +736,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
                 ))}
               </ScrollView>
             ) : null}
-          </View>
 
-          <TrendChart
-            currentData={currentBars}
-            previousData={previousBars}
-            labels={labels}
-            title="Distance Trend"
-            subtitle="This week vs last week"
-            metricValue={formatDistance(dashboard?.stats.totalDistance ?? 0)}
-            metricLabel={`${Math.round(dashboard?.stats.avgSpeed ?? 0)} km/h average speed`}
-            metricDelta={scoreDelta >= 0 ? `${scoreDelta > 0 ? '+' : ''}${scoreDelta} score` : `${scoreDelta} score`}
-          />
-
-          <ScoreCard score={score} scoreDelta={scoreDelta} />
-
-          <View
-            className="mb-3.5 rounded-3xl border p-4"
-            style={{
-              backgroundColor: palette.card,
-              borderColor: palette.cardBorder,
-              borderWidth: 1,
-            }}>
-            <View className="mb-3.5 flex-row items-center justify-between">
-              <View style={{flex: 1, paddingRight: 10}}>
-                <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Recent Events</Text>
-                <Text style={{color: palette.textSubtle, ...theme.typography.caption, marginTop: 2}}>
-                  Latest harsh braking, overspeed, and acceleration signals
-                </Text>
-              </View>
-              <View className="rounded-full px-3 py-1.5" style={{backgroundColor: palette.accentMuted}}>
-                <Text style={{color: palette.accent, ...theme.typography.caption, fontWeight: '700'}}>
-                  Live feed
-                </Text>
-              </View>
-            </View>
+            <View style={{height: 1, backgroundColor: palette.cardBorder, marginTop: 14, marginBottom: 2}} />
             {recentEvents.length > 0 ? recentEvents.map((event, index) => {
               const tone = getEventTone(event.eventType, palette);
               return (
@@ -786,22 +784,32 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             )}
           </View>
 
+          {hasTrend ? (
+            <TrendChart
+              currentData={currentBars}
+              previousData={previousBars}
+              labels={labels}
+              title="Distance Trend"
+              subtitle="This week vs last week"
+            />
+          ) : null}
+
           <View
-            className="mb-3 rounded-3xl border p-4"
+            className="mb-3 border p-4"
             style={{
+              borderRadius: RADIUS.lg,
               backgroundColor: palette.card,
               borderColor: palette.cardBorder,
               borderWidth: 1,
             }}>
-            <View className="mb-3.5 flex-row items-center justify-between">
-              <View style={{flex: 1, paddingRight: 10}}>
-                <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Last 3 Trips</Text>
-                <Text style={{color: palette.textSubtle, ...theme.typography.caption, marginTop: 2}}>
-                  Recent drives and trip scores
-                </Text>
-              </View>
-              <Pressable onPress={() => navigation.navigate('TripsStack', {screen: 'TripsList'})}>
-                <Text style={{color: palette.accent, ...theme.typography.caption}}>See all</Text>
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Last 3 Trips</Text>
+              <Pressable
+                onPress={() => navigation.navigate('TripsStack', {screen: 'TripsList'})}
+                accessibilityRole="button"
+                accessibilityLabel="See all trips"
+                style={{minHeight: HIT, paddingHorizontal: 8, justifyContent: 'center'}}>
+                <Text style={{color: palette.accent, ...theme.typography.caption, fontWeight: '700'}}>See all</Text>
               </Pressable>
             </View>
 
@@ -821,7 +829,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               <View
                 style={{
                   backgroundColor: palette.cardSoft,
-                  borderRadius: 20,
+                  borderRadius: RADIUS.md,
                   padding: 16,
                 }}>
                 <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>No trips yet</Text>

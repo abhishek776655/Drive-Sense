@@ -3,6 +3,7 @@ import {View} from 'react-native';
 import {MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker} from 'react-leaflet';
 import {divIcon} from 'leaflet';
 import type {LatLngExpression} from 'leaflet';
+import {useAppTheme} from '../theme/appTheme';
 
 type Point = {
   latitude: number;
@@ -23,6 +24,7 @@ const getCenter = (coordinates: Point[]): [number, number] => {
 };
 
 export const WebRouteMap: React.FC<Props> = ({coordinates, startLabel, currentLabel, headingDeg = 0}) => {
+  const theme = useAppTheme();
   const positions: LatLngExpression[] = coordinates.map((point) => [point.latitude, point.longitude]);
   const center = getCenter(coordinates);
   const start = coordinates[0];
@@ -55,11 +57,19 @@ export const WebRouteMap: React.FC<Props> = ({coordinates, startLabel, currentLa
         scrollWheelZoom
         style={{width: '100%', height: '100%'}}>
         <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={
+            theme.dark
+              ? '&copy; OpenStreetMap contributors &copy; CARTO'
+              : '&copy; OpenStreetMap contributors'
+          }
+          url={
+            theme.dark
+              ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+              : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+          }
         />
         <Polyline positions={positions} pathOptions={{color: '#246BFF', weight: 5, opacity: 0.95}} />
-        <CircleMarker center={[start.latitude, start.longitude]} radius={7} pathOptions={{color: '#22C55E', fillColor: '#22C55E', fillOpacity: 1}}>
+        <CircleMarker center={[start.latitude, start.longitude]} radius={7} pathOptions={{color: '#4E9B74', fillColor: '#4E9B74', fillOpacity: 1}}>
           <Popup>{startLabel}</Popup>
         </CircleMarker>
         <Marker position={[current.latitude, current.longitude]} icon={livePointerIcon}>

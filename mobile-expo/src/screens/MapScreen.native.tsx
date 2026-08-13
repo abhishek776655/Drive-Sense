@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Text, TouchableOpacity, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import MapView, {Circle, Marker, Polyline} from 'react-native-maps';
@@ -6,6 +6,7 @@ import {MapScreenProps} from '../navigation/types';
 import {LiveTrackingLayout} from '../components/LiveTrackingLayout';
 import {LiveLocationMarker} from '../components/LiveLocationMarker';
 import {useAppTheme} from '../theme/appTheme';
+import {DARK_MAP_STYLE} from '../theme/mapStyle';
 import {useLiveTracking} from '../hooks/useLiveTracking';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
@@ -15,10 +16,18 @@ const normalizeHeading = (value: number) => {
   return normalized < 0 ? normalized + 360 : normalized;
 };
 
+/** Shortest signed turn from `from` to `to`, in (-180, 180]. */
+const shortestHeadingDelta = (from: number, to: number) =>
+  ((((normalizeHeading(to) - normalizeHeading(from)) % 360) + 540) % 360) - 180;
+
 const CAMERA_ZOOM_2D = 16.4;
 const CAMERA_ZOOM_3D = 19.2;
 const CAMERA_ALTITUDE_2D = 760;
 const CAMERA_ALTITUDE_3D = 240;
+const CAMERA_DURATION_2D = 650;
+const CAMERA_DURATION_3D = 900;
+/** Below this the GPS course is noise, so the puck keeps its last heading and drops the arrow. */
+const HEADING_HOLD_SPEED_MPS = 0.8;
 
 const getLookAheadCoordinate = (
   point: {latitude: number; longitude: number},
@@ -65,6 +74,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
   const [is3DMode, setIs3DMode] = useState(false);
   const [isFollowMode, setIsFollowMode] = useState(true);
   const [displayedHeading, setDisplayedHeading] = useState(0);
+  const [tracksMarkerView, setTracksMarkerView] = useState(true);
   const dashboard = useDashboardStore((state) => state.data);
   const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
   const hydrateVehiclePreferences = useVehiclePreferencesStore((state) => state.hydrate);
@@ -99,24 +109,65 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
   const currentPoint = coordinates[coordinates.length - 1];
   const hasAutoFocusedRef = useRef(false);
   const lastFollowUpdateRef = useRef<{latitude: number; longitude: number; heading: number} | null>(null);
-  useEffect(() => {
-    let frame = 0;
-    const targetHeading = normalizeHeading(live.currentPoint.heading_deg);
+  const headingValueRef = useRef(0);
+  const headingFrameRef = useRef<number | null>(null);
+  const isMoving = live.currentPoint.speed_mps >= HEADING_HOLD_SPEED_MPS || live.currentPoint.is_moving;
 
-    const animateHeading = () => {
-      setDisplayedHeading((current) => {
-        const delta = ((((targetHeading - current) % 360) + 540) % 360) - 180;
-        if (Math.abs(delta) < 1) {
-          return targetHeading;
-        }
-        frame = requestAnimationFrame(animateHeading);
-        return normalizeHeading(current + delta * 0.2);
-      });
+  /**
+   * Turns the puck to `target` over `durationMs` on a linear ramp. The duration is the same one
+   * handed to `animateCamera`, so in 3D the puck and the camera sweep together and the arrow keeps
+   * pointing up-screen through a turn instead of swinging out and snapping back.
+   */
+  const animateHeadingTo = useCallback((target: number, durationMs: number) => {
+    if (headingFrameRef.current != null) {
+      cancelAnimationFrame(headingFrameRef.current);
+      headingFrameRef.current = null;
+    }
+
+    const from = headingValueRef.current;
+    const delta = shortestHeadingDelta(from, target);
+    if (Math.abs(delta) < 0.5) {
+      headingValueRef.current = normalizeHeading(target);
+      setDisplayedHeading(headingValueRef.current);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const step = () => {
+      const progress = Math.min(1, (Date.now() - startedAt) / durationMs);
+      headingValueRef.current = normalizeHeading(from + delta * progress);
+      setDisplayedHeading(headingValueRef.current);
+      headingFrameRef.current = progress < 1 ? requestAnimationFrame(step) : null;
     };
 
-    frame = requestAnimationFrame(animateHeading);
-    return () => cancelAnimationFrame(frame);
-  }, [live.currentPoint.heading_deg]);
+    headingFrameRef.current = requestAnimationFrame(step);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (headingFrameRef.current != null) {
+        cancelAnimationFrame(headingFrameRef.current);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Rotation now happens natively on the marker, so the rasterized view only has to be refreshed
+   * when its content changes (mode switch, moving <-> stopped puck, theme colour).
+   */
+  useEffect(() => {
+    setTracksMarkerView(true);
+    const timer = setTimeout(() => setTracksMarkerView(false), 600);
+    return () => clearTimeout(timer);
+  }, [is3DMode, isMoving, theme.accent]);
+
+  useEffect(() => {
+    if (!isMoving) {
+      return;
+    }
+    animateHeadingTo(live.currentPoint.heading_deg, is3DMode ? CAMERA_DURATION_3D : CAMERA_DURATION_2D);
+  }, [animateHeadingTo, is3DMode, isMoving, live.currentPoint.heading_deg]);
 
   const focusCurrentLocation = (next3DMode: boolean, duration = 500, force = false) => {
     if (!mapRef.current || !live.hasLiveLocation) {
@@ -144,15 +195,17 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
       latitude: live.currentPoint.latitude,
       longitude: live.currentPoint.longitude,
     };
+    // Hold the last known heading while stationary so the camera does not spin on GPS course noise.
+    const cameraHeading = isMoving ? normalizeHeading(live.currentPoint.heading_deg) : headingValueRef.current;
     const cameraCenter = next3DMode
-      ? getLookAheadCoordinate(currentLocation, live.currentPoint.heading_deg, 36)
+      ? getLookAheadCoordinate(currentLocation, cameraHeading, 36)
       : currentLocation;
 
     mapRef.current.animateCamera(
       {
         center: cameraCenter,
         pitch: next3DMode ? 68 : 0,
-        heading: next3DMode ? normalizeHeading(live.currentPoint.heading_deg) : 0,
+        heading: next3DMode ? cameraHeading : 0,
         zoom: next3DMode ? CAMERA_ZOOM_3D : CAMERA_ZOOM_2D,
         altitude: next3DMode ? CAMERA_ALTITUDE_3D : CAMERA_ALTITUDE_2D,
       },
@@ -182,7 +235,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
       return;
     }
 
-    focusCurrentLocation(is3DMode, is3DMode ? 900 : 650);
+    focusCurrentLocation(is3DMode, is3DMode ? CAMERA_DURATION_3D : CAMERA_DURATION_2D);
   }, [
     is3DMode,
     isFollowMode,
@@ -232,6 +285,9 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
             ref={mapRef}
             style={{flex: 1}}
             initialRegion={region}
+            // Apple Maps (iOS) honours userInterfaceStyle; Google (Android) honours customMapStyle.
+            userInterfaceStyle={theme.dark ? 'dark' : 'light'}
+            customMapStyle={theme.dark ? DARK_MAP_STYLE : undefined}
             showsUserLocation={false}
             followsUserLocation={false}
             scrollEnabled
@@ -248,7 +304,7 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
                 strokeWidth={1}
               />
             ) : null}
-            {startPoint ? <Marker coordinate={startPoint} title="Trip Start" description={live.start_time} pinColor="#22C55E" /> : null}
+            {startPoint ? <Marker coordinate={startPoint} title="Trip Start" description={live.start_time} pinColor="#4E9B74" /> : null}
             {live.hasLiveLocation && currentPoint ? (
               <Marker
                 key={`live-pointer-${is3DMode ? '3d' : '2d'}`}
@@ -256,28 +312,26 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
                 title="Current Fix"
                 description={live.currentPoint.recorded_at}
                 anchor={{x: 0.5, y: 0.5}}
-                flat={is3DMode}
-                rotation={is3DMode ? displayedHeading : 0}
-                tracksViewChanges={!is3DMode}>
-                <LiveLocationMarker
-                  color={theme.accent}
-                  is3D={is3DMode}
-                  headingDeg={displayedHeading}
-                />
+                centerOffset={{x: 0, y: 0}}
+                flat
+                rotation={displayedHeading}
+                tracksViewChanges={tracksMarkerView}>
+                <LiveLocationMarker color={theme.accent} is3D={is3DMode} isMoving={isMoving} />
               </Marker>
             ) : null}
           </MapView>
           {live.permissionState === 'denied' ? (
             <View
               style={{
+                // Bottom, not top: the top strip belongs to the status chip and map controls.
                 position: 'absolute',
-                top: 12,
+                bottom: 12,
                 left: 12,
                 right: 12,
-                backgroundColor: theme.card,
+                backgroundColor: theme.overlay,
                 borderRadius: 16,
                 borderWidth: 1,
-                borderColor: theme.cardBorder,
+                borderColor: theme.overlayBorder,
                 padding: 12,
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -293,11 +347,14 @@ export const MapScreen: React.FC<MapScreenProps> = () => {
               </Text>
               <TouchableOpacity
                 onPress={() => void live.retryLocationPermission()}
+                accessibilityRole="button"
+                accessibilityLabel="Enable location access"
                 style={{
                   backgroundColor: theme.accent,
                   borderRadius: 999,
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
+                  paddingHorizontal: 16,
+                  minHeight: 44,
+                  justifyContent: 'center',
                   marginLeft: 8,
                 }}>
                 <Text style={{color: theme.onAccent, ...theme.typography.caption, fontWeight: '800'}}>Enable</Text>

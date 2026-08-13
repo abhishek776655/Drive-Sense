@@ -42,7 +42,16 @@ export const RouteSpeedMap: React.FC<Props> = ({routePoints, startLabel, endLabe
 
   return (
     <MapContainer center={getCenter(routePoints)} zoom={12} scrollWheelZoom style={{width: '100%', height: '100%'}}>
-      <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer
+        attribution={
+          theme.dark ? '&copy; OpenStreetMap contributors &copy; CARTO' : '&copy; OpenStreetMap contributors'
+        }
+        url={
+          theme.dark
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+        }
+      />
       <FitRouteBounds positions={positions} />
       {sections.map((section, index) => (
         <Polyline
@@ -51,7 +60,7 @@ export const RouteSpeedMap: React.FC<Props> = ({routePoints, startLabel, endLabe
           pathOptions={{color: section.band.color, weight: 5, opacity: 0.95}}
         />
       ))}
-      <CircleMarker center={[startPoint.latitude, startPoint.longitude]} radius={7} pathOptions={{color: '#22C55E', fillColor: '#22C55E', fillOpacity: 1}}>
+      <CircleMarker center={[startPoint.latitude, startPoint.longitude]} radius={7} pathOptions={{color: '#4E9B74', fillColor: '#4E9B74', fillOpacity: 1}}>
         <Popup>{startLabel}</Popup>
       </CircleMarker>
       <CircleMarker center={[endPoint.latitude, endPoint.longitude]} radius={7} pathOptions={{color: '#0F172A', fillColor: '#2563EB', fillOpacity: 1}}>

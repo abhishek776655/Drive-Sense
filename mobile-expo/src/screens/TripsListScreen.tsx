@@ -13,6 +13,11 @@ import {getApiErrorMessage} from '../services/apiClient';
 import {tripsService, type TripRead} from '../services/tripsService';
 import {useDashboardStore} from '../store/dashboardStore';
 
+/** One radius scale for the screen. Anything outside these three is a bug. */
+const RADIUS = {sm: 16, md: 20, lg: 28} as const;
+/** Minimum comfortable touch target. */
+const HIT = 44;
+
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 350;
 const DATE_FILTERS = ['All Time', 'Today', '7 Days', '30 Days'] as const;
@@ -211,6 +216,34 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
     [dashboard?.vehicles],
   );
 
+  /** All three filter rows described the same way, so one chip renderer can serve them. */
+  const filterRows = useMemo(
+    () => [
+      {
+        key: 'date',
+        label: 'Date range',
+        activeId: activeDateFilter as string,
+        options: DATE_FILTERS.map((filter) => ({id: filter as string, label: filter as string})),
+        onSelect: (id: string) => setActiveDateFilter(id as DateFilterKey),
+      },
+      {
+        key: 'vehicle',
+        label: 'Vehicle',
+        activeId: activeVehicleFilter,
+        options: vehicleFilters,
+        onSelect: (id: string) => setActiveVehicleFilter(id),
+      },
+      {
+        key: 'score',
+        label: 'Score',
+        activeId: activeScoreFilter as string,
+        options: SCORE_FILTERS.map((filter) => ({id: filter as string, label: filter as string})),
+        onSelect: (id: string) => setActiveScoreFilter(id as ScoreFilterKey),
+      },
+    ],
+    [activeDateFilter, activeScoreFilter, activeVehicleFilter, vehicleFilters],
+  );
+
   return (
     <SafeAreaView className="flex-1" style={{backgroundColor: theme.screen}}>
       <ScrollView
@@ -221,39 +254,39 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
         <View className="mb-[18px] flex-row items-center justify-between">
           <Pressable
             onPress={openSidebar}
-            className="size-10 items-center justify-center rounded-[14px] border"
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            className="size-11 items-center justify-center rounded-[16px] border"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
-            <Ionicons name="menu" size={18} color={theme.text} />
+            <Ionicons name="menu" size={20} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
-            <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 24}}>Trips</Text>
+            <Text style={{color: theme.text, ...theme.typography.pageTitle}}>Trips</Text>
             <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
-              History, routes and driving quality
+              {totalTripsCount || sortedTrips.length} recorded
             </Text>
           </View>
-          <View className="size-10" />
+          <View className="size-11" />
         </View>
 
         <View
-          className="mb-4 rounded-[28px] border p-[18px]"
+          className="mb-4 border p-[18px]"
           style={{
+            borderRadius: RADIUS.lg,
             backgroundColor: theme.card,
             borderColor: theme.cardBorder,
           }}>
           <View className="mb-[14px] flex-row items-center justify-between">
             <View className="flex-1 pr-2">
-              <Text style={{color: theme.text, ...theme.typography.sectionTitle, fontSize: 18}}>Trip Overview</Text>
-              <Text className="mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                Recent trip activity and driving history
-              </Text>
+              <Text style={{color: theme.text, ...theme.typography.cardTitle}}>Trip Overview</Text>
             </View>
             <View
               className="rounded-full px-3 py-2"
               style={{
-                backgroundColor: theme.accentMuted,
+                backgroundColor: theme.accentSoft,
               }}>
               <Text style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>
                 Showing {sortedTrips.length} of {totalTripsCount || sortedTrips.length}
@@ -276,22 +309,24 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
                   borderColor: theme.cardBorder,
                 }}>
                 <View
-                  className="mb-2.5 size-[34px] items-center justify-center rounded-xl"
+                  className="mb-2.5 size-[34px] items-center justify-center rounded-[16px]"
                   style={{
-                    backgroundColor: theme.accentMuted,
+                    backgroundColor: theme.accentSoft,
                   }}>
                   <Ionicons name={item.icon} size={16} color={theme.accent} />
                 </View>
                 <Text className="mb-1" style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-                <Text style={{color: theme.text, fontSize: 18, fontWeight: '800'}}>{item.value}</Text>
+                <Text numberOfLines={1} style={{color: theme.text, ...theme.typography.metricValue}}>
+                  {item.value}
+                </Text>
               </View>
             ))}
           </View>
         </View>
 
         <View
-          className="mb-[14px] flex-row items-center rounded-[18px] border px-3"
-          style={{backgroundColor: theme.card, borderColor: theme.cardBorder, height: 46}}>
+          className="mb-[14px] flex-row items-center rounded-[20px] border px-3"
+          style={{backgroundColor: theme.card, borderColor: theme.cardBorder, height: HIT + 2}}>
           <Ionicons name="search" size={17} color={theme.textSubtle} />
           <TextInput
             value={searchInput}
@@ -308,71 +343,53 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
           ) : null}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingRight: 8, marginBottom: 18}}>
-          {DATE_FILTERS.map((filter) => {
-            const active = filter === activeDateFilter;
-            return (
-              <Pressable
-                key={filter}
-                onPress={() => setActiveDateFilter(filter)}
-                className="mr-2.5 rounded-full border px-[14px] py-2.5"
-                style={{
-                  backgroundColor: active ? theme.accent : theme.card,
-                  borderColor: active ? theme.accent : theme.cardBorder,
-                }}>
-                <Text style={{color: active ? theme.onAccent : theme.textSubtle, ...theme.typography.caption, fontWeight: '700'}}>
-                  {filter}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/*
+          One chip component for all three rows, so "selected" reads the same everywhere. `style`
+          carries the row gap — on `contentContainerStyle` a margin does not reliably produce it.
+        */}
+        {filterRows.map((row) => (
+          <ScrollView
+            key={row.key}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{marginBottom: 10}}
+            contentContainerStyle={{paddingRight: 8}}>
+            {row.options.map((option) => {
+              const active = option.id === row.activeId;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => row.onSelect(option.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${row.label}: ${option.label}`}
+                  accessibilityState={{selected: active}}
+                  className="mr-2.5 justify-center rounded-full border px-[14px]"
+                  style={{
+                    minHeight: 38,
+                    backgroundColor: active ? theme.accent : theme.card,
+                    borderColor: active ? theme.accent : theme.cardBorder,
+                  }}>
+                  <Text
+                    style={{
+                      color: active ? theme.onAccent : theme.textSubtle,
+                      ...theme.typography.caption,
+                      fontWeight: '700',
+                    }}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ))}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingRight: 8, marginBottom: 12}}>
-          {vehicleFilters.map((filter) => {
-            const active = filter.id === activeVehicleFilter;
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setActiveVehicleFilter(filter.id)}
-                className="mr-2.5 rounded-full border px-[14px] py-2.5"
-                style={{
-                  backgroundColor: active ? theme.cardSoft : theme.card,
-                  borderColor: active ? theme.accent : theme.cardBorder,
-                }}>
-                <Text style={{color: active ? theme.text : theme.textSubtle, ...theme.typography.caption, fontWeight: '700'}}>
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingRight: 8, marginBottom: 18}}>
-          {SCORE_FILTERS.map((filter) => {
-            const active = filter === activeScoreFilter;
-            return (
-              <Pressable
-                key={filter}
-                onPress={() => setActiveScoreFilter(filter)}
-                className="mr-2.5 rounded-full border px-[14px] py-2.5"
-                style={{
-                  backgroundColor: active ? theme.accentMuted : theme.card,
-                  borderColor: active ? theme.accent : theme.cardBorder,
-                }}>
-                <Text style={{color: active ? theme.accent : theme.textSubtle, ...theme.typography.caption, fontWeight: '700'}}>
-                  {filter}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <View style={{height: 8}} />
 
         {loading && backendTrips.length === 0 ? (
           <View className="py-2">
-            <SkeletonBlock height={124} radius={24} style={{marginBottom: 14}} />
-            <SkeletonBlock height={124} radius={24} style={{marginBottom: 14}} />
-            <SkeletonBlock height={124} radius={24} />
+            <SkeletonBlock height={124} radius={RADIUS.lg} style={{marginBottom: 14}} />
+            <SkeletonBlock height={124} radius={RADIUS.lg} style={{marginBottom: 14}} />
+            <SkeletonBlock height={124} radius={RADIUS.lg} />
           </View>
         ) : null}
 
@@ -385,7 +402,7 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
 
         {!loading && !error && groupedTrips.length === 0 ? (
           <View
-            className="rounded-3xl border p-[18px]"
+            className="rounded-[28px] border p-[18px]"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
@@ -404,7 +421,7 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
         {groupedTrips.map(([sectionTitle, tripsForDay]) => (
           <View key={sectionTitle} className="mb-[14px]">
             <View className="mb-2.5 flex-row items-center justify-between">
-              <Text style={{color: theme.text, ...theme.typography.sectionTitle, fontSize: 14}}>{sectionTitle}</Text>
+              <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>{sectionTitle}</Text>
               <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>
                 {tripsForDay.length} trip{tripsForDay.length > 1 ? 's' : ''}
               </Text>
@@ -442,8 +459,10 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
           <Pressable
             onPress={loadMoreTrips}
             disabled={loadingMore}
-            className="mb-2 flex-row items-center justify-center rounded-[18px] border py-3.5"
-            style={{backgroundColor: theme.card, borderColor: theme.cardBorder}}>
+            accessibilityRole="button"
+            accessibilityLabel="Load more trips"
+            className="mb-2 flex-row items-center justify-center rounded-[20px] border"
+            style={{minHeight: HIT, backgroundColor: theme.card, borderColor: theme.cardBorder}}>
             {loadingMore ? (
               <ActivityIndicator size="small" color={theme.accent} />
             ) : (

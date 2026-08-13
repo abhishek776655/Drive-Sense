@@ -140,8 +140,8 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
                 {trip.category}
               </Text>
             </View>
-            <View className="rounded-full px-2.5 py-[5px]" style={{backgroundColor: 'rgba(34,197,94,0.12)'}}>
-              <Text numberOfLines={1} style={{color: '#22C55E', ...theme.typography.caption, fontWeight: '700'}}>
+            <View className="rounded-full px-2.5 py-[5px]" style={{backgroundColor: theme.successSoft}}>
+              <Text numberOfLines={1} style={{color: theme.success, ...theme.typography.caption, fontWeight: '700'}}>
                 {trip.status}
               </Text>
             </View>
@@ -157,7 +157,7 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
         <View className="mb-3 rounded-[20px] border p-[14px]" style={{backgroundColor: theme.dark ? '#0E1728' : '#F8FBFF', borderColor: theme.cardBorder}}>
           <View className="flex-row items-stretch">
             <View className="mr-3 items-center">
-              <View style={{height: 10, width: 10, borderRadius: 999, backgroundColor: '#22C55E', marginTop: 4}} />
+              <View style={{height: 10, width: 10, borderRadius: 999, backgroundColor: theme.success, marginTop: 4}} />
               <View style={{width: 2, flex: 1, minHeight: 34, marginVertical: 6, backgroundColor: theme.cardBorder}} />
               <View style={{height: 10, width: 10, borderRadius: 999, backgroundColor: '#EF4444'}} />
             </View>

@@ -9,6 +9,11 @@ import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {SkeletonBlock} from '../components/SkeletonBlock';
 import {useAppSidebar} from '../components/AppSidebar';
+import {scoreTone, splitUnit} from '../utils/metricFormat';
+import {vehicleImageSource} from '../utils/vehicleImage';
+
+/** One radius scale for the screen. Anything outside these three is a bug. */
+const RADIUS = {sm: 16, md: 20, lg: 28} as const;
 
 const formatDistance = (meters: number) => `${(meters / 1000).toFixed(1)} km`;
 const formatDuration = (seconds: number) => {
@@ -21,9 +26,6 @@ const formatDuration = (seconds: number) => {
 
   return `${minutes}m`;
 };
-
-const formatAvgSpeed = (distanceMeters: number, durationSeconds: number) =>
-  durationSeconds > 0 ? `${Math.round((distanceMeters / durationSeconds) * 3.6)} km/h` : '0 km/h';
 
 const formatLastTrip = (value: string | null) =>
   value
@@ -65,7 +67,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
           dashboard.vehicles.map(async (vehicle) => {
             const stats = await vehicleService.getVehicleStats(vehicle.id);
             return [vehicle.id, stats.summary] as const;
-          })
+          }),
         );
 
         if (!cancelled) {
@@ -94,24 +96,19 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         imageUrl: vehicle.imageUrl,
         fuelType: vehicle.fuelType,
         plate: vehicle.plateNumber ?? 'No plate added',
-        mileage: vehicle.mileageBaselineKmPerL != null ? `${vehicle.mileageBaselineKmPerL.toFixed(1)} km/l` : 'Not set',
+        mileage: vehicle.mileageBaselineKmPerL != null ? `${vehicle.mileageBaselineKmPerL.toFixed(1)} km/l` : null,
         distance: formatDistance(vehicle.totalDistanceMeters),
         score: vehicle.avgScore || 84,
         trips: vehicle.tripCount,
         lastTrip: formatLastTrip(vehicle.lastTripAt),
         totalDuration: formatDuration(vehicleStatsById[vehicle.id]?.total_duration_seconds ?? 0),
-        avgSpeed: formatAvgSpeed(
-          vehicleStatsById[vehicle.id]?.total_distance_meters ?? vehicle.totalDistanceMeters,
-          vehicleStatsById[vehicle.id]?.total_duration_seconds ?? 0
-        ),
         isActive: activeVehicleId ? vehicle.id === activeVehicleId : index === 0,
-        accent: index === 0 ? '#246BFF' : index === 1 ? '#0F9D58' : '#F59E0B',
       }));
     }
     return [];
   }, [activeVehicleId, dashboard, vehicleStatsById]);
 
-  const featuredVehicle = vehicles[0];
+  const featuredVehicle = vehicles.find((vehicle) => vehicle.isActive) ?? vehicles[0];
   const fleetTotals = useMemo(() => {
     const vehicleCount = vehicles.length;
     const averageScore =
@@ -119,24 +116,54 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
     const totalTrips = vehicles.reduce((sum, vehicle) => sum + vehicle.trips, 0);
     const totalDistance = vehicles.reduce((sum, vehicle) => sum + Number.parseFloat(vehicle.distance), 0);
 
+    /**
+     * How the fleet is spread across the score bands. This is the one comparison in the card that
+     * the per-vehicle list below cannot show, so it earns a mark of its own.
+     */
+    const bands = [
+      {key: 'good', label: 'good', min: 90, tone: theme.success, count: 0},
+      {key: 'fair', label: 'fair', min: 70, tone: theme.warning, count: 0},
+      {key: 'low', label: 'needs work', min: 0, tone: theme.danger, count: 0},
+    ];
+    vehicles.forEach((vehicle) => {
+      const band = bands.find((item) => vehicle.score >= item.min);
+      if (band) {
+        band.count += 1;
+      }
+    });
+
     return {
       vehicleCount,
-        averageScore,
-        totalTrips,
-        totalDistance: `${totalDistance.toFixed(1)} km`,
-        totalDuration: formatDuration(dashboard?.stats.totalDurationSeconds ?? 0),
-        avgSpeed: `${Math.round(dashboard?.stats.avgSpeed ?? 0)} km/h`,
-      };
-  }, [dashboard?.stats.avgSpeed, dashboard?.stats.totalDurationSeconds, vehicles]);
+      averageScore,
+      totalTrips,
+      totalDistance: `${totalDistance.toFixed(1)} km`,
+      totalDuration: formatDuration(dashboard?.stats.totalDurationSeconds ?? 0),
+      avgSpeed: `${Math.round(dashboard?.stats.avgSpeed ?? 0)} km/h`,
+      bands: bands.filter((band) => band.count > 0),
+    };
+  }, [dashboard?.stats.avgSpeed, dashboard?.stats.totalDurationSeconds, theme, vehicles]);
 
-  const summaryTiles = [
-    {label: 'Vehicles', value: String(fleetTotals.vehicleCount)},
-    {label: 'Trips', value: String(fleetTotals.totalTrips)},
-    {label: 'Total km', value: fleetTotals.totalDistance},
-    {label: 'Total time', value: fleetTotals.totalDuration},
-    {label: 'Avg speed', value: fleetTotals.avgSpeed},
-    {label: 'Avg score', value: String(fleetTotals.averageScore)},
-  ];
+  const renderInlineStat = (label: string, rawValue: string, width?: `${number}%`) => {
+    const {value, unit} = splitUnit(rawValue);
+
+    return (
+      <View key={label} style={width ? {width} : {flex: 1}}>
+        <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
+          <Text numberOfLines={1} style={{color: theme.text, ...theme.typography.statInline}}>
+            {value}
+          </Text>
+          {unit ? (
+            <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.unit, marginLeft: 3}}>
+              {unit}
+            </Text>
+          ) : null}
+        </View>
+        <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 2}}>
+          {label}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView className="flex-1" style={{backgroundColor: theme.screen}}>
@@ -144,42 +171,55 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         contentContainerStyle={{paddingHorizontal: 20, paddingTop: 12, paddingBottom: 168}}
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void fetchDashboard()} tintColor={theme.accent} />}>
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={() => void fetchDashboard()} tintColor={theme.accent} />
+        }>
         <View className="mb-[18px] flex-row items-center justify-between">
           <Pressable
             onPress={openSidebar}
-            className="size-10 items-center justify-center rounded-[14px] border"
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+            className="size-11 items-center justify-center rounded-2xl border"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
-            <Ionicons name="menu" size={18} color={theme.text} />
+            <Ionicons name="menu" size={20} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
             <Text style={{color: theme.text, ...theme.typography.pageTitle}}>Garage</Text>
             <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}} numberOfLines={1}>
-              Vehicles, trip health, and readiness
+              {fleetTotals.vehicleCount} vehicle{fleetTotals.vehicleCount === 1 ? '' : 's'}
+              {featuredVehicle ? ' · 1 active' : ''}
             </Text>
           </View>
           <Pressable
             onPress={() => navigation.navigate('AddVehicle')}
-            className="size-10 items-center justify-center rounded-[14px]"
+            accessibilityRole="button"
+            accessibilityLabel="Add vehicle"
+            className="size-11 items-center justify-center rounded-2xl"
             style={{
               backgroundColor: theme.accent,
             }}>
-            <Ionicons name="add" size={20} color={theme.onAccent} />
+            <Ionicons name="add" size={22} color={theme.onAccent} />
           </Pressable>
         </View>
 
         {dashboardError ? (
           <View
-            className="mb-4 rounded-3xl border p-4"
+            className="mb-4 border p-4"
             style={{
+              borderRadius: RADIUS.lg,
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
             <View className="flex-row items-start">
-              <Ionicons name="cloud-offline-outline" size={18} color={theme.danger} style={{marginTop: 2, marginRight: 10}} />
+              <Ionicons
+                name="cloud-offline-outline"
+                size={18}
+                color={theme.danger}
+                style={{marginTop: 2, marginRight: 10}}
+              />
               <View className="flex-1">
                 <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Server unavailable</Text>
                 <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.body}}>
@@ -192,304 +232,307 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
 
         {loading && !dashboard ? (
           <View className="pb-2">
-            <SkeletonBlock height={300} radius={30} style={{marginBottom: 16}} />
-            <SkeletonBlock height={188} radius={26} style={{marginBottom: 14}} />
-            <SkeletonBlock height={188} radius={26} />
+            <SkeletonBlock height={172} radius={RADIUS.lg} style={{marginBottom: 16}} />
+            <SkeletonBlock height={148} radius={RADIUS.lg} style={{marginBottom: 14}} />
+            <SkeletonBlock height={148} radius={RADIUS.lg} />
           </View>
         ) : null}
 
+        {/* Fleet overview: one surface, one hero number, no nested cards. */}
         {!loading && featuredVehicle ? (
-        <View
-          className="mb-4 overflow-hidden rounded-[30px] border p-[18px]"
-          style={{
-            backgroundColor: theme.cardSoft,
-            borderColor: theme.cardBorder,
-          }}>
           <View
-            pointerEvents="none"
+            className="mb-5 overflow-hidden border"
             style={{
-              position: 'absolute',
-              top: -40,
-              right: -40,
-              width: 180,
-              height: 180,
-              borderRadius: 90,
-              backgroundColor: theme.accentMuted,
-            }}
-          />
-
-          <View className="mb-[18px] flex-row items-center justify-between">
-            <View className="flex-1 pr-3">
-              <Text style={{color: theme.textSubtle, ...theme.typography.caption, fontWeight: '700'}}>FLEET OVERVIEW</Text>
-              <Text className="mt-1.5" numberOfLines={2} style={{color: theme.text, fontSize: 24, fontWeight: '800'}}>
-                {fleetTotals.vehicleCount} vehicles connected
-              </Text>
-              <Text className="mt-1" numberOfLines={2} style={{color: theme.textMuted, ...theme.typography.body}}>
-                Active vehicle: {featuredVehicle.name} • {featuredVehicle.plate}
-              </Text>
-            </View>
-
-            <View
-              className="size-[86px] items-center justify-center overflow-hidden rounded-3xl border"
-              style={{
-                backgroundColor: theme.card,
-                borderColor: theme.cardBorder,
-              }}>
-              {featuredVehicle.imageUrl ? (
-                <Image source={{uri: featuredVehicle.imageUrl}} style={{width: '100%', height: '100%'}} resizeMode="cover" />
-              ) : (
-                <Ionicons name="car-sport" size={40} color={theme.text} />
-              )}
-            </View>
-          </View>
-
-          <View
-            className="mb-[14px] rounded-3xl border p-4"
-            style={{
+              borderRadius: RADIUS.lg,
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
+              padding: 18,
             }}>
-            <View className="flex-row items-start justify-between">
-              <View className="flex-1 pr-3">
-                <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>Garage highlight</Text>
-                <Text className="mt-1" style={{color: theme.text, fontSize: 18, fontWeight: '800'}}>
-                  Fleet health at a glance
-                </Text>
-                <Text className="mt-1.5" style={{color: theme.textMuted, ...theme.typography.body}}>
-                  Combined trip, time, and score signals across every connected vehicle.
-                </Text>
-              </View>
-              <View
-                className="min-w-[88px] items-center rounded-[18px] px-3 py-2.5"
-                style={{
-                  backgroundColor: theme.accentMuted,
-                }}>
-                <Text style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>Avg score</Text>
-                <Text className="mt-[3px]" style={{color: theme.accent, fontSize: 20, fontWeight: '800'}}>
-                  {fleetTotals.averageScore}
-                </Text>
-              </View>
-            </View>
-          </View>
+            <Text style={{color: theme.textSubtle, ...theme.typography.caption, letterSpacing: 0.8}}>
+              FLEET OVERVIEW
+            </Text>
 
-          <View className="flex-row flex-wrap justify-between">
-            {summaryTiles.map((item, index) => (
+            <View style={{flexDirection: 'row', alignItems: 'flex-end', marginTop: 12}}>
+              <View style={{flex: 1, paddingRight: 12}}>
+                <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
+                  <Text
+                    numberOfLines={1}
+                    style={{color: scoreTone(theme, fleetTotals.averageScore), ...theme.typography.statHero}}>
+                    {fleetTotals.averageScore}
+                  </Text>
+                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginLeft: 8}}>avg score</Text>
+                </View>
+                <View
+                  style={{
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: theme.cardSoft,
+                    marginTop: 10,
+                    overflow: 'hidden',
+                  }}>
+                  <View
+                    style={{
+                      width: `${Math.min(100, Math.max(0, fleetTotals.averageScore))}%`,
+                      height: '100%',
+                      borderRadius: 3,
+                      backgroundColor: scoreTone(theme, fleetTotals.averageScore),
+                    }}
+                  />
+                </View>
+              </View>
+
               <View
-                key={item.label}
-                className="mb-2.5 min-h-[88px] w-[31.5%] rounded-[20px] border px-3 py-[14px]"
                 style={{
-                  backgroundColor: theme.card,
+                  width: 72,
+                  height: 72,
+                  borderRadius: RADIUS.md,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  backgroundColor: theme.cardSoft,
+                  borderWidth: 1,
                   borderColor: theme.cardBorder,
                 }}>
-                <Text className="mb-2" numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                  {item.label}
-                </Text>
-                <Text
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                  style={{color: theme.text, fontSize: 20, fontWeight: '800'}}>
-                  {item.value}
-                </Text>
+                <Image
+                  source={vehicleImageSource(featuredVehicle.imageUrl)}
+                  style={{width: '100%', height: '100%'}}
+                  resizeMode="contain"
+                />
               </View>
-            ))}
+            </View>
+
+            <Text numberOfLines={1} style={{color: theme.textMuted, ...theme.typography.body, marginTop: 12}}>
+              Active: {featuredVehicle.name} · {featuredVehicle.plate}
+            </Text>
+
+            {/*
+              Score spread: composition across the three bands. Segments are proportional to vehicle
+              count, separated by a 2px surface gap, and the legend labels each band so identity is
+              never carried by colour alone.
+            */}
+            {fleetTotals.bands.length > 0 ? (
+              <View style={{marginTop: 18}}>
+                <Text style={{color: theme.textSubtle, ...theme.typography.caption, letterSpacing: 0.8}}>
+                  SCORE SPREAD
+                </Text>
+                <View style={{flexDirection: 'row', marginTop: 8}}>
+                  {fleetTotals.bands.map((band, index) => (
+                    <View
+                      key={band.key}
+                      style={{
+                        flex: band.count,
+                        height: 10,
+                        borderRadius: 5,
+                        backgroundColor: band.tone,
+                        marginLeft: index === 0 ? 0 : 2,
+                      }}
+                    />
+                  ))}
+                </View>
+                <View style={{flexDirection: 'row', flexWrap: 'wrap', marginTop: 10}}>
+                  {fleetTotals.bands.map((band) => (
+                    <View
+                      key={band.key}
+                      style={{flexDirection: 'row', alignItems: 'center', marginRight: 16, marginBottom: 2}}>
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: band.tone,
+                          marginRight: 6,
+                        }}
+                      />
+                      <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                        {band.count} {band.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={{height: 1, backgroundColor: theme.cardBorder, marginTop: 16, marginBottom: 14}} />
+
+            {/*
+              Four totals with no comparison to make — stat tiles, not a chart. Two columns, because
+              `10h 44m` has no room to breathe in a quarter-width one.
+            */}
+            <View style={{flexDirection: 'row', flexWrap: 'wrap', rowGap: 14}}>
+              {renderInlineStat('trips', String(fleetTotals.totalTrips), '48%')}
+              {renderInlineStat('distance', fleetTotals.totalDistance, '48%')}
+              {renderInlineStat('drive time', fleetTotals.totalDuration, '48%')}
+              {renderInlineStat('avg speed', fleetTotals.avgSpeed, '48%')}
+            </View>
           </View>
-        </View>
         ) : !loading ? (
           <View
-            className="mb-4 rounded-3xl border p-5"
+            className="mb-5 border p-5"
             style={{
+              borderRadius: RADIUS.lg,
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
             }}>
-            <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>No vehicles yet</Text>
+            <Text style={{color: theme.text, ...theme.typography.cardTitle}}>No vehicles yet</Text>
             <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.body}}>
               Add your first vehicle to start tracking trips and live telemetry.
             </Text>
             <Pressable
               onPress={() => navigation.navigate('AddVehicle')}
-              className="mt-[14px] self-start rounded-[14px] px-[14px] py-2.5"
+              accessibilityRole="button"
+              accessibilityLabel="Add vehicle"
+              className="mt-4 self-start px-4"
               style={{
+                borderRadius: RADIUS.sm,
                 backgroundColor: theme.accent,
+                minHeight: 44,
+                justifyContent: 'center',
               }}>
-              <Text style={{color: theme.onAccent, ...theme.typography.caption, fontWeight: '800'}}>
-                Add Vehicle
-              </Text>
+              <Text style={{color: theme.onAccent, ...theme.typography.body, fontWeight: '800'}}>Add Vehicle</Text>
             </Pressable>
           </View>
         ) : null}
 
         <View className="mb-3 flex-row items-center justify-between">
-          <Text style={{color: theme.text, ...theme.typography.sectionTitle, fontSize: 16}}>Your Fleet</Text>
+          <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Your Fleet</Text>
           <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>
-            {vehicles.length} vehicle{vehicles.length > 1 ? 's' : ''}
+            {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'}
           </Text>
         </View>
 
-        {vehicles.map((vehicle, index) => (
-          <Pressable
-            key={vehicle.id}
-            onPress={() => navigation.navigate('VehicleAnalytics', {vehicleId: vehicle.id})}
-            className="mb-[14px] overflow-hidden rounded-[26px] border p-4"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
-            <View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 24,
-                bottom: 24,
-                width: 4,
-                borderTopRightRadius: 4,
-                borderBottomRightRadius: 4,
-                backgroundColor: vehicle.isActive ? theme.accent : theme.success,
-              }}
-            />
-            <View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                width: 170,
-                height: 170,
-                borderRadius: 85,
-                backgroundColor: index === 0 ? theme.accentMuted : 'rgba(15,157,88,0.08)',
-                right: -50,
-                top: -30,
-              }}
-            />
+        {vehicles.map((vehicle) => {
+          const tone = scoreTone(theme, vehicle.score);
 
-            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16}}>
-              <View style={{flex: 1, paddingRight: 12}}>
-                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
-                  <Text style={{color: theme.text, fontSize: 19, fontWeight: '800'}}>{vehicle.name}</Text>
-                  {vehicle.isActive ? (
-                    <View
-                      style={{
-                        marginLeft: 8,
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 999,
-                        backgroundColor: theme.accentMuted,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                      }}>
-                      <View
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          backgroundColor: theme.accent,
-                          marginRight: 6,
-                        }}
-                      />
-                      <Text
-                        style={{
-                          color: theme.accent,
-                          ...theme.typography.caption,
-                          fontWeight: '800',
-                        }}>
-                        Active
-                      </Text>
-                    </View>
-                  ) : null}
+          return (
+            <Pressable
+              key={vehicle.id}
+              onPress={() => navigation.navigate('VehicleAnalytics', {vehicleId: vehicle.id})}
+              accessibilityRole="button"
+              accessibilityLabel={`${vehicle.name}, score ${vehicle.score}. Open analytics`}
+              className="mb-[14px] overflow-hidden border"
+              style={{
+                borderRadius: RADIUS.lg,
+                backgroundColor: theme.card,
+                borderColor: theme.cardBorder,
+                padding: 16,
+              }}>
+              {/* Rail only marks the active vehicle. Green-for-inactive said nothing. */}
+              {vehicle.isActive ? (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 20,
+                    bottom: 20,
+                    width: 4,
+                    borderTopRightRadius: 4,
+                    borderBottomRightRadius: 4,
+                    backgroundColor: theme.accent,
+                  }}
+                />
+              ) : null}
+
+              <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: RADIUS.sm,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    backgroundColor: theme.cardSoft,
+                    borderColor: theme.cardBorder,
+                    borderWidth: 1,
+                    marginRight: 12,
+                  }}>
+                  <Image
+                    source={vehicleImageSource(vehicle.imageUrl)}
+                    style={{width: '100%', height: '100%'}}
+                    resizeMode="contain"
+                  />
                 </View>
 
-                <Text numberOfLines={1} style={{color: theme.textMuted, ...theme.typography.body}}>
-                  {vehicle.fuelType} • {vehicle.plate}
-                </Text>
-                <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 4}}>
-                  Last trip {vehicle.lastTrip}
-                </Text>
+                <View style={{flex: 1}}>
+                  <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <Text numberOfLines={1} style={{color: theme.text, ...theme.typography.cardTitle, flexShrink: 1}}>
+                      {vehicle.name}
+                    </Text>
+                    {vehicle.isActive ? (
+                      <View
+                        style={{
+                          marginLeft: 8,
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          borderRadius: 999,
+                          backgroundColor: theme.accentSoft,
+                        }}>
+                        <Text style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>
+                          Active
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text numberOfLines={1} style={{color: theme.textMuted, ...theme.typography.body, marginTop: 3}}>
+                    {vehicle.fuelType}
+                    {vehicle.mileage ? ` · ${vehicle.mileage}` : ''} · {vehicle.plate}
+                  </Text>
+                  <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 3}}>
+                    Last trip {vehicle.lastTrip}
+                  </Text>
+                </View>
+
+                <Ionicons name="chevron-forward" size={18} color={theme.textSubtle} style={{marginTop: 4}} />
+              </View>
+
+              {/* Score is the one hero per card; the rest are borderless inline stats. */}
+              <View style={{flexDirection: 'row', alignItems: 'flex-end', marginTop: 18}}>
+                <View style={{width: 92}}>
+                  <Text numberOfLines={1} style={{color: tone, ...theme.typography.statHero}}>
+                    {vehicle.score}
+                  </Text>
+                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 2}}>score</Text>
+                </View>
+                {/* Three stats, not four: a quarter of the remaining width clips `2h 34m`. */}
+                <View style={{flex: 1, flexDirection: 'row', paddingBottom: 4}}>
+                  {renderInlineStat('distance', vehicle.distance)}
+                  {renderInlineStat('trips', String(vehicle.trips))}
+                  {renderInlineStat('drive time', vehicle.totalDuration)}
+                </View>
               </View>
 
               <View
                 style={{
-                  width: 76,
-                  height: 76,
-                  borderRadius: 20,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
+                  height: 6,
+                  borderRadius: 3,
                   backgroundColor: theme.cardSoft,
-                  borderColor: theme.cardBorder,
-                  borderWidth: 1,
+                  marginTop: 14,
+                  overflow: 'hidden',
                 }}>
-                {vehicle.imageUrl ? (
-                  <Image source={{uri: vehicle.imageUrl}} style={{width: '100%', height: '100%'}} resizeMode="cover" />
-                ) : (
-                  <Ionicons name={index === 1 ? 'car' : 'car-sport'} size={36} color={theme.text} />
-                )}
+                <View
+                  style={{
+                    width: `${Math.min(100, Math.max(0, vehicle.score))}%`,
+                    height: '100%',
+                    borderRadius: 3,
+                    backgroundColor: tone,
+                  }}
+                />
               </View>
-            </View>
-
-            <View className="mb-3 flex-row justify-between">
-              {[
-                {label: 'Score', value: String(vehicle.score), tone: theme.accent, bg: theme.accentMuted},
-                {label: 'Time', value: vehicle.totalDuration, tone: theme.text, bg: theme.cardSoft},
-                {label: 'Speed', value: vehicle.avgSpeed, tone: theme.text, bg: theme.cardSoft},
-              ].map((item) => (
-                <View
-                  key={item.label}
-                  className="w-[31.5%] rounded-[18px] border px-2.5 py-3"
-                  style={{
-                    backgroundColor: item.bg,
-                    borderColor: theme.cardBorder,
-                  }}>
-                  <Text className="mb-[5px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-                  <Text
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
-                    style={{color: item.tone, fontSize: 18, fontWeight: '800'}}>
-                    {item.value}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            <View className="flex-row flex-wrap justify-between">
-              {[
-                {label: 'Distance', value: vehicle.distance},
-                {label: 'Trips logged', value: String(vehicle.trips)},
-                {label: 'Mileage', value: vehicle.mileage},
-                {label: 'Fuel type', value: vehicle.fuelType},
-              ].map((item, metricIndex) => (
-                <View
-                  key={item.label}
-                  className="w-[31.5%] rounded-[18px] border px-2.5 py-3"
-                  style={{
-                    backgroundColor: theme.cardSoft,
-                    borderColor: theme.cardBorder,
-                  }}>
-                  <Text className="mb-[5px]" numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                    {item.label}
-                  </Text>
-                  <Text
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                    style={{
-                      color: theme.text,
-                      fontSize: 16,
-                      fontWeight: '800',
-                    }}>
-                    {item.value}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </Pressable>
-        ))}
+            </Pressable>
+          );
+        })}
 
         <Pressable
           onPress={() => navigation.navigate('AddVehicle')}
-          className="mb-3 mt-0.5 flex-row items-center justify-center rounded-3xl border py-[18px]"
+          accessibilityRole="button"
+          accessibilityLabel="Add another vehicle"
+          className="mb-3 mt-0.5 flex-row items-center justify-center border"
           style={{
+            borderRadius: RADIUS.lg,
             backgroundColor: theme.card,
             borderColor: theme.cardBorder,
+            minHeight: 56,
           }}>
           <Ionicons name="add-circle-outline" size={20} color={theme.accent} />
           <Text className="ml-2" style={{color: theme.accent, ...theme.typography.body, fontWeight: '800'}}>

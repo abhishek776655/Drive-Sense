@@ -9,6 +9,8 @@ import {useAppTheme} from '../theme/appTheme';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {scoreTone, splitUnit} from '../utils/metricFormat';
+import {vehicleImageSource} from '../utils/vehicleImage';
 
 const formatDistance = (meters: number) => `${(meters / 1000).toFixed(1)} km`;
 
@@ -93,6 +95,24 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
     ? `${Math.round((summary.total_distance_meters / summary.total_duration_seconds) * 3.6)} km/h`
     : '0 km/h';
 
+  /** Number and unit as separate Texts so a unit can never wrap away from its value. */
+  const renderMetricValue = (rawValue: string) => {
+    const {value, unit} = splitUnit(rawValue);
+
+    return (
+      <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
+        <Text numberOfLines={1} style={{color: theme.text, ...theme.typography.metricValue}}>
+          {value}
+        </Text>
+        {unit ? (
+          <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.unit, marginLeft: 3}}>
+            {unit}
+          </Text>
+        ) : null}
+      </View>
+    );
+  };
+
   const handleArchiveVehicle = () => {
     if (!vehicle) {
       return;
@@ -130,7 +150,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
         <View className="mb-[18px] flex-row items-center justify-between">
           <Pressable
             onPress={() => navigation.goBack()}
-            className="size-[42px] items-center justify-center rounded-2xl border"
+            className="size-11 items-center justify-center rounded-[16px] border"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
@@ -138,29 +158,32 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
             <Ionicons name="chevron-back" size={18} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
-            <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 23}}>Vehicle Analytics</Text>
-            <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
-              Driving insights for this vehicle
+            <Text style={{color: theme.text, ...theme.typography.pageTitle}}>Analytics</Text>
+            <Text
+              className="mt-0.5"
+              numberOfLines={1}
+              style={{color: theme.textSubtle, ...theme.typography.caption}}>
+              {vehicle?.name ?? summary?.vehicle_name ?? 'Vehicle insights'}
             </Text>
           </View>
-          <View className="size-[42px]" />
+          <View className="size-11" />
         </View>
 
         {loading && !stats ? (
           <View className="pb-4">
             <SkeletonBlock height={180} radius={28} style={{marginBottom: 16}} />
             <View className="flex-row flex-wrap justify-between">
-              <SkeletonBlock height={92} width="48.5%" radius={18} style={{marginBottom: 10}} />
-              <SkeletonBlock height={92} width="48.5%" radius={18} style={{marginBottom: 10}} />
-              <SkeletonBlock height={92} width="48.5%" radius={18} style={{marginBottom: 10}} />
-              <SkeletonBlock height={92} width="48.5%" radius={18} style={{marginBottom: 10}} />
+              <SkeletonBlock height={92} width="48.5%" radius={20} style={{marginBottom: 10}} />
+              <SkeletonBlock height={92} width="48.5%" radius={20} style={{marginBottom: 10}} />
+              <SkeletonBlock height={92} width="48.5%" radius={20} style={{marginBottom: 10}} />
+              <SkeletonBlock height={92} width="48.5%" radius={20} style={{marginBottom: 10}} />
             </View>
           </View>
         ) : null}
 
         {error ? (
           <View
-            className="mb-4 rounded-3xl border p-[18px]"
+            className="mb-4 rounded-[28px] border p-[18px]"
             style={{
               backgroundColor: theme.card,
               borderColor: theme.cardBorder,
@@ -175,13 +198,13 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
             <View className="mb-4 flex-row gap-2">
               <Pressable
                 onPress={() => navigation.navigate('AddVehicle', {vehicleId: route.params.vehicleId})}
-                className="flex-1 rounded-[18px] border px-4 py-3"
+                className="flex-1 rounded-[20px] border px-4 py-3"
                 style={{backgroundColor: theme.card, borderColor: theme.cardBorder}}>
-                <Text style={{color: theme.text, ...theme.typography.body, fontWeight: '800', textAlign: 'center'}}>Edit Vehicle</Text>
+                <Text style={{color: theme.text, ...theme.typography.sectionTitle, textAlign: 'center'}}>Edit Vehicle</Text>
               </Pressable>
               <Pressable
                 onPress={() => void setActiveVehicleId(route.params.vehicleId)}
-                className="flex-1 rounded-[18px] border px-4 py-3"
+                className="flex-1 rounded-[20px] border px-4 py-3"
                 style={{
                   backgroundColor: activeVehicleId === route.params.vehicleId ? theme.accentMuted : theme.card,
                   borderColor: activeVehicleId === route.params.vehicleId ? theme.accent : theme.cardBorder,
@@ -189,8 +212,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                 <Text
                   style={{
                     color: activeVehicleId === route.params.vehicleId ? theme.accent : theme.text,
-                    ...theme.typography.body,
-                    fontWeight: '800',
+                    ...theme.typography.sectionTitle,
                     textAlign: 'center',
                   }}>
                   {activeVehicleId === route.params.vehicleId ? 'Active Vehicle' : 'Set Active'}
@@ -203,7 +225,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                 backgroundColor: theme.cardSoft,
                 borderColor: theme.cardBorder,
                 borderWidth: 1,
-                borderRadius: 30,
+                borderRadius: 28,
                 padding: 18,
                 marginBottom: 16,
                 overflow: 'hidden',
@@ -222,8 +244,10 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
               />
               <View className="mb-4 flex-row items-center justify-between">
                 <View className="flex-1 pr-3">
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, fontWeight: '700'}}>VEHICLE PROFILE</Text>
-                  <Text className="mt-1.5" style={{color: theme.text, fontSize: 24, fontWeight: '800'}}>
+                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, letterSpacing: 0.8}}>
+                    VEHICLE PROFILE
+                  </Text>
+                  <Text className="mt-1.5" numberOfLines={1} style={{color: theme.text, ...theme.typography.cardTitle}}>
                     {vehicle?.name ?? summary.vehicle_name}
                   </Text>
                   <Text className="mt-1" style={{color: theme.textMuted, ...theme.typography.body}}>
@@ -231,20 +255,48 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                   </Text>
                 </View>
                 <View
-                  className="size-[86px] items-center justify-center overflow-hidden rounded-3xl border"
+                  className="size-[86px] items-center justify-center overflow-hidden rounded-[20px] border"
                   style={{
                     backgroundColor: theme.card,
                     borderColor: theme.cardBorder,
                   }}>
-                  {vehicle?.imageUrl ?? summary.vehicle_image_url ? (
-                    <Image
-                      source={{uri: (vehicle?.imageUrl ?? summary.vehicle_image_url) as string}}
-                      style={{width: '100%', height: '100%'}}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Ionicons name="car-sport" size={40} color={theme.text} />
-                  )}
+                  <Image
+                    source={vehicleImageSource(vehicle?.imageUrl ?? summary.vehicle_image_url)}
+                    style={{width: '100%', height: '100%'}}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
+
+              {/* Score is the one hero number in this card; the tiles below are supporting totals. */}
+              <View style={{marginBottom: 16}}>
+                <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: scoreTone(theme, Math.round(summary.avg_driving_score ?? 0)),
+                      ...theme.typography.statHero,
+                    }}>
+                    {Math.round(summary.avg_driving_score ?? 0)}
+                  </Text>
+                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginLeft: 8}}>avg score</Text>
+                </View>
+                <View
+                  style={{
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: theme.card,
+                    marginTop: 10,
+                    overflow: 'hidden',
+                  }}>
+                  <View
+                    style={{
+                      width: `${Math.min(100, Math.max(0, Math.round(summary.avg_driving_score ?? 0)))}%`,
+                      height: '100%',
+                      borderRadius: 3,
+                      backgroundColor: scoreTone(theme, Math.round(summary.avg_driving_score ?? 0)),
+                    }}
+                  />
                 </View>
               </View>
 
@@ -254,25 +306,25 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                   {label: 'Drive time', value: formatDuration(summary.total_duration_seconds)},
                   {label: 'Avg speed', value: avgSpeed},
                   {label: 'Trips', value: String(summary.trip_count)},
-                  {label: 'Fuel used', value: `${summary.total_fuel_used_liters.toFixed(1)} L`},
-                  {label: 'Avg score', value: String(Math.round(summary.avg_driving_score ?? 0))},
                 ].map((item) => (
                   <View
                     key={item.label}
-                    className="mb-2.5 w-[48.5%] rounded-[18px] border p-[14px]"
+                    className="mb-2.5 w-[48.5%] rounded-[20px] border p-[14px]"
                     style={{
                       backgroundColor: theme.card,
                       borderColor: theme.cardBorder,
                     }}>
-                    <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-                    <Text numberOfLines={1} style={{color: theme.text, fontSize: 19, fontWeight: '800'}}>{item.value}</Text>
+                    <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                      {item.label}
+                    </Text>
+                    {renderMetricValue(item.value)}
                   </View>
                 ))}
               </View>
             </View>
 
             <View
-              className="mb-4 rounded-[26px] border p-4"
+              className="mb-4 rounded-[28px] border p-4"
               style={{
                 backgroundColor: theme.card,
                 borderColor: theme.cardBorder,
@@ -289,20 +341,22 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                 ].map((item) => (
                   <View
                     key={item.label}
-                    className="w-[31.5%] rounded-[18px] border px-2.5 py-3"
+                    className="w-[31.5%] rounded-[20px] border px-2.5 py-3"
                     style={{
                       backgroundColor: theme.cardSoft,
                       borderColor: theme.cardBorder,
                     }}>
                     <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>{item.label}</Text>
-                    <Text style={{color: item.tone, fontSize: 20, fontWeight: '800'}}>{item.value}</Text>
+                    <Text numberOfLines={1} style={{color: item.tone, ...theme.typography.metricValue}}>
+                      {item.value}
+                    </Text>
                   </View>
                 ))}
               </View>
             </View>
 
             <View
-              className="mb-4 rounded-[26px] border p-4"
+              className="mb-4 rounded-[28px] border p-4"
               style={{
                 backgroundColor: theme.card,
                 borderColor: theme.cardBorder,
@@ -323,7 +377,13 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                         onPress={() => setGranularity(option)}
                         className="rounded-full px-3 py-1.5"
                         style={{backgroundColor: active ? theme.card : 'transparent'}}>
-                        <Text style={{color: active ? theme.text : theme.textSubtle, ...theme.typography.caption, fontWeight: '700', textTransform: 'capitalize'}}>
+                        <Text
+                          style={{
+                            color: active ? theme.text : theme.textSubtle,
+                            ...theme.typography.caption,
+                            fontWeight: '700',
+                            textTransform: 'capitalize',
+                          }}>
                           {option}
                         </Text>
                       </Pressable>
@@ -375,7 +435,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
             </View>
 
             <View
-              className="mb-4 rounded-[26px] border p-4"
+              className="mb-4 rounded-[28px] border p-4"
               style={{
                 backgroundColor: theme.card,
                 borderColor: theme.cardBorder,
@@ -386,16 +446,22 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
               </Text>
               <View className="mb-3 flex-row justify-between">
                 <View
-                  className="w-[48.5%] rounded-[18px] border p-[14px]"
+                  className="w-[48.5%] rounded-[20px] border p-[14px]"
                   style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder}}>
-                  <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>Total fuel used</Text>
-                  <Text style={{color: theme.text, fontSize: 19, fontWeight: '800'}}>{summary.total_fuel_used_liters.toFixed(1)} L</Text>
+                  <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                    Total fuel used
+                  </Text>
+                  {renderMetricValue(`${summary.total_fuel_used_liters.toFixed(1)} L`)}
                 </View>
                 <View
-                  className="w-[48.5%] rounded-[18px] border p-[14px]"
+                  className="w-[48.5%] rounded-[20px] border p-[14px]"
                   style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder}}>
-                  <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>Total fuel cost</Text>
-                  <Text style={{color: theme.text, fontSize: 19, fontWeight: '800'}}>₹{Math.round(summary.total_fuel_cost_amount)}</Text>
+                  <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                    Total fuel cost
+                  </Text>
+                  <Text numberOfLines={1} style={{color: theme.text, ...theme.typography.metricValue}}>
+                    ₹{Math.round(summary.total_fuel_cost_amount)}
+                  </Text>
                 </View>
               </View>
               <View className="h-[70px] flex-row items-end justify-between">
@@ -422,7 +488,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
             </View>
 
             <View
-              className="rounded-[26px] border p-4"
+              className="rounded-[28px] border p-4"
               style={{
                 backgroundColor: theme.card,
                 borderColor: theme.cardBorder,
@@ -441,8 +507,8 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                   }}>
                   <View className="flex-row items-start justify-between">
                     <View className="flex-1 pr-3">
-                      <Text style={{color: theme.text, ...theme.typography.body, fontWeight: '800'}}>
-                        {formatDate(trip.start_time)} • {formatTime(trip.start_time)}
+                      <Text style={{color: theme.text, ...theme.typography.sectionTitleSoft}}>
+                        {formatDate(trip.start_time)} · {formatTime(trip.start_time)}
                       </Text>
                       <Text className="mt-1" style={{color: theme.textSubtle, ...theme.typography.caption}}>
                         {formatDistance(trip.distance_meters)} • {formatDuration(trip.duration_seconds)} • {trip.event_count} events
@@ -451,9 +517,14 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                     <View
                       className="rounded-full px-2.5 py-1.5"
                       style={{
-                        backgroundColor: theme.accentMuted,
+                        backgroundColor: theme.cardSoft,
                       }}>
-                      <Text style={{color: theme.accent, ...theme.typography.caption, fontWeight: '800'}}>
+                      <Text
+                        style={{
+                          color: scoreTone(theme, trip.driving_score ?? 0),
+                          ...theme.typography.caption,
+                          fontWeight: '700',
+                        }}>
                         {trip.driving_score ?? 0}
                       </Text>
                     </View>
@@ -470,7 +541,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
               onPress={handleArchiveVehicle}
               className="mt-4 rounded-[20px] border px-4 py-4"
               style={{backgroundColor: theme.card, borderColor: theme.cardBorder}}>
-              <Text style={{color: theme.danger, ...theme.typography.body, fontWeight: '800', textAlign: 'center'}}>
+              <Text style={{color: theme.danger, ...theme.typography.sectionTitle, textAlign: 'center'}}>
                 Archive Vehicle
               </Text>
             </Pressable>

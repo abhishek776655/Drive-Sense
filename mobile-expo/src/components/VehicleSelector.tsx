@@ -1,6 +1,7 @@
 import React from 'react';
 import {View, Text, Image, Pressable, ScrollView} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
+import {vehicleImageSource} from '../utils/vehicleImage';
 import {useAppTheme} from '../theme/appTheme';
 
 interface Vehicle {
@@ -73,21 +74,12 @@ export const VehicleSelector: React.FC<VehicleSelectorProps> = ({
                 onSelect(vehicle.id);
                 onClose();
               }}>
-              {vehicle.imageUrl ? (
-                <Image
-                  source={{uri: vehicle.imageUrl}}
-                  className="mr-3 size-10 rounded-[14px]"
-                  resizeMode="cover"
-                />
-              ) : (
-                <View
-                  className="mr-3 size-10 items-center justify-center rounded-[14px]"
-                  style={{
-                    backgroundColor: palette.accentSoft,
-                  }}>
-                  <Ionicons name="car" size={20} color={palette.accent} />
-                </View>
-              )}
+              <Image
+                source={vehicleImageSource(vehicle.imageUrl)}
+                className="mr-3 h-11 w-14 rounded-[14px]"
+                style={{backgroundColor: palette.card}}
+                resizeMode="contain"
+              />
               <View className="flex-1">
                 <Text style={{color: palette.text, ...theme.typography.body}}>{vehicle.name}</Text>
                 <Text className="mt-0.5" style={{color: palette.textSecondary, ...theme.typography.caption}}>{vehicle.type}</Text>

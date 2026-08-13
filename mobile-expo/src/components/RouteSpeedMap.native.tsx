@@ -3,6 +3,7 @@ import {View} from 'react-native';
 import MapView, {Marker, Polyline} from 'react-native-maps';
 import {buildRouteColorSections, getRouteRegion, type TimedRoutePoint} from '../utils/tripRoute';
 import {useAppTheme} from '../theme/appTheme';
+import {DARK_MAP_STYLE} from '../theme/mapStyle';
 
 type Props = {
   routePoints: TimedRoutePoint[];
@@ -27,6 +28,8 @@ export const RouteSpeedMap: React.FC<Props> = ({routePoints, startLabel, endLabe
       key={routeKey}
       style={{flex: 1}}
       initialRegion={region}
+      userInterfaceStyle={theme.dark ? 'dark' : 'light'}
+      customMapStyle={theme.dark ? DARK_MAP_STYLE : undefined}
       scrollEnabled
       rotateEnabled={false}
       pitchEnabled={false}>
@@ -45,7 +48,7 @@ export const RouteSpeedMap: React.FC<Props> = ({routePoints, startLabel, endLabe
           zIndex={2}
         />
       ))}
-      <Marker coordinate={startPoint} title="Start" description={startLabel} pinColor="#22C55E" />
+      <Marker coordinate={startPoint} title="Start" description={startLabel} pinColor="#4E9B74" />
       <Marker coordinate={endPoint} title="End" description={endLabel} pinColor="#0F172A" />
     </MapView>
   );

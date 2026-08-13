@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from 'react';
-import {ScrollView, Text, TouchableOpacity, View} from 'react-native';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {Platform, ScrollView, Text, TouchableOpacity, View, useWindowDimensions} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme/appTheme';
@@ -51,6 +51,7 @@ type LiveTrackingData = {
   };
   stats: Array<{label: string; value: string}>;
   timeline: Array<{label: string; value: string}>;
+  permissionState?: 'pending' | 'granted' | 'denied';
 };
 
 type Props = {
@@ -61,6 +62,56 @@ type Props = {
   onToggle3DMode?: () => void;
   onToggleFollowMode?: () => void;
   onCenterCurrentLocation?: () => void;
+};
+
+/** One radius scale for the whole surface. Anything outside these three is a bug. */
+const RADIUS = {sm: 16, md: 20, lg: 28} as const;
+/** Minimum comfortable touch target. Non-negotiable in a moving vehicle. */
+const HIT = 44;
+/** CustomTabBar is absolutely positioned: bottom 22 + height 76. */
+const TAB_BAR_CLEARANCE = 106;
+const ACTION_BAR_HEIGHT = 52;
+/** Scroll must clear the sticky action bar and the tab bar sitting on top of it. */
+const SCROLL_BOTTOM_INSET = TAB_BAR_CLEARANCE + ACTION_BAR_HEIGHT + 16;
+
+const CARDINALS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+
+const toCardinal = (headingDeg: number) => {
+  const normalized = ((headingDeg % 360) + 360) % 360;
+  return CARDINALS[Math.round(normalized / 22.5) % 16];
+};
+
+/** Field names are for logs. These are for people. */
+const DIAGNOSTIC_LABELS: Record<string, string> = {
+  recorded_at: 'Last fix',
+  provider: 'Source',
+  sync: 'Sync',
+  fuel_used_liters: 'Fuel used',
+  avg_speed_mps: 'Average speed',
+  max_speed_mps: 'Top speed',
+  accuracy_m: 'GPS accuracy',
+  accepted_events: 'Events synced',
+  pending_points: 'Points queued',
+  pending_events: 'Events queued',
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  device_gps: 'Device GPS',
+  mock: 'Simulated',
+};
+
+const formatDiagnostic = (label: string, value: string) => {
+  if (label === 'avg_speed_mps' || label === 'max_speed_mps') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? `${(parsed * 3.6).toFixed(1)} km/h` : value;
+  }
+  if (label === 'fuel_used_liters') {
+    return `${value} L`;
+  }
+  if (label === 'provider') {
+    return PROVIDER_LABELS[value] ?? value;
+  }
+  return value;
 };
 
 export const LiveTrackingLayout: React.FC<Props> = ({
@@ -75,20 +126,61 @@ export const LiveTrackingLayout: React.FC<Props> = ({
   const theme = useAppTheme();
   const {openSidebar} = useAppSidebar();
   const insets = useSafeAreaInsets();
+  const {height: windowHeight} = useWindowDimensions();
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [hideCompletedTripCard, setHideCompletedTripCard] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const scrollRef = useRef<ScrollView | null>(null);
+
+  /** Map keeps the dominant slice of the first screenful; telemetry scrolls up over it. */
+  const mapHeight = Math.round(Math.min(440, Math.max(280, windowHeight * 0.46)));
+
   const showCompletedTripCard = Boolean(data.completedTrip && !hideCompletedTripCard);
-  const liveBadge = data.hasEnded ? 'Ready' : data.currentPoint.is_moving ? 'Moving' : 'Idle';
+  const isLive = data.isStarted && !data.hasEnded;
+  const isMoving = data.currentPoint.is_moving;
+  const liveBadge = data.hasEnded ? 'Ready' : isMoving ? 'Moving' : 'Idle';
   const syncTone =
-    data.syncState === 'recording'
-      ? '#34D399'
+    data.syncState === 'recording' || data.syncState === 'saved'
+      ? theme.success
       : data.syncState === 'syncing'
-        ? '#FBBF24'
-        : data.syncState === 'saved'
-          ? '#34D399'
+        ? theme.warning
         : data.syncState === 'error'
-          ? '#F87171'
-          : '#93C5FD';
+          ? theme.danger
+          : theme.textSubtle;
+
+  /** Motion magnitude is ~9.8 m/s² at standstill (gravity). Showing it parked reads as garbage data. */
+  const motionLabel = isMoving ? data.paceDelta : 'No motion detected';
+  const headingLabel = isMoving ? `${data.heading} ${toCardinal(data.currentPoint.heading_deg)}` : '—';
+
+  const tiles = useMemo(
+    () => [
+      {
+        label: 'Distance',
+        value: data.isStarted ? data.distance : '—',
+        icon: 'navigate' as const,
+      },
+      {
+        label: 'Duration',
+        value: data.isStarted ? data.duration : '—',
+        icon: 'time' as const,
+      },
+      {
+        label: 'GPS accuracy',
+        value: data.hasLiveLocation ? `${data.currentPoint.accuracy_m.toFixed(1)} m` : '—',
+        icon: 'locate' as const,
+      },
+    ],
+    [data.currentPoint.accuracy_m, data.distance, data.duration, data.hasLiveLocation, data.isStarted],
+  );
+
+  const diagnostics = useMemo(
+    () =>
+      [...data.timeline, ...data.stats].map((item) => ({
+        label: DIAGNOSTIC_LABELS[item.label] ?? item.label.replace(/_/g, ' '),
+        value: formatDiagnostic(item.label, item.value),
+      })),
+    [data.stats, data.timeline],
+  );
 
   useEffect(() => {
     if (!data.completedTrip) {
@@ -112,31 +204,86 @@ export const LiveTrackingLayout: React.FC<Props> = ({
     };
   }, [data.completedTrip]);
 
+  const openDiagnostics = () => {
+    setShowDiagnostics(true);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({animated: true});
+    });
+  };
+
+  const mapControl = (
+    key: string,
+    label: string,
+    active: boolean,
+    onPress: () => void,
+    icon?: keyof typeof Ionicons.glyphMap,
+  ) => (
+    <TouchableOpacity
+      key={key}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{selected: active}}
+      style={{
+        minWidth: HIT,
+        height: HIT,
+        paddingHorizontal: 12,
+        marginBottom: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: RADIUS.sm,
+        // Translucent so the map reads through the control strip.
+        backgroundColor: active ? theme.overlayActive : theme.overlay,
+        borderWidth: 1,
+        borderColor: active ? theme.overlayActive : theme.overlayBorder,
+        shadowColor: '#000000',
+        shadowOpacity: 0.16,
+        shadowRadius: 8,
+        shadowOffset: {width: 0, height: 4},
+        elevation: 4,
+      }}>
+      {icon ? (
+        <Ionicons name={icon} size={18} color={active ? theme.onAccent : theme.text} />
+      ) : (
+        <Text
+          style={{
+            color: active ? theme.onAccent : theme.text,
+            ...theme.typography.caption,
+            fontWeight: '800',
+          }}>
+          {label}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  const primaryAction = isLive
+    ? {
+        label: 'End Trip',
+        icon: 'stop-circle' as const,
+        onPress: () => void data.endTrip?.(),
+        destructive: true,
+      }
+    : {
+        label: data.hasEnded ? 'Start New Trip' : 'Start Trip',
+        icon: 'play' as const,
+        onPress: () => void data.startTrip(),
+        destructive: false,
+      };
+
   return (
     <SafeAreaView className="flex-1" style={{backgroundColor: theme.screen}}>
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: -80,
-          right: -40,
-          width: 220,
-          height: 220,
-          borderRadius: 110,
-          backgroundColor: theme.accentMuted,
-          opacity: 0.8,
-        }}
-      />
       {showSavedToast && data.completedTrip ? (
         <View
+          accessibilityLiveRegion="polite"
           style={{
             position: 'absolute',
             top: insets.top + 12,
             left: 20,
             right: 20,
-            zIndex: 20,
+            zIndex: 30,
             backgroundColor: theme.success,
-            borderRadius: 18,
+            borderRadius: RADIUS.md,
             paddingHorizontal: 14,
             paddingVertical: 12,
             flexDirection: 'row',
@@ -160,173 +307,437 @@ export const LiveTrackingLayout: React.FC<Props> = ({
             <Ionicons name="checkmark" size={18} color={theme.onSuccess} />
           </View>
           <View style={{flex: 1}}>
-            <Text style={{color: theme.onSuccess, ...theme.typography.body, fontWeight: '800'}}>
+            <Text
+              style={{
+                color: theme.onSuccess,
+                ...theme.typography.body,
+                fontWeight: '800',
+              }}>
               Trip complete
             </Text>
-            <Text style={{color: theme.onSuccessMuted, ...theme.typography.caption, marginTop: 2}}>
+            <Text
+              style={{
+                color: theme.onSuccessMuted,
+                ...theme.typography.caption,
+                marginTop: 2,
+              }}>
               Saved to history with {data.completedTrip.distanceLabel} in {data.completedTrip.durationLabel}
             </Text>
           </View>
         </View>
       ) : null}
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{paddingHorizontal: 20, paddingTop: 12, paddingBottom: 132}}
-        showsVerticalScrollIndicator={false}>
-        <View className="mb-[18px] flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={openSidebar}
-            className="size-[42px] items-center justify-center rounded-2xl border"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
-            <Ionicons name="menu" size={18} color={theme.text} />
-          </TouchableOpacity>
-          <View className="items-center">
-            <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 22, lineHeight: 26}}>Live Feed</Text>
-            <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>{data.vehicleName} • {data.state}</Text>
-          </View>
-          <TouchableOpacity
-            className="size-[42px] items-center justify-center rounded-2xl border"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
-            <Ionicons name="radio-outline" size={18} color={theme.text} />
-          </TouchableOpacity>
-        </View>
 
-        <View
-          className="mb-[14px] rounded-3xl border px-4 py-[14px]"
+      {/* Header stays compact — the map is the content, not this. */}
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: 4,
+          paddingBottom: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+        <TouchableOpacity
+          onPress={openSidebar}
+          accessibilityRole="button"
+          accessibilityLabel="Open menu"
           style={{
+            width: HIT,
+            height: HIT,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: RADIUS.sm,
             backgroundColor: theme.card,
+            borderWidth: 1,
             borderColor: theme.cardBorder,
           }}>
-          <View className="flex-row items-start justify-between">
-            <View className="flex-1">
-              <View className="mb-2.5 flex-row items-center">
-                <View
-                  className="mr-2 flex-row items-center rounded-full px-2.5 py-1.5"
-                  style={{
-                    backgroundColor: theme.cardSoft,
-                  }}>
-                  <View className="mr-[7px] size-2 rounded-full" style={{backgroundColor: syncTone}} />
-                  <Text style={{color: theme.text, ...theme.typography.caption, fontWeight: '700'}}>{liveBadge}</Text>
-                </View>
-                <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{data.syncLabel}</Text>
-              </View>
-              <Text style={{color: theme.text, ...theme.typography.sectionTitle, fontSize: 20, lineHeight: 24}}>
-                {data.prominentStatus}
+          <Ionicons name="menu" size={20} color={theme.text} />
+        </TouchableOpacity>
+        <View style={{alignItems: 'center', flex: 1, paddingHorizontal: 8}}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: theme.text,
+              ...theme.typography.pageTitle,
+              fontSize: 22,
+              lineHeight: 26,
+            }}>
+            Live Feed
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: theme.textSubtle,
+              ...theme.typography.caption,
+              marginTop: 2,
+            }}>
+            {data.vehicleName} • {data.state}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={openDiagnostics}
+          accessibilityRole="button"
+          accessibilityLabel="Show tracking diagnostics"
+          style={{
+            width: HIT,
+            height: HIT,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: RADIUS.sm,
+            backgroundColor: theme.card,
+            borderWidth: 1,
+            borderColor: theme.cardBorder,
+          }}>
+          <Ionicons name="pulse-outline" size={20} color={theme.text} />
+          <View
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: syncTone,
+            }}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* One page scroll: map first, telemetry flows underneath with no inner scroll container. */}
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingHorizontal: 20, paddingBottom: SCROLL_BOTTOM_INSET}}>
+        <View
+          style={{
+            height: mapHeight,
+            borderRadius: RADIUS.lg,
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: theme.cardBorder,
+            backgroundColor: theme.card,
+          }}>
+          {mapContent}
+
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              right: 12,
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+            }}>
+            <View
+              style={{
+                flexShrink: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: RADIUS.sm,
+                backgroundColor: theme.card,
+                borderWidth: 1,
+                borderColor: theme.cardBorder,
+              }}>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: syncTone,
+                  marginRight: 8,
+                }}
+              />
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: theme.text,
+                  ...theme.typography.caption,
+                  fontWeight: '800',
+                }}>
+                {liveBadge}
               </Text>
-              <Text className="mt-1" style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                {data.hasEnded
-                  ? 'Ready to auto-start when movement is detected'
-                  : `${data.acceptedPoints} points synced`}
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: theme.textSubtle,
+                  ...theme.typography.caption,
+                  marginLeft: 8,
+                }}>
+                {data.syncLabel}
               </Text>
-              {!data.isStarted ? (
-                <TouchableOpacity
-                  onPress={() => void data.startTrip()}
-                  className="mt-[14px] self-start rounded-[14px] border px-4 py-2.5"
-                  style={{
-                    backgroundColor: theme.accent,
-                    borderColor: theme.accent,
-                    shadowColor: theme.accent,
-                    shadowOpacity: 0.18,
-                    shadowRadius: 10,
-                    shadowOffset: {width: 0, height: 6},
-                    elevation: 4,
-                  }}>
-                  <Text style={{color: theme.onAccent, ...theme.typography.body, fontWeight: '800'}}>
-                    {data.hasEnded ? 'Start New Trip' : 'Start Trip'}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {data.isStarted && !data.hasEnded ? (
-                <View className="mt-[14px] flex-row gap-2">
-                  <TouchableOpacity
-                    onPress={() => void data.pauseTrip?.()}
-                    className="flex-1 flex-row items-center justify-center rounded-[14px] border px-3 py-2.5"
-                    style={{
-                      backgroundColor: data.isPaused ? theme.accentMuted : theme.cardSoft,
-                      borderColor: data.isPaused ? theme.accent : theme.cardBorder,
-                    }}>
-                    <Ionicons name={data.isPaused ? 'play' : 'pause'} size={16} color={data.isPaused ? theme.accent : theme.text} />
-                    <Text style={{color: data.isPaused ? theme.accent : theme.text, ...theme.typography.caption, fontWeight: '800', marginLeft: 7}}>
-                      {data.isPaused ? 'Resume' : 'Pause'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => void data.endTrip?.()}
-                    className="flex-1 flex-row items-center justify-center rounded-[14px] border px-3 py-2.5"
-                    style={{
-                      backgroundColor: 'rgba(220,38,38,0.10)',
-                      borderColor: 'rgba(220,38,38,0.28)',
-                    }}>
-                    <Ionicons name="stop-circle" size={16} color={theme.danger} />
-                    <Text style={{color: theme.danger, ...theme.typography.caption, fontWeight: '800', marginLeft: 7}}>
-                      End Trip
-                    </Text>
-                  </TouchableOpacity>
+            </View>
+            <View style={{flex: 1}} />
+            <View style={{alignItems: 'flex-end'}}>
+              {onToggleFollowMode ? mapControl('follow', 'Follow', isFollowMode, onToggleFollowMode) : null}
+              {onToggle3DMode ? mapControl('3d', '3D', is3DMode, onToggle3DMode) : null}
+              {onCenterCurrentLocation
+                ? mapControl('recenter', 'Recenter on vehicle', false, onCenterCurrentLocation, 'locate')
+                : null}
+            </View>
+          </View>
+
+          {/* Permission denial has its own banner from the map screen — do not stack two hints. */}
+          {!data.hasLiveLocation && data.permissionState !== 'denied' ? (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                bottom: 12,
+                left: 12,
+                right: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: RADIUS.sm,
+                backgroundColor: theme.overlay,
+                borderWidth: 1,
+                borderColor: theme.overlayBorder,
+              }}>
+              <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                Waiting for a GPS fix before the live position appears.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Telemetry block: hero reading plus its supporting tiles, held in one container. */}
+        <View
+          style={{
+            marginTop: 14,
+            marginBottom: 14,
+            backgroundColor: theme.card,
+            borderWidth: 1,
+            borderColor: theme.cardBorder,
+            borderRadius: RADIUS.lg,
+            padding: 16,
+          }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              marginBottom: 16,
+            }}>
+            <View style={{flex: 1}}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={{
+                  color: theme.text,
+                  ...theme.typography.scoreValue,
+                  fontSize: 44,
+                  // scoreValue ships a 1.03 line-height ratio; Nunito ExtraBold clips its own
+                  // ascenders at that. 1.2 gives the glyphs room.
+                  lineHeight: 53,
+                  includeFontPadding: false,
+                }}>
+                {data.speed}
+              </Text>
+              <Text
+                style={{
+                  color: theme.textSubtle,
+                  ...theme.typography.caption,
+                  marginTop: 2,
+                }}>
+                km/h current speed
+              </Text>
+            </View>
+            <View style={{alignItems: 'flex-end', paddingLeft: 12}}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: theme.text,
+                  ...theme.typography.metricValue,
+                  fontSize: 22,
+                  lineHeight: 28,
+                }}>
+                {headingLabel}
+              </Text>
+              <Text
+                style={{
+                  color: theme.textSubtle,
+                  ...theme.typography.caption,
+                }}>
+                Heading
+              </Text>
+              <Text
+                style={{
+                  color: isMoving ? theme.accent : theme.textSubtle,
+                  ...theme.typography.caption,
+                  fontWeight: '700',
+                  marginTop: 6,
+                }}>
+                {motionLabel}
+              </Text>
+              {isLive ? (
+                <View style={{marginTop: 8}}>
+                  <SmoothnessGauge magnitude={data.latestAcceleration} />
                 </View>
-              ) : null}
-              {data.syncError ? (
-                <Text className="mt-1.5" style={{color: theme.danger, ...theme.typography.caption}}>
-                  {data.syncError}
-                </Text>
               ) : null}
             </View>
           </View>
+
+          <View style={{flexDirection: 'row', gap: 10}}>
+            {tiles.map((item) => (
+              <View
+                key={item.label}
+                style={{
+                  flex: 1,
+                  backgroundColor: theme.cardSoft,
+                  borderWidth: 1,
+                  borderColor: theme.cardBorder,
+                  borderRadius: RADIUS.md,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                }}>
+                <Ionicons name={item.icon} size={15} color={theme.textSubtle} />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: theme.text,
+                    ...theme.typography.body,
+                    fontWeight: '800',
+                    marginTop: 8,
+                  }}>
+                  {item.value}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: theme.textSubtle,
+                    ...theme.typography.caption,
+                    marginTop: 2,
+                  }}>
+                  {item.label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
+
+        {!data.isStarted && !data.hasEnded ? (
+          <View
+            style={{
+              backgroundColor: theme.cardSoft,
+              borderWidth: 1,
+              borderColor: theme.cardBorder,
+              borderRadius: RADIUS.md,
+              padding: 14,
+              marginBottom: 14,
+            }}>
+            <Text
+              style={{
+                color: theme.text,
+                ...theme.typography.body,
+                fontWeight: '800',
+              }}>
+              {data.prominentStatus}
+            </Text>
+            <Text
+              style={{
+                color: theme.textSubtle,
+                ...theme.typography.caption,
+                marginTop: 4,
+              }}>
+              Tracking auto-starts when movement is detected, or start it now.
+            </Text>
+          </View>
+        ) : null}
 
         {showCompletedTripCard && data.completedTrip ? (
           <View
-            className="mb-[14px] rounded-[22px] border p-4"
             style={{
               backgroundColor: theme.successSoft,
+              borderWidth: 1,
               borderColor: theme.successMuted,
+              borderRadius: RADIUS.md,
+              padding: 14,
+              marginBottom: 14,
             }}>
-            <View className="mb-2.5 flex-row items-center">
-              <View
-                className="mr-2.5 size-[34px] items-center justify-center rounded-full"
-                style={{
-                  backgroundColor: theme.successMuted,
-                }}>
-                <Ionicons name="checkmark" size={18} color={theme.success} />
-              </View>
-              <View className="flex-1">
-                <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip saved</Text>
-                <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginBottom: 10,
+              }}>
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+              <View style={{flex: 1, marginLeft: 8}}>
+                <Text
+                  style={{
+                    color: theme.text,
+                    ...theme.typography.body,
+                    fontWeight: '800',
+                  }}>
+                  Trip saved
+                </Text>
+                <Text
+                  style={{
+                    color: theme.textSubtle,
+                    ...theme.typography.caption,
+                    marginTop: 2,
+                  }}>
                   {new Date(data.completedTrip.endedAt).toLocaleTimeString('en-IN', {
                     hour: 'numeric',
                     minute: '2-digit',
-                  })} • ready for the next drive
+                  })}{' '}
+                  • ready for the next drive
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setHideCompletedTripCard(true)}
-                className="ml-2 size-8 items-center justify-center rounded-full"
-                style={{backgroundColor: theme.successMuted}}>
-                <Ionicons name="close" size={16} color={theme.success} />
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss trip summary"
+                style={{
+                  width: HIT,
+                  height: HIT,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Ionicons name="close" size={18} color={theme.success} />
               </TouchableOpacity>
             </View>
-            <View className="flex-row justify-between">
+            <View style={{flexDirection: 'row', gap: 10}}>
               {[
-                {label: 'Distance', value: data.completedTrip.distanceLabel},
-                {label: 'Duration', value: data.completedTrip.durationLabel},
-                {label: 'Events', value: String(data.completedTrip.eventCount)},
+                {
+                  label: 'Distance',
+                  value: data.completedTrip.distanceLabel,
+                },
+                {
+                  label: 'Duration',
+                  value: data.completedTrip.durationLabel,
+                },
+                {
+                  label: 'Events',
+                  value: String(data.completedTrip.eventCount),
+                },
               ].map((item) => (
                 <View
                   key={item.label}
-                  className="w-[31.5%] rounded-2xl border px-2.5 py-2.5"
                   style={{
+                    flex: 1,
                     backgroundColor: theme.card,
+                    borderWidth: 1,
                     borderColor: theme.cardBorder,
+                    borderRadius: RADIUS.sm,
+                    paddingHorizontal: 10,
+                    paddingVertical: 10,
                   }}>
-                  <Text className="mb-1" style={{color: theme.textSubtle, ...theme.typography.caption}}>
+                  <Text
+                    style={{
+                      color: theme.textSubtle,
+                      ...theme.typography.caption,
+                    }}>
                     {item.label}
                   </Text>
-                  <Text numberOfLines={1} style={{color: theme.text, ...theme.typography.body, fontWeight: '800'}}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: theme.text,
+                      ...theme.typography.body,
+                      fontWeight: '800',
+                      marginTop: 4,
+                    }}>
                     {item.value}
                   </Text>
                 </View>
@@ -335,288 +746,210 @@ export const LiveTrackingLayout: React.FC<Props> = ({
           </View>
         ) : null}
 
-        <View
-          className="mb-[14px] overflow-hidden rounded-[28px] border"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
-          <View className="px-4 pb-2.5 pt-4">
-            <View className="mb-2 flex-row items-center justify-between">
-              <View className="flex-1 pr-3">
-                <Text style={{color: theme.text, ...theme.typography.sectionTitle, fontSize: 16}}>Live Map</Text>
-                <Text className="mt-0.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                  {data.hasLiveLocation
-                    ? `latitude ${data.currentPoint.latitude.toFixed(4)} • longitude ${data.currentPoint.longitude.toFixed(4)}`
-                    : 'Live map will appear once a GPS fix is available'}
-                </Text>
-              </View>
-              <View className="self-start flex-row items-center">
-                {onToggleFollowMode ? (
-                  <TouchableOpacity
-                    onPress={onToggleFollowMode}
-                    className="mr-2 h-8 min-w-[58px] items-center justify-center rounded-full"
-                    style={{
-                      backgroundColor: isFollowMode ? theme.text : theme.cardSoft,
-                    }}>
-                    <Text
-                      style={{
-                        color: isFollowMode ? theme.screen : theme.text,
-                        ...theme.typography.caption,
-                        fontWeight: '700',
-                      }}>
-                      Follow
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-                {onToggle3DMode ? (
-                  <TouchableOpacity
-                    onPress={onToggle3DMode}
-                    className="mr-2 h-8 min-w-[42px] items-center justify-center rounded-full"
-                    style={{
-                      backgroundColor: is3DMode ? theme.accent : theme.cardSoft,
-                    }}>
-                    <Text
-                      style={{
-                        color: is3DMode ? theme.onAccent : theme.text,
-                        ...theme.typography.caption,
-                        fontWeight: '700',
-                      }}>
-                      3D
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-                {onCenterCurrentLocation ? (
-                  <TouchableOpacity
-                    onPress={onCenterCurrentLocation}
-                    className="size-8 items-center justify-center rounded-full"
-                    style={{
-                      backgroundColor: theme.cardSoft,
-                    }}>
-                    <Ionicons name="locate" size={15} color={theme.text} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </View>
-          </View>
-          <View style={{height: 250}}>{mapContent}</View>
-        </View>
-
-        <View
-          style={{
-            backgroundColor: theme.accent,
-            borderRadius: 30,
-            padding: 18,
-            marginBottom: 14,
-            overflow: 'hidden',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.12)',
-          }}>
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              top: -80,
-              right: -50,
-              width: 200,
-              height: 200,
-              borderRadius: 100,
-              backgroundColor: 'rgba(255,255,255,0.10)',
-            }}
-          />
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              bottom: -60,
-              left: -30,
-              width: 160,
-              height: 160,
-              borderRadius: 80,
-              backgroundColor: 'rgba(255,255,255,0.08)',
-            }}
-          />
-
-          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16}}>
-            <View>
-              <View style={{flexDirection: 'row', alignItems: 'center'}}>
-              <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: '#34D399', marginRight: 8}} />
-                <Text style={{color: '#FFFFFF', ...theme.typography.caption, fontWeight: '700', letterSpacing: 0.8}}>TELEMETRY FEED</Text>
-              </View>
-              <Text style={{color: 'rgba(255,255,255,0.78)', ...theme.typography.caption, marginTop: 6}}>
-                point at {data.currentPoint.recorded_at.slice(11, 19)} • {data.currentLocation}
-              </Text>
-            </View>
-            <View style={{paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)'}}>
-              <Text style={{color: '#FFFFFF', ...theme.typography.caption, fontWeight: '700'}}>{liveBadge}</Text>
-            </View>
-          </View>
-
-          <View style={{flexDirection: 'row', marginBottom: 18}}>
-            <View style={{flex: 1}}>
-              <Text style={{color: '#FFFFFF', ...theme.typography.scoreValue, fontSize: 42, lineHeight: 44}}>{data.speed}</Text>
-              <Text style={{color: 'rgba(255,255,255,0.74)', ...theme.typography.caption}}>km/h current speed</Text>
-            </View>
-            <View style={{flex: 1, alignItems: 'flex-end'}}>
-              <Text style={{color: '#FFFFFF', ...theme.typography.metricValue, fontSize: 22}}>{data.heading}</Text>
-              <Text style={{color: 'rgba(255,255,255,0.74)', ...theme.typography.caption}}>heading_deg</Text>
-              <Text style={{color: '#CFFAFE', ...theme.typography.caption, fontWeight: '700', marginTop: 8}}>{data.paceDelta}</Text>
-              {data.isStarted ? (
-                <View style={{marginTop: 8}}>
-                  <SmoothnessGauge magnitude={data.latestAcceleration} />
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={{flexDirection: 'row', gap: 10, marginBottom: 16}}>
-            {[
-              {label: 'Distance', value: data.distance, icon: 'navigate'},
-              {label: 'Duration', value: data.duration, icon: 'time'},
-              {label: 'Accuracy', value: `${data.currentPoint.accuracy_m.toFixed(1)} m`, icon: 'locate'},
-            ].map((item) => (
-              <View
-                key={item.label}
-                style={{
-                  flex: 1,
-                  backgroundColor: 'rgba(255,255,255,0.10)',
-                  borderRadius: 18,
-                  paddingHorizontal: 12,
-                  paddingVertical: 12,
-                }}>
-                <Ionicons name={item.icon as any} size={15} color="#FFFFFF" />
-                <Text style={{color: '#FFFFFF', ...theme.typography.body, fontWeight: '700', marginTop: 8}}>{item.value}</Text>
-                <Text style={{color: 'rgba(255,255,255,0.72)', ...theme.typography.caption, marginTop: 2}}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-
-              <Text style={{color: 'rgba(255,255,255,0.82)', ...theme.typography.caption}}>
-            trip_id {data.trip_id.slice(0, 8)} • started {data.start_time.slice(11, 16)} • {data.syncLabel}
-          </Text>
-        </View>
-
-        <View
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-            borderWidth: 1,
-            borderRadius: 26,
-            padding: 16,
-            marginBottom: 14,
-          }}>
-          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14}}>
-            <View>
-              <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Live Snapshot</Text>
-              <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 3}}>
-                Current trip details and tracking health
-              </Text>
-            </View>
-            <View
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                backgroundColor: theme.accentMuted,
-              }}>
-              <Text style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>
-                {data.state}
-              </Text>
-            </View>
-          </View>
-
-          <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 8}}>
-            {data.timeline.map((item) => (
-              <View
-                key={item.label}
-                style={{
-                  width: '48.5%',
-                  backgroundColor: theme.cardSoft,
-                  borderColor: theme.cardBorder,
-                  borderWidth: 1,
-                  borderRadius: 18,
-                  paddingHorizontal: 14,
-                  paddingVertical: 13,
-                  marginBottom: 10,
-                }}>
-                <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginBottom: 6}}>
-                  {item.label.replace(/_/g, ' ')}
-                </Text>
-                <Text style={{color: theme.text, ...theme.typography.body, fontWeight: '800'}}>
-                  {item.value}
-                </Text>
-              </View>
-            ))}
-          </View>
-
+        {data.syncError ? (
           <View
             style={{
-              backgroundColor: theme.cardSoft,
-              borderColor: theme.cardBorder,
+              backgroundColor: theme.dangerSoft,
               borderWidth: 1,
-              borderRadius: 20,
+              borderColor: theme.danger,
+              borderRadius: RADIUS.md,
+              padding: 12,
+              marginBottom: 14,
+            }}>
+            <Text
+              style={{
+                color: theme.danger,
+                ...theme.typography.caption,
+                fontWeight: '700',
+              }}>
+              {data.syncError}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Everything a driver does not need mid-drive lives behind this disclosure. */}
+        <TouchableOpacity
+          onPress={() => setShowDiagnostics((previous) => !previous)}
+          accessibilityRole="button"
+          accessibilityLabel="Diagnostics"
+          accessibilityState={{expanded: showDiagnostics}}
+          style={{
+            minHeight: HIT,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: theme.cardSoft,
+            borderWidth: 1,
+            borderColor: theme.cardBorder,
+            borderRadius: RADIUS.md,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+          }}>
+          <View>
+            <Text
+              style={{
+                color: theme.text,
+                ...theme.typography.body,
+                fontWeight: '800',
+              }}>
+              Diagnostics
+            </Text>
+            <Text
+              style={{
+                color: theme.textSubtle,
+                ...theme.typography.caption,
+                marginTop: 2,
+              }}>
+              {data.acceptedPoints} points • {data.acceptedEvents} events synced
+            </Text>
+          </View>
+          <Ionicons name={showDiagnostics ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textSubtle} />
+        </TouchableOpacity>
+
+        {showDiagnostics ? (
+          <View
+            style={{
+              marginTop: 10,
+              backgroundColor: theme.cardSoft,
+              borderWidth: 1,
+              borderColor: theme.cardBorder,
+              borderRadius: RADIUS.md,
+              // Uniform box padding; row spacing comes from rowGap so the last row adds nothing.
               padding: 14,
             }}>
-            <Text style={{color: theme.text, ...theme.typography.sectionTitle, marginBottom: 10}}>
-              Tracking Health
-            </Text>
-            <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between'}}>
-              {data.stats.map((item) => (
-                <View
-                  key={item.label}
-                  style={{
-                    width: '48.5%',
-                    marginBottom: 12,
-                  }}>
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>
-                    {item.label.replace(/_/g, ' ')}
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                rowGap: 14,
+              }}>
+              {diagnostics.map((item) => (
+                <View key={item.label} style={{width: '48.5%'}}>
+                  <Text
+                    style={{
+                      color: theme.textSubtle,
+                      ...theme.typography.caption,
+                    }}>
+                    {item.label}
                   </Text>
-                  <Text style={{color: theme.text, ...theme.typography.body, fontWeight: '800', marginTop: 4}}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: theme.text,
+                      ...theme.typography.body,
+                      fontWeight: '800',
+                      marginTop: 3,
+                    }}>
                     {item.value}
                   </Text>
                 </View>
               ))}
             </View>
+            <View
+              style={{
+                height: 1,
+                backgroundColor: theme.cardBorder,
+                marginTop: 14,
+                marginBottom: 12,
+              }}
+            />
+            <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>
+              Trip {data.trip_id.slice(0, 8)} • started {data.start_time.slice(11, 16)}
+              {data.hasLiveLocation
+                ? ` • ${data.currentPoint.latitude.toFixed(4)}, ${data.currentPoint.longitude.toFixed(4)}`
+                : ''}
+            </Text>
           </View>
-        </View>
+        ) : null}
+      </ScrollView>
 
+      {/* One primary action, pinned to the bottom, never scrolled away. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: 20,
+          right: 20,
+          bottom: TAB_BAR_CLEARANCE + (Platform.OS === 'android' ? insets.bottom : 0),
+          flexDirection: 'row',
+          gap: 10,
+        }}>
+        {isLive ? (
+          <TouchableOpacity
+            onPress={() => void data.pauseTrip?.()}
+            accessibilityRole="button"
+            accessibilityLabel={data.isPaused ? 'Resume trip' : 'Pause trip'}
+            style={{
+              width: 96,
+              height: ACTION_BAR_HEIGHT,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              borderRadius: RADIUS.md,
+              // Paused is the state that needs a loud way out, so Resume fills solid accent.
+              // accentMuted is a 6% wash — never use it on a control.
+              backgroundColor: data.isPaused ? theme.accent : theme.card,
+              borderWidth: 1,
+              borderColor: data.isPaused ? theme.accent : theme.cardBorder,
+              shadowColor: '#000000',
+              shadowOpacity: 0.12,
+              shadowRadius: 10,
+              shadowOffset: {width: 0, height: 4},
+              elevation: 4,
+            }}>
+            <Ionicons
+              name={data.isPaused ? 'play' : 'pause'}
+              size={16}
+              color={data.isPaused ? theme.onAccent : theme.text}
+            />
+            <Text
+              style={{
+                color: data.isPaused ? theme.onAccent : theme.text,
+                ...theme.typography.caption,
+                fontWeight: '800',
+                marginLeft: 6,
+              }}>
+              {data.isPaused ? 'Resume' : 'Pause'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
-          onPress={() => {
-            if (!data.isStarted) {
-              void data.startTrip();
-              return;
-            }
-            if (!data.hasEnded) {
-              void data.endTrip?.();
-            }
-          }}
+          onPress={primaryAction.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={primaryAction.label}
           style={{
-            backgroundColor: data.isStarted ? 'rgba(220,38,38,0.10)' : theme.accent,
-            borderColor: data.isStarted ? 'rgba(220,38,38,0.28)' : theme.accent,
-            borderWidth: 1,
-            borderRadius: 22,
-            paddingVertical: 16,
+            flex: 1,
+            height: ACTION_BAR_HEIGHT,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 8,
+            borderRadius: RADIUS.md,
+            // Solid fill in both states — the primary action never reads as a ghost button.
+            backgroundColor: primaryAction.destructive ? theme.danger : theme.accent,
+            borderWidth: 1,
+            borderColor: primaryAction.destructive ? theme.danger : theme.accent,
+            shadowColor: primaryAction.destructive ? theme.danger : theme.accent,
+            shadowOpacity: 0.24,
+            shadowRadius: 12,
+            shadowOffset: {width: 0, height: 6},
+            elevation: 5,
           }}>
           <Ionicons
-            name={data.isStarted ? 'stop-circle' : 'play'}
+            name={primaryAction.icon}
             size={18}
-            color={data.isStarted ? theme.danger : theme.onAccent}
+            color={primaryAction.destructive ? theme.onDanger : theme.onAccent}
           />
           <Text
             style={{
-              color: data.isStarted ? theme.danger : theme.onAccent,
+              color: primaryAction.destructive ? theme.onDanger : theme.onAccent,
               ...theme.typography.body,
               fontWeight: '800',
               marginLeft: 8,
             }}>
-            {data.isStarted ? 'End Trip' : data.hasEnded ? 'Start New Trip' : 'Auto Start Ready'}
+            {primaryAction.label}
           </Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 };

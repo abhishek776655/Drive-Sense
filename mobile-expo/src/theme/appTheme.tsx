@@ -11,6 +11,12 @@ export type AppTheme = {
     body: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     caption: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     metricValue: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
+    /** Borderless inline stats sitting in a row, where a boxed metric would be too heavy. */
+    statInline: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
+    /** Card headings. One weight step below the hero so the hero still leads. */
+    cardTitle: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
+    /** Units rendered as their own Text beside a value, never inside the value string. */
+    unit: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     statHero: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
     scoreValue: {fontFamily: string; fontSize: number; lineHeight: number; fontWeight: '400' | '500' | '600' | '700' | '800' | '900'};
   };
@@ -40,6 +46,17 @@ export type AppTheme = {
   lineMuted: string;
   onSuccess: string;
   onSuccessMuted: string;
+  /** Label colour for text sitting on a `danger` fill. Dark themes need dark ink, not white. */
+  onDanger: string;
+  /** Label colour for text sitting on a `warning` fill. */
+  onWarning: string;
+  /** Translucent surface for controls floating on top of a map or photo. */
+  overlay: string;
+  overlayBorder: string;
+  /** Selected state for those floating controls. */
+  overlayActive: string;
+  /** Dimming layer behind a drawer or modal. */
+  scrim: string;
 };
 
 type ThemeMode = 'light' | 'dark';
@@ -67,6 +84,9 @@ const lightTheme: AppTheme = {
     body: {fontFamily: appFontMedium, fontSize: 14, lineHeight: 20, fontWeight: '500'},
     caption: {fontFamily: appFontMedium, fontSize: 12, lineHeight: 16, fontWeight: '500'},
     metricValue: {fontFamily: appFontBold, fontSize: 20, lineHeight: 24, fontWeight: '700'},
+    statInline: {fontFamily: appFontBold, fontSize: 17, lineHeight: 22, fontWeight: '700'},
+    cardTitle: {fontFamily: appFontBold, fontSize: 18, lineHeight: 24, fontWeight: '700'},
+    unit: {fontFamily: appFontSemiBold, fontSize: 11, lineHeight: 14, fontWeight: '600'},
     statHero: {fontFamily: appFontExtraBold, fontSize: 38, lineHeight: 42, fontWeight: '800'},
     scoreValue: {fontFamily: appFontExtraBold, fontSize: 56, lineHeight: 58, fontWeight: '800'},
   },
@@ -81,21 +101,27 @@ const lightTheme: AppTheme = {
   accent: '#246BFF',
   accentSoft: 'rgba(36,107,255,0.12)',
   accentMuted: 'rgba(36,107,255,0.06)',
-  success: '#16A34A',
-  successSoft: 'rgba(22,163,74,0.12)',
-  successMuted: 'rgba(22,163,74,0.08)',
+  success: '#2F7D57',
+  successSoft: 'rgba(47,125,87,0.12)',
+  successMuted: 'rgba(47,125,87,0.08)',
   onAccent: '#FFFFFF',
   onAccentMuted: 'rgba(255,255,255,0.80)',
-  warning: '#F59E0B',
-  warningSoft: 'rgba(245,158,11,0.12)',
-  danger: '#DC2626',
-  dangerSoft: 'rgba(220,38,38,0.10)',
+  warning: '#8A6520',
+  warningSoft: 'rgba(138,101,32,0.12)',
+  danger: '#B4433D',
+  dangerSoft: 'rgba(180,67,61,0.10)',
   chip: '#EEF4FF',
   chipText: '#246BFF',
   line: '#246BFF',
   lineMuted: '#94A3B8',
   onSuccess: '#FFFFFF',
   onSuccessMuted: 'rgba(255,255,255,0.80)',
+  onDanger: '#FFFFFF',
+  onWarning: '#FFFFFF',
+  overlay: 'rgba(255,255,255,0.82)',
+  overlayBorder: 'rgba(15,23,42,0.10)',
+  overlayActive: 'rgba(36,107,255,0.92)',
+  scrim: 'rgba(15,23,42,0.42)',
 };
 
 const darkTheme: AppTheme = {
@@ -108,6 +134,9 @@ const darkTheme: AppTheme = {
     body: {fontFamily: appFontMedium, fontSize: 14, lineHeight: 20, fontWeight: '500'},
     caption: {fontFamily: appFontMedium, fontSize: 12, lineHeight: 16, fontWeight: '500'},
     metricValue: {fontFamily: appFontBold, fontSize: 20, lineHeight: 24, fontWeight: '700'},
+    statInline: {fontFamily: appFontBold, fontSize: 17, lineHeight: 22, fontWeight: '700'},
+    cardTitle: {fontFamily: appFontBold, fontSize: 18, lineHeight: 24, fontWeight: '700'},
+    unit: {fontFamily: appFontSemiBold, fontSize: 11, lineHeight: 14, fontWeight: '600'},
     statHero: {fontFamily: appFontExtraBold, fontSize: 38, lineHeight: 42, fontWeight: '800'},
     scoreValue: {fontFamily: appFontExtraBold, fontSize: 56, lineHeight: 58, fontWeight: '800'},
   },
@@ -122,17 +151,28 @@ const darkTheme: AppTheme = {
   accent: '#246BFF',
   accentSoft: 'rgba(36,107,255,0.18)',
   accentMuted: 'rgba(36,107,255,0.08)',
-  success: '#22C55E',
-  successSoft: 'rgba(34,197,94,0.18)',
-  successMuted: 'rgba(34,197,94,0.12)',
+  success: '#5BAF85',
+  successSoft: 'rgba(91,175,133,0.18)',
+  successMuted: 'rgba(91,175,133,0.12)',
+  warning: '#C79A62',
+  warningSoft: 'rgba(199,154,98,0.18)',
+  danger: '#C97A75',
+  dangerSoft: 'rgba(201,122,117,0.16)',
   onAccent: '#FFFFFF',
   onAccentMuted: 'rgba(255,255,255,0.80)',
   chip: 'rgba(255,255,255,0.06)',
   chipText: '#D6E4FF',
   line: '#246BFF',
   lineMuted: 'rgba(255,255,255,0.28)',
-  onSuccess: '#FFFFFF',
-  onSuccessMuted: 'rgba(255,255,255,0.80)',
+  // A status fill in dark mode is a light colour, so its label has to be dark ink.
+  onSuccess: '#12100F',
+  onSuccessMuted: 'rgba(18,16,15,0.72)',
+  onDanger: '#12100F',
+  onWarning: '#12100F',
+  overlay: 'rgba(16,24,38,0.74)',
+  overlayBorder: 'rgba(255,255,255,0.16)',
+  overlayActive: 'rgba(36,107,255,0.90)',
+  scrim: 'rgba(2,6,14,0.58)',
 };
 
 export const getAppTheme = (darkMode: boolean) => (darkMode ? darkTheme : lightTheme);

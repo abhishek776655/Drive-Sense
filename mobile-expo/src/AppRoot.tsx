@@ -10,6 +10,7 @@ import {
 } from '@expo-google-fonts/nunito';
 import {LoginScreen} from './screens/LoginScreen';
 import {authService, setAuthExpiredHandler} from './services/apiClient';
+import {useUserStore, type CurrentUser} from './store/userStore';
 import {ThemeProvider, useAppTheme} from './theme/appTheme';
 import {AppNavigator} from './navigation';
 
@@ -40,10 +41,13 @@ const AppRootContent: React.FC = () => {
           return;
         }
 
-        await authService.me();
+        // Boot already verifies the token by fetching the user; keep the result instead of
+        // discarding it so the profile surfaces have an identity without a second request.
+        useUserStore.setState({user: (await authService.me()) as CurrentUser, loading: false, error: null});
         setIsAuthenticated(true);
       } catch {
         await authService.logout();
+        useUserStore.getState().clear();
         setIsAuthenticated(false);
       } finally {
         setAuthChecked(true);
