@@ -24,6 +24,7 @@ from app.schemas.dashboard import (
     VehicleStatsSummary,
 )
 from app.services.trip_insight_service import RecurringEventGroup, TripInsight, build_recurring_insights
+from app.services.trip_service import close_stale_trips
 
 
 DASHBOARD_TREND_DAYS = 30
@@ -466,6 +467,11 @@ async def _get_vehicle_overview(
 
 async def get_dashboard_data(db: AsyncSession, *, user_id: uuid.UUID) -> DashboardResponse:
     now = datetime.now(timezone.utc)
+    # Retire abandoned trips before aggregating. The dashboard is the surface that reports an
+    # "ongoing trip", so it must not report one whose client stopped sending points long ago. Cheap:
+    # the query behind it is covered by trips_user_active_idx and commits only when it closed
+    # something.
+    await close_stale_trips(db, user_id=user_id, now=now)
     summary = await _get_dashboard_summary(db, user_id=user_id)
     week_summary = await _get_dashboard_summary(db, user_id=user_id, since=now - timedelta(days=7))
     today_summary = await _get_dashboard_summary(
