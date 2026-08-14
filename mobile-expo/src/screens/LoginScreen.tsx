@@ -15,6 +15,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {authService, getApiErrorMessage} from '../services/apiClient';
 import {useAppTheme} from '../theme/appTheme';
 import {AuthTextField} from '../components/AuthTextField';
+import {BrandMark} from '../components/AuthChrome';
 
 interface LoginScreenProps {
   initialError?: string;
@@ -85,64 +86,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{flex: 1, justifyContent: 'center', paddingHorizontal: 28}}>
           <Animated.View style={[{alignItems: 'center', marginBottom: 40}, headerStyle]}>
-            <View
-              style={{
-                width: 92,
-                height: 92,
-                borderRadius: 30,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 18,
-                backgroundColor: theme.card,
-                borderWidth: 1,
-                borderColor: theme.accentSoft,
-                shadowColor: theme.accent,
-                shadowOpacity: theme.dark ? 0.35 : 0.22,
-                shadowRadius: 22,
-                shadowOffset: {width: 0, height: 12},
-                elevation: 10,
-              }}>
-              {/* Speedometer-gauge arc: a driving-brand mark, not a stock icon-in-a-box */}
-              <View
-                style={{
-                  position: 'absolute',
-                  width: 66,
-                  height: 66,
-                  borderRadius: 33,
-                  borderWidth: 5,
-                  borderTopColor: theme.accent,
-                  borderRightColor: theme.accent,
-                  borderLeftColor: theme.accent,
-                  borderBottomColor: 'transparent',
-                  transform: [{rotate: '45deg'}],
-                }}
-              />
-              <View
-                style={{
-                  position: 'absolute',
-                  width: 66,
-                  height: 66,
-                  borderRadius: 33,
-                  borderWidth: 5,
-                  borderTopColor: theme.accentSoft,
-                  borderRightColor: 'transparent',
-                  borderLeftColor: 'transparent',
-                  borderBottomColor: 'transparent',
-                  transform: [{rotate: '45deg'}],
-                }}
-              />
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: theme.card,
-                }}>
-                <Ionicons name="car-sport" size={26} color={theme.accent} />
-              </View>
-            </View>
+            <BrandMark />
+
             <View style={{flexDirection: 'row'}}>
               <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 34, lineHeight: 40}}>Drive</Text>
               <Text style={{color: theme.accent, ...theme.typography.pageTitle, fontSize: 34, lineHeight: 40}}>Sense</Text>

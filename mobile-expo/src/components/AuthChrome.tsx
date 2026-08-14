@@ -1,5 +1,5 @@
 import React from 'react';
-import {ActivityIndicator, Text, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Image, Text, TouchableOpacity, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useAppTheme} from '../theme/appTheme';
 
@@ -39,53 +39,30 @@ export const AuthBackdrop: React.FC = () => {
   );
 };
 
-/** The speedometer-arc brand mark. A driving mark, not a stock icon in a box. */
+/**
+ * The speedometer-arc brand mark — the actual app icon asset rather than a redrawn copy, so the
+ * home-screen icon and the in-app mark cannot drift apart.
+ */
 export const BrandMark: React.FC<{size?: number}> = ({size = 92}) => {
   const theme = useAppTheme();
-  const arc = Math.round(size * 0.72);
 
   return (
+    // The shadow sits on a wrapper: React Native's ImageStyle has no boxShadow.
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: size / 3,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: theme.card,
-        borderWidth: 1,
-        borderColor: theme.accentSoft,
-        boxShadow: `0px 12px 22px ${theme.dark ? 'rgba(36,107,255,0.35)' : 'rgba(36,107,255,0.22)'}`,
+        // Matches the iOS home-screen squircle closely enough to read as the same icon.
+        borderRadius: size * 0.24,
+        overflow: 'hidden',
+        boxShadow: `0px 12px 22px ${theme.dark ? 'rgba(36,107,255,0.38)' : 'rgba(36,107,255,0.24)'}`,
       }}>
-      <View
-        style={{
-          position: 'absolute',
-          width: arc,
-          height: arc,
-          borderRadius: arc / 2,
-          borderWidth: 5,
-          borderTopColor: theme.accent,
-          borderRightColor: theme.accent,
-          borderLeftColor: theme.accent,
-          borderBottomColor: 'transparent',
-          transform: [{rotate: '45deg'}],
-        }}
+      <Image
+        source={require('../../assets/brand-mark.png')}
+        accessibilityIgnoresInvertColors
+        accessibilityLabel="DriveSense"
+        style={{width: '100%', height: '100%'}}
       />
-      <View
-        style={{
-          position: 'absolute',
-          width: arc,
-          height: arc,
-          borderRadius: arc / 2,
-          borderWidth: 5,
-          borderTopColor: theme.accentSoft,
-          borderRightColor: 'transparent',
-          borderLeftColor: 'transparent',
-          borderBottomColor: 'transparent',
-          transform: [{rotate: '-45deg'}],
-        }}
-      />
-      <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: theme.accent}} />
     </View>
   );
 };
