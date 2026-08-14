@@ -25,6 +25,9 @@ const tripListResponse: TripListResponse = {
       created_at: '2026-05-16T10:31:00Z',
       driving_score: 92,
       avg_speed_mps: 6.7,
+      max_speed_mps: 18,
+      start_address: 'Indiranagar, Bengaluru',
+      end_address: 'Koramangala, Bengaluru',
       event_count: 1,
     },
   ],
@@ -36,6 +39,7 @@ const tripListResponse: TripListResponse = {
 const tripDetail: TripDetailRead = {
   ...tripListResponse.items[0],
   vehicle_name: 'Honda City',
+  vehicle_image_url: 'https://example.com/honda-city.png',
   max_speed_mps: 18,
   idle_time_seconds: 120,
   fuel_used_liters: 0.8,
@@ -141,5 +145,41 @@ describe('tripsService', () => {
       },
     });
     expect(mappedTrip.insights).toEqual(tripDetail.insights);
+  });
+
+  it('uses the geocoded addresses for the trip endpoints', () => {
+    const mappedTrip = mapTripDetailToMockTrip(tripDetail);
+
+    expect(mappedTrip.title).toBe('Indiranagar, Bengaluru');
+    expect(mappedTrip.subtitle).toBe('Koramangala, Bengaluru');
+  });
+
+  it('falls back to coordinates when a trip has not been geocoded', () => {
+    const mappedTrip = mapTripDetailToMockTrip({
+      ...tripDetail,
+      start_address: null,
+      end_address: null,
+    });
+
+    expect(mappedTrip.title).toContain('12.9716');
+    expect(mappedTrip.subtitle).toContain(',');
+  });
+
+  it('carries the vehicle identity through for the detail header', () => {
+    const mappedTrip = mapTripDetailToMockTrip(tripDetail);
+
+    expect(mappedTrip.vehicleName).toBe('Honda City');
+    expect(mappedTrip.vehicleId).toBe('vehicle-1');
+    expect(mappedTrip.vehicleImageUrl).toBe('https://example.com/honda-city.png');
+  });
+
+  it('maps a recorded top speed to km/h', () => {
+    expect(mapTripDetailToMockTrip(tripDetail).maxSpeed).toBe('65 km/h');
+  });
+
+  it('leaves the top speed null when the backend recorded none', () => {
+    const mappedTrip = mapTripDetailToMockTrip({...tripDetail, max_speed_mps: null});
+
+    expect(mappedTrip.maxSpeed).toBeNull();
   });
 });

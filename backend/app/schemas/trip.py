@@ -39,6 +39,9 @@ class TripListRead(TripRead):
     vehicle_image_url: str | None = None
     driving_score: int | None = None
     avg_speed_mps: float | None = None
+    max_speed_mps: float | None = None
+    start_address: str | None = None
+    end_address: str | None = None
     event_count: int = 0
 
 
@@ -95,6 +98,8 @@ class TripDetailRead(TripRead):
     cost_amount: float | None = None
     cost_currency: str | None = None
     driving_score: int | None = None
+    start_address: str | None = None
+    end_address: str | None = None
     location_points: list[TripLocationPointRead] = Field(default_factory=list)
     events: list[TripEventRead] = Field(default_factory=list)
     insights: list[TripInsightRead] = Field(default_factory=list)

@@ -11,5 +11,4 @@ venv/
 dist/
 build/
 *.egg-info/
-alembic/versions/
 

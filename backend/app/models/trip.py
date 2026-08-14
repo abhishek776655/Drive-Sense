@@ -45,6 +45,13 @@ class Trip(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     cost_currency: Mapped[str | None] = mapped_column(String(3))
     driving_score: Mapped[int | None] = mapped_column(SmallInteger)
 
+    # Reverse-geocoded from the trip's first and last location point. `geocoded_at` records the
+    # attempt, not the success — without it a trip whose lookup failed (or whose endpoints resolve
+    # to nothing) would be retried by every backfill run forever.
+    start_address: Mapped[str | None] = mapped_column(String(255))
+    end_address: Mapped[str | None] = mapped_column(String(255))
+    geocoded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     user: Mapped["User"] = relationship(back_populates="trips")
     vehicle: Mapped["Vehicle"] = relationship(back_populates="trips")
     location_points: Mapped[list["LocationPoint"]] = relationship(back_populates="trip", cascade="all, delete-orphan")
@@ -66,6 +73,11 @@ class Trip(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         Index("trips_vehicle_start_time_desc_idx", "vehicle_id", desc("start_time")),
         Index("trips_state_idx", "state"),
         Index("trips_user_active_idx", "user_id", postgresql_where=text("(state <> 'ended' AND deleted_at IS NULL)")),
+        Index(
+            "trips_pending_geocode_idx",
+            "end_time",
+            postgresql_where=text("(geocoded_at IS NULL AND deleted_at IS NULL AND end_time IS NOT NULL)"),
+        ),
     )
 
 if TYPE_CHECKING:

@@ -6,6 +6,7 @@ import {getApiErrorMessage} from '../services/apiClient';
 import {vehicleService, type VehicleStatsRead} from '../services/vehicleService';
 import {VehicleAnalyticsScreenProps} from '../navigation/types';
 import {useAppTheme} from '../theme/appTheme';
+import {useCardStyle} from '../components/Card';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {SkeletonBlock} from '../components/SkeletonBlock';
@@ -28,6 +29,7 @@ const formatDate = (isoDate: string) =>
 
 export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({navigation, route}) => {
   const theme = useAppTheme();
+  const cardStyle = useCardStyle();
   const dashboard = useDashboardStore((state) => state.data);
   const fetchDashboard = useDashboardStore((state) => state.fetchDashboard);
   const activeVehicleId = useVehiclePreferencesStore((state) => state.activeVehicleId);
@@ -151,10 +153,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
           <Pressable
             onPress={() => navigation.goBack()}
             className="size-11 items-center justify-center rounded-[16px] border"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
+            style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}>
             <Ionicons name="chevron-back" size={18} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
@@ -184,10 +183,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
         {error ? (
           <View
             className="mb-4 rounded-[28px] border p-[18px]"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
+            style={[cardStyle, {borderRadius: 28, padding: 18}]}>
             <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Unable to load vehicle analytics</Text>
             <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.body}}>{error}</Text>
           </View>
@@ -256,10 +252,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                 </View>
                 <View
                   className="size-[86px] items-center justify-center overflow-hidden rounded-[20px] border"
-                  style={{
-                    backgroundColor: theme.card,
-                    borderColor: theme.cardBorder,
-                  }}>
+                  style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}>
                   <Image
                     source={vehicleImageSource(vehicle?.imageUrl ?? summary.vehicle_image_url)}
                     style={{width: '100%', height: '100%'}}
@@ -310,10 +303,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
                   <View
                     key={item.label}
                     className="mb-2.5 w-[48.5%] rounded-[20px] border p-[14px]"
-                    style={{
-                      backgroundColor: theme.card,
-                      borderColor: theme.cardBorder,
-                    }}>
+                    style={[cardStyle, {borderRadius: 20, padding: 14}]}>
                     <Text className="mb-1.5" style={{color: theme.textSubtle, ...theme.typography.caption}}>
                       {item.label}
                     </Text>
@@ -325,10 +315,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
 
             <View
               className="mb-4 rounded-[28px] border p-4"
-              style={{
-                backgroundColor: theme.card,
-                borderColor: theme.cardBorder,
-              }}>
+              style={[cardStyle, {borderRadius: 28}]}>
               <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Behavior Breakdown</Text>
               <Text className="mb-3 mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
                 Events shaping this vehicle&apos;s driving quality
@@ -357,10 +344,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
 
             <View
               className="mb-4 rounded-[28px] border p-4"
-              style={{
-                backgroundColor: theme.card,
-                borderColor: theme.cardBorder,
-              }}>
+              style={[cardStyle, {borderRadius: 28}]}>
               <View className="flex-row items-center justify-between">
                 <View style={{flex: 1, paddingRight: 10}}>
                   <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip Trend</Text>
@@ -436,10 +420,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
 
             <View
               className="mb-4 rounded-[28px] border p-4"
-              style={{
-                backgroundColor: theme.card,
-                borderColor: theme.cardBorder,
-              }}>
+              style={[cardStyle, {borderRadius: 28}]}>
               <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Fuel</Text>
               <Text className="mb-3 mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
                 Usage and cost for this vehicle
@@ -489,10 +470,7 @@ export const VehicleAnalyticsScreen: React.FC<VehicleAnalyticsScreenProps> = ({n
 
             <View
               className="rounded-[28px] border p-4"
-              style={{
-                backgroundColor: theme.card,
-                borderColor: theme.cardBorder,
-              }}>
+              style={[cardStyle, {borderRadius: 28}]}>
               <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Recent Trips</Text>
               <Text className="mb-3 mt-[3px]" style={{color: theme.textSubtle, ...theme.typography.caption}}>
                 Latest drives recorded for this vehicle

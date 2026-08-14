@@ -5,9 +5,6 @@ describe('resolveProfileMenuRoute', () => {
     const expected: Record<string, ReturnType<typeof resolveProfileMenuRoute>> = {
       'My Vehicles': {tab: 'VehiclesStack', screen: 'VehicleList'},
       'Trips History': {tab: 'TripsStack', screen: 'TripsList'},
-      'Reports & Export': {comingSoon: 'Reports & Export'},
-      Geofencing: {comingSoon: 'Geofencing'},
-      'Alerts & Notifications': {comingSoon: 'Notifications'},
       Settings: {tab: 'ProfileStack', screen: 'Settings'},
       'Help & Support': {tab: 'ProfileStack', screen: 'HelpSupport'},
       'About Drive Sense': {tab: 'ProfileStack', screen: 'About'},
@@ -15,6 +12,12 @@ describe('resolveProfileMenuRoute', () => {
 
     for (const item of PROFILE_MENU_ITEMS) {
       expect(resolveProfileMenuRoute(item.label)).toEqual(expected[item.label]);
+    }
+  });
+
+  it('offers no menu item that leads to an unbuilt screen', () => {
+    for (const item of PROFILE_MENU_ITEMS) {
+      expect(resolveProfileMenuRoute(item.label)).not.toHaveProperty('comingSoon');
     }
   });
 

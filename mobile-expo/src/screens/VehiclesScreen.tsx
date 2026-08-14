@@ -3,11 +3,13 @@ import {Image, Pressable, RefreshControl, ScrollView, Text, View} from 'react-na
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme/appTheme';
+import {useCardStyle} from '../components/Card';
 import {VehicleListScreenProps} from '../navigation/types';
 import {vehicleService, type VehicleStatsRead} from '../services/vehicleService';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {EmptyState} from '../components/EmptyState';
 import {useAppSidebar} from '../components/AppSidebar';
 import {scoreTone, splitUnit} from '../utils/metricFormat';
 import {vehicleImageSource} from '../utils/vehicleImage';
@@ -34,6 +36,7 @@ const formatLastTrip = (value: string | null) =>
 
 export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
+  const cardStyle = useCardStyle();
   const {openSidebar} = useAppSidebar();
   const dashboard = useDashboardStore((state) => state.data);
   const loading = useDashboardStore((state) => state.loading);
@@ -180,10 +183,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
             accessibilityRole="button"
             accessibilityLabel="Open menu"
             className="size-11 items-center justify-center rounded-2xl border"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
+            style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}>
             <Ionicons name="menu" size={20} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
@@ -366,30 +366,14 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
             </View>
           </View>
         ) : !loading ? (
-          <View
-            className="mb-5 border p-5"
-            style={{
-              borderRadius: RADIUS.lg,
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
-            <Text style={{color: theme.text, ...theme.typography.cardTitle}}>No vehicles yet</Text>
-            <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.body}}>
-              Add your first vehicle to start tracking trips and live telemetry.
-            </Text>
-            <Pressable
-              onPress={() => navigation.navigate('AddVehicle')}
-              accessibilityRole="button"
-              accessibilityLabel="Add vehicle"
-              className="mt-4 self-start px-4"
-              style={{
-                borderRadius: RADIUS.sm,
-                backgroundColor: theme.accent,
-                minHeight: 44,
-                justifyContent: 'center',
-              }}>
-              <Text style={{color: theme.onAccent, ...theme.typography.body, fontWeight: '800'}}>Add Vehicle</Text>
-            </Pressable>
+          <View style={{marginBottom: 20}}>
+            <EmptyState
+              icon="car-sport-outline"
+              title="No vehicles yet"
+              message="Add your first vehicle to start tracking trips and live telemetry."
+              actionLabel="Add Vehicle"
+              onAction={() => navigation.navigate('AddVehicle')}
+            />
           </View>
         ) : null}
 

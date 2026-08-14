@@ -4,14 +4,17 @@ import {Ionicons} from '@expo/vector-icons';
 import {useFocusEffect} from '@react-navigation/native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme/appTheme';
+import {useCardStyle} from '../components/Card';
 import {TripsListScreenProps} from '../navigation/types';
 import {MOCK_TRIPS} from '../mocks/trackingData';
 import {TripListItem} from '../components/TripListItem';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {EmptyState} from '../components/EmptyState';
 import {useAppSidebar} from '../components/AppSidebar';
 import {getApiErrorMessage} from '../services/apiClient';
 import {tripsService, type TripRead} from '../services/tripsService';
 import {useDashboardStore} from '../store/dashboardStore';
+import {resolveTripRiskLevel} from '../utils/tripRisk';
 
 /** One radius scale for the screen. Anything outside these three is a bug. */
 const RADIUS = {sm: 16, md: 20, lg: 28} as const;
@@ -39,14 +42,16 @@ const formatTime = (isoDate: string) => new Date(isoDate).toLocaleTimeString('en
 
 type UiTrip = {
   id: string;
-  title: string;
-  subtitle: string;
+  vehicleName: string;
+  startAddress?: string;
+  endAddress?: string;
   timeLabel: string;
   distance: number;
   duration: number;
   score: number;
   category: string;
   avgSpeedLabel: string;
+  topSpeedLabel?: string;
   eventCount: number;
   startTime: string;
   vehicleId?: string;
@@ -54,6 +59,7 @@ type UiTrip = {
 
 export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
+  const cardStyle = useCardStyle();
   const {openSidebar} = useAppSidebar();
   const dashboard = useDashboardStore((state) => state.data);
   const [activeDateFilter, setActiveDateFilter] = useState<DateFilterKey>('7 Days');
@@ -145,14 +151,19 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
         const avgSpeed = trip.avg_speed_mps != null ? trip.avg_speed_mps * 3.6 : trip.duration_seconds > 0 ? (trip.distance_meters / trip.duration_seconds) * 3.6 : 0;
         return {
           id: trip.id,
-          title: trip.vehicle_name,
-          subtitle: trip.state === 'ended' ? 'Completed route' : 'Live or recent route',
+          vehicleName: trip.vehicle_name,
+          startAddress: trip.start_address ?? undefined,
+          endAddress: trip.end_address ?? undefined,
           timeLabel: `${formatDayLabel(trip.start_time)} • ${formatTime(trip.start_time)}`,
           distance: trip.distance_meters,
           duration: trip.duration_seconds,
           score: trip.driving_score ?? 0,
           category: trip.state === 'ended' ? 'Completed' : 'Active',
           avgSpeedLabel: `${Math.round(avgSpeed)} km/h`,
+          // Distance/duration can stand in for an average, but nothing on the list payload can
+          // reconstruct a peak — so the chip is simply absent when the backend has no maximum.
+          topSpeedLabel:
+            trip.max_speed_mps != null ? `${Math.round(trip.max_speed_mps * 3.6)} km/h` : undefined,
           eventCount: trip.event_count,
           startTime: trip.start_time,
           vehicleId: trip.vehicle_id,
@@ -162,8 +173,9 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
 
     return MOCK_TRIPS.map((trip) => ({
       id: trip.id,
-      title: trip.title,
-      subtitle: trip.subtitle,
+      vehicleName: trip.category,
+      startAddress: trip.title,
+      endAddress: trip.subtitle,
       timeLabel: `${formatDayLabel(trip.date)} • ${trip.startTime}`,
       distance: Number.parseFloat(trip.distance) * 1000,
       duration: trip.duration.includes('h')
@@ -172,6 +184,7 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
       score: trip.score,
       category: trip.category,
       avgSpeedLabel: trip.avgSpeed,
+      topSpeedLabel: trip.maxSpeed ?? undefined,
       eventCount: trip.events.length,
       startTime: trip.date.replace(' • ', ' '),
       vehicleId: undefined,
@@ -257,10 +270,7 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
             accessibilityRole="button"
             accessibilityLabel="Open menu"
             className="size-11 items-center justify-center rounded-[16px] border"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
+            style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}>
             <Ionicons name="menu" size={20} color={theme.text} />
           </Pressable>
           <View className="flex-1 items-center px-2.5">
@@ -401,21 +411,15 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
         ) : null}
 
         {!loading && !error && groupedTrips.length === 0 ? (
-          <View
-            className="rounded-[28px] border p-[18px]"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
-            <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>
-              {searchQuery ? 'No matching trips' : 'No trips yet'}
-            </Text>
-            <Text className="mt-1.5" style={{color: theme.textSubtle, ...theme.typography.body}}>
-              {searchQuery
+          <EmptyState
+            icon={searchQuery ? 'search-outline' : 'navigate-outline'}
+            title={searchQuery ? 'No matching trips' : 'No trips yet'}
+            message={
+              searchQuery
                 ? `Nothing matches "${searchQuery}". Try a different vehicle name or plate.`
-                : 'Your driving history will appear here once a trip is recorded.'}
-            </Text>
-          </View>
+                : 'Your driving history will appear here once a trip is recorded.'
+            }
+          />
         ) : null}
 
         {groupedTrips.map(([sectionTitle, tripsForDay]) => (
@@ -431,24 +435,22 @@ export const TripsListScreen: React.FC<TripsListScreenProps> = ({navigation}) =>
               <TripListItem
                 key={trip.id}
                 id={trip.id}
-                title={trip.title}
-                subtitle={trip.subtitle}
-                startLabel={trip.title}
-                endLabel={trip.subtitle}
+                startLabel={trip.startAddress}
+                endLabel={trip.endAddress}
+                vehicleName={trip.vehicleName}
                 timeLabel={trip.timeLabel}
                 distance={trip.distance}
                 duration={trip.duration}
                 score={trip.score}
                 category={trip.category}
                 avgSpeedLabel={trip.avgSpeedLabel}
+                topSpeedLabel={trip.topSpeedLabel}
                 eventCount={trip.eventCount}
-                riskLevel={
-                  trip.eventCount >= 3
-                    ? 'high'
-                    : trip.eventCount > 0 || (trip.category === 'Completed' && trip.score < 80)
-                      ? 'medium'
-                      : 'low'
-                }
+                riskLevel={resolveTripRiskLevel({
+                  eventCount: trip.eventCount,
+                  score: trip.score,
+                  isCompleted: trip.category === 'Completed',
+                })}
                 onPress={() => navigation.navigate('TripDetails', {tripId: trip.id})}
               />
             ))}

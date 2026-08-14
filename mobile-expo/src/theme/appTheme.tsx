@@ -57,6 +57,17 @@ export type AppTheme = {
   overlayActive: string;
   /** Dimming layer behind a drawer or modal. */
   scrim: string;
+  /**
+   * Soft drop shadow for raised surfaces, as a CSS-style `boxShadow`.
+   *
+   * Deliberately not the legacy `shadow*` / `elevation` pair: those render nothing on Android
+   * (which only honours `elevation`), and `elevation` draws a rectangular shadow that ignores
+   * `borderRadius`, so it escapes the rounded corners of a card. `boxShadow` follows the border
+   * radius on iOS, Android and web alike (React Native 0.76+ on the New Architecture).
+   */
+  cardShadow: {boxShadow: string};
+  /** Lighter shadow for nested or secondary surfaces that must not compete with a real card. */
+  cardShadowSubtle: {boxShadow: string};
 };
 
 type ThemeMode = 'light' | 'dark';
@@ -122,6 +133,10 @@ const lightTheme: AppTheme = {
   overlayBorder: 'rgba(15,23,42,0.10)',
   overlayActive: 'rgba(36,107,255,0.92)',
   scrim: 'rgba(15,23,42,0.42)',
+  // Offset well below the blur radius, so the shadow reads as a soft lift rather than a hard
+  // drop. Slate-tinted rather than pure black — black over a blue-grey screen looks muddy.
+  cardShadow: {boxShadow: '0px 4px 14px rgba(15, 23, 42, 0.07)'},
+  cardShadowSubtle: {boxShadow: '0px 2px 6px rgba(15, 23, 42, 0.05)'},
 };
 
 const darkTheme: AppTheme = {
@@ -173,6 +188,10 @@ const darkTheme: AppTheme = {
   overlayBorder: 'rgba(255,255,255,0.16)',
   overlayActive: 'rgba(36,107,255,0.90)',
   scrim: 'rgba(2,6,14,0.58)',
+  // Pure black: a soft grey blur is invisible against a near-black screen. Kept tight and modest
+  // so it deepens the card edge instead of haloing it.
+  cardShadow: {boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.28)'},
+  cardShadowSubtle: {boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.18)'},
 };
 
 export const getAppTheme = (darkMode: boolean) => (darkMode ? darkTheme : lightTheme);

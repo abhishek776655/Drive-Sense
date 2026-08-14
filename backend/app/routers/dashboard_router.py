@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.dashboard import DashboardResponse, RecentEventPage, VehicleStatsResponse
+from app.schemas.dashboard import DashboardResponse, RecentEventPage, TrendSeries, VehicleStatsResponse
 from app.schemas.trip import TripInsightRead
 from app.services.dashboard_service import (
     get_dashboard_data,
     get_recent_events_page,
     get_recurring_insights_data,
+    get_trend_series,
     get_vehicle_stats_data,
 )
 
@@ -36,6 +37,16 @@ async def get_dashboard_events(
     db: AsyncSession = Depends(get_db),
 ) -> RecentEventPage:
     return await get_recent_events_page(db, user_id=user.id, limit=limit, offset=offset)
+
+
+@router.get("/dashboard/trend", response_model=TrendSeries)
+async def get_dashboard_trend(
+    granularity: Literal["day", "week", "month"] = Query(default="day"),
+    vehicle_id: UUID | None = Query(default=None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TrendSeries:
+    return await get_trend_series(db, user_id=user.id, granularity=granularity, vehicle_id=vehicle_id)
 
 
 @router.get("/dashboard/insights", response_model=list[TripInsightRead])

@@ -46,6 +46,19 @@ class TrendPoint(SchemaBase):
     avg_driving_score: float | None = None
 
 
+class TrendSeries(SchemaBase):
+    """Two adjacent equal-length windows of the same metric, oldest bucket first.
+
+    The split lives on the server so every client compares the same spans; slicing a flat series
+    client-side silently drops the empty buckets the server never emits.
+    """
+
+    granularity: str
+    bucket_count: int
+    previous: list[TrendPoint] = Field(default_factory=list)
+    current: list[TrendPoint] = Field(default_factory=list)
+
+
 class EventBreakdown(SchemaBase):
     harsh_brake_count: int = 0
     rapid_acceleration_count: int = 0
@@ -64,6 +77,10 @@ class RecentTripSummary(SchemaBase):
     distance_meters: float
     duration_seconds: int
     driving_score: int | None
+    avg_speed_mps: float | None = None
+    max_speed_mps: float | None = None
+    start_address: str | None = None
+    end_address: str | None = None
     event_count: int = 0
 
 

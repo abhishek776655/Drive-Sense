@@ -7,6 +7,7 @@ import {TripDetailsScreenProps} from '../navigation/types';
 import type {MockTrip} from '../mocks/trackingData';
 import {RouteSpeedMap} from '../components/RouteSpeedMap';
 import {TripRouteInsightsCard} from '../components/TripRouteInsightsCard';
+import {TripDetailsSkeleton} from '../components/TripDetailsSkeleton';
 import {getRouteSummary} from '../utils/tripRoute';
 import {mapTripDetailToMockTrip, tripsService} from '../services/tripsService';
 
@@ -48,6 +49,26 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
   const routePoints = trip?.routePoints ?? [];
   const summary = getRouteSummary(routePoints);
 
+  /** Back always belongs to the trips list, even when this screen opened as the stack's only entry. */
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('TripsList');
+  };
+
+
+  /** The vehicle is addressable only for real backend trips; mock trips carry no vehicle id. */
+  const handleOpenVehicle = trip?.vehicleId
+    ? () =>
+        navigation.navigate('VehiclesStack', {
+          screen: 'VehicleAnalytics',
+          params: {vehicleId: trip.vehicleId as string},
+          initial: false,
+        })
+    : undefined;
+
   const handleShare = () => {
     if (!trip) {
       return;
@@ -66,7 +87,7 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
       <View style={{flex: 1, paddingHorizontal: 20, paddingTop: 12}}>
         <View style={{marginBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={handleBack}
             style={{backgroundColor: theme.card, borderColor: theme.cardBorder, height: 40, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1}}>
             <Ionicons name="chevron-back" size={18} color={theme.text} />
           </TouchableOpacity>
@@ -79,13 +100,14 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
           </TouchableOpacity>
         </View>
         <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginBottom: 12}}>
-          {loading ? 'Loading trip details...' : error || 'Trip details and route insights'}
+          {error || 'Trip details and route insights'}
         </Text>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 120}}>
           {trip ? (
             <TripRouteInsightsCard
               trip={trip}
               summary={summary}
+              onPressVehicle={handleOpenVehicle}
               mapContent={
                 <RouteSpeedMap
                   routePoints={routePoints}
@@ -94,14 +116,16 @@ export const TripDetailsScreen: React.FC<TripDetailsScreenProps> = ({navigation,
                 />
               }
             />
-          ) : !loading ? (
+          ) : loading ? (
+            <TripDetailsSkeleton />
+          ) : (
             <View className="rounded-3xl border p-5" style={{backgroundColor: theme.card, borderColor: theme.cardBorder}}>
               <Text style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip unavailable</Text>
               <Text style={{color: theme.textSubtle, ...theme.typography.body, marginTop: 8}}>
                 {error || 'No API trip data was returned for this trip.'}
               </Text>
             </View>
-          ) : null}
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>

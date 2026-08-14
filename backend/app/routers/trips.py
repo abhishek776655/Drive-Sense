@@ -4,7 +4,7 @@ from uuid import UUID
 
 from datetime import datetime
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
@@ -12,6 +12,7 @@ from app.models.user import User
 from app.schemas.event import EventCreate, EventIngestResponse
 from app.schemas.location_point import LocationIngestResponse, LocationPointCreate
 from app.schemas.trip import TripDetailRead, TripEndRequest, TripEventRead, TripInsightRead, TripListPage, TripListRead, TripLocationPointRead, TripRead, TripStartRequest
+from app.services.geocoding_service import geocode_trip_in_background
 from app.services.location_ingestion_service import ingest_events, ingest_location_points
 from app.services.trip_insight_service import generate_trip_insights
 from app.services.trip_service import end_trip, get_trip_detail, list_trip_summaries, list_trips, start_trip
@@ -57,6 +58,9 @@ async def get_trips(
             vehicle_image_url=row.vehicle_image_url,
             driving_score=row.driving_score,
             avg_speed_mps=float(row.avg_speed_mps) if row.avg_speed_mps is not None else None,
+            max_speed_mps=float(row.max_speed_mps) if row.max_speed_mps is not None else None,
+            start_address=row.start_address,
+            end_address=row.end_address,
             event_count=int(row.event_count or 0),
         )
         for row in trips
@@ -93,6 +97,8 @@ async def get_trip_by_id(
         cost_amount=float(trip.cost_amount) if trip.cost_amount is not None else None,
         cost_currency=trip.cost_currency,
         driving_score=trip.driving_score,
+        start_address=trip.start_address,
+        end_address=trip.end_address,
         location_points=[
             TripLocationPointRead(
                 id=point.id,
@@ -154,6 +160,7 @@ async def post_trip_start(
 @router.post("/end", response_model=TripRead)
 async def post_trip_end(
     payload: TripEndRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TripRead:
@@ -171,6 +178,10 @@ async def post_trip_end(
         if message in {"Vehicle not found", "No active trip for vehicle"}:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message) from e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message) from e
+
+    # Deliberately after the response: an unreachable Photon must never fail or slow a trip end.
+    # The addresses appear on the next read of this trip.
+    background_tasks.add_task(geocode_trip_in_background, trip.id)
     return TripRead.model_validate(trip)
 
 

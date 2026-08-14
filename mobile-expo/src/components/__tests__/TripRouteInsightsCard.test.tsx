@@ -1,6 +1,6 @@
 import React from 'react';
 import {View} from 'react-native';
-import {render, screen} from '@testing-library/react-native';
+import {fireEvent, render, screen} from '@testing-library/react-native';
 import {TripRouteInsightsCard} from '../TripRouteInsightsCard';
 import type {MockTrip} from '../../mocks/trackingData';
 import {getRouteSummary} from '../../utils/tripRoute';
@@ -18,6 +18,8 @@ const makeTrip = (): MockTrip => ({
   startTime: '10:00 AM',
   endTime: '10:20 AM',
   category: 'Honda City',
+  vehicleName: 'Honda City',
+  vehicleId: 'vehicle-1',
   status: 'Completed',
   avgSpeed: '30 km/h',
   maxSpeed: '60 km/h',
@@ -56,5 +58,80 @@ describe('TripRouteInsightsCard', () => {
     expect(screen.getByText('Keep speed below posted limits to reduce risk and improve trip consistency.')).toBeTruthy();
     expect(screen.getByText('2 events')).toBeTruthy();
     expect(screen.getAllByText('Overspeed').length).toBeGreaterThan(0);
+  });
+
+  it('shows the recorded top speed when the backend has one', () => {
+    render(
+      <TripRouteInsightsCard
+        trip={makeTrip()}
+        summary={getRouteSummary([])}
+        mapContent={<View testID="route-map" />}
+      />
+    );
+
+    expect(screen.getByText('Top Speed')).toBeTruthy();
+    expect(screen.getByText('60 km/h')).toBeTruthy();
+  });
+
+  it('leads with the vehicle and opens it when tapped', () => {
+    const onPressVehicle = jest.fn();
+    render(
+      <TripRouteInsightsCard
+        trip={makeTrip()}
+        summary={getRouteSummary([])}
+        mapContent={<View testID="route-map" />}
+        onPressVehicle={onPressVehicle}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText('View Honda City'));
+
+    expect(onPressVehicle).toHaveBeenCalledTimes(1);
+  });
+
+  it('still names the vehicle when it cannot be opened', () => {
+    render(
+      <TripRouteInsightsCard
+        trip={{...makeTrip(), vehicleId: undefined}}
+        summary={getRouteSummary([])}
+        mapContent={<View testID="route-map" />}
+      />
+    );
+
+    expect(screen.getByText('Honda City')).toBeTruthy();
+    expect(screen.queryByLabelText('View Honda City')).toBeNull();
+  });
+
+  it('renders both endpoint addresses', () => {
+    render(
+      <TripRouteInsightsCard
+        trip={{...makeTrip(), title: 'Indiranagar, Bengaluru', subtitle: 'Koramangala, Bengaluru'}}
+        summary={getRouteSummary([])}
+        mapContent={<View testID="route-map" />}
+      />
+    );
+
+    expect(screen.getByText('Indiranagar, Bengaluru')).toBeTruthy();
+    expect(screen.getByText('Koramangala, Bengaluru')).toBeTruthy();
+    expect(screen.getByText('Start')).toBeTruthy();
+    expect(screen.getByText('End')).toBeTruthy();
+  });
+
+  it('falls back to the route-derived peak when no top speed was recorded', () => {
+    const routePoints = [
+      {latitude: 12.9716, longitude: 77.5946, recorded_at: '2026-05-16T10:00:00Z'},
+      {latitude: 12.9816, longitude: 77.5946, recorded_at: '2026-05-16T10:01:00Z'},
+    ];
+
+    render(
+      <TripRouteInsightsCard
+        trip={{...makeTrip(), maxSpeed: null, routePoints}}
+        summary={getRouteSummary(routePoints)}
+        mapContent={<View testID="route-map" />}
+      />
+    );
+
+    expect(screen.getByText('Top Speed')).toBeTruthy();
+    expect(screen.queryByText('60 km/h')).toBeNull();
   });
 });

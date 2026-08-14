@@ -7,7 +7,6 @@ import {
   Platform,
   Pressable,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -15,22 +14,18 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {Ionicons} from '@expo/vector-icons';
 import {authService, getApiErrorMessage} from '../services/apiClient';
 import {useAppTheme} from '../theme/appTheme';
+import {AuthTextField} from '../components/AuthTextField';
 
 interface LoginScreenProps {
   initialError?: string;
   onLoginSuccess: () => void;
+  onGoToRegister: () => void;
 }
 
-const DEMO_EMAIL = 'demo@drivesense.com';
-const DEMO_PASSWORD = 'password123';
-
-export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLoginSuccess}) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLoginSuccess, onGoToRegister}) => {
   const theme = useAppTheme();
-  const [email, setEmail] = useState(DEMO_EMAIL);
-  const [password, setPassword] = useState(DEMO_PASSWORD);
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(initialError);
 
@@ -61,13 +56,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
       setLoading(false);
     }
   };
-
-  const fillDemoCredentials = () => {
-    setEmail(DEMO_EMAIL);
-    setPassword(DEMO_PASSWORD);
-  };
-
-  const isDemoFilled = email === DEMO_EMAIL && password === DEMO_PASSWORD;
 
   const headerStyle = {
     opacity: entrance,
@@ -184,63 +172,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
               </View>
             ) : null}
 
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 12,
-                borderRadius: 18,
-                borderWidth: 1.5,
-                paddingHorizontal: 16,
-                height: 54,
-                backgroundColor: theme.card,
-                borderColor: emailFocused ? theme.accent : theme.cardBorder,
-              }}>
-              <Ionicons name="mail-outline" size={18} color={emailFocused ? theme.accent : theme.textSubtle} />
-              <TextInput
-                style={{flex: 1, marginLeft: 12, color: theme.text, ...theme.typography.body, paddingVertical: 0}}
-                placeholder="Email"
-                placeholderTextColor={theme.textSubtle}
-                value={email}
-                onChangeText={setEmail}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                returnKeyType="next"
-              />
-            </View>
+            <AuthTextField
+              icon="mail-outline"
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              returnKeyType="next"
+            />
 
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 20,
-                borderRadius: 18,
-                borderWidth: 1.5,
-                paddingHorizontal: 16,
-                height: 54,
-                backgroundColor: theme.card,
-                borderColor: passwordFocused ? theme.accent : theme.cardBorder,
-              }}>
-              <Ionicons name="lock-closed-outline" size={18} color={passwordFocused ? theme.accent : theme.textSubtle} />
-              <TextInput
-                style={{flex: 1, marginLeft: 12, color: theme.text, ...theme.typography.body, paddingVertical: 0}}
-                placeholder="Password"
-                placeholderTextColor={theme.textSubtle}
-                value={password}
-                onChangeText={setPassword}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
-                secureTextEntry={!passwordVisible}
-                returnKeyType="go"
-                onSubmitEditing={() => void handleLogin()}
-              />
-              <Pressable onPress={() => setPasswordVisible((current) => !current)} hitSlop={10}>
-                <Ionicons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={18} color={theme.textSubtle} />
-              </Pressable>
-            </View>
+            <AuthTextField
+              icon="lock-closed-outline"
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secure
+              textContentType="password"
+              returnKeyType="go"
+              onSubmitEditing={() => void handleLogin()}
+              marginBottom={20}
+            />
 
             <TouchableOpacity
               onPress={() => void handleLogin()}
@@ -266,23 +220,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
               )}
             </TouchableOpacity>
 
-            <Pressable
-              onPress={fillDemoCredentials}
-              style={{
-                marginTop: 18,
-                alignSelf: 'center',
-                flexDirection: 'row',
-                alignItems: 'center',
-                borderRadius: 999,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                backgroundColor: theme.chip,
-              }}>
-              <Ionicons name={isDemoFilled ? 'checkmark-circle' : 'flash-outline'} size={14} color={theme.chipText} />
-              <Text style={{marginLeft: 6, color: theme.chipText, ...theme.typography.caption, fontWeight: '700'}}>
-                {isDemoFilled ? 'Demo account ready' : 'Use demo account'}
-              </Text>
-            </Pressable>
+            <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20}}>
+              <Text style={{color: theme.textSubtle, ...theme.typography.body}}>New to DriveSense?</Text>
+              <Pressable
+                onPress={onGoToRegister}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Create an account"
+                style={{marginLeft: 6, paddingVertical: 4}}>
+                <Text style={{color: theme.accent, ...theme.typography.body, fontWeight: '800'}}>Create Account</Text>
+              </Pressable>
+            </View>
           </Animated.View>
         </View>
       </KeyboardAvoidingView>

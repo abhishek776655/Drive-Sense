@@ -60,8 +60,13 @@ export type MockTrip = {
   endTime: string;
   category: string;
   status: string;
+  /** Vehicle this trip was driven in. `vehicleId` is absent for mock/demo trips. */
+  vehicleName?: string;
+  vehicleId?: string;
+  vehicleImageUrl?: string | null;
   avgSpeed: string;
-  maxSpeed: string;
+  /** Recorded GPS top speed. Null when the backend has none for this trip. */
+  maxSpeed: string | null;
   fuelConsumed: string;
   mileage: string;
   idleTime: string;

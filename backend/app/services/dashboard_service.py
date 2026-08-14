@@ -19,6 +19,7 @@ from app.schemas.dashboard import (
     RecentEventSummary,
     RecentTripSummary,
     TrendPoint,
+    TrendSeries,
     VehicleDashboardSummary,
     VehicleStatsResponse,
     VehicleStatsSummary,
@@ -30,9 +31,63 @@ from app.services.trip_service import close_stale_trips
 DASHBOARD_TREND_DAYS = 30
 TREND_LOOKBACK_DAYS = {"day": DASHBOARD_TREND_DAYS, "week": 84, "month": 365}
 
+# Buckets per window. A trend renders two of these back to back (previous vs current), so the query
+# spans 2x this many buckets.
+TREND_BUCKETS = {"day": 14, "week": 8, "month": 6}
+
 
 def resolve_trend_lookback_days(granularity: str) -> int:
     return TREND_LOOKBACK_DAYS[granularity]
+
+
+def truncate_to_bucket(moment: datetime, granularity: str) -> datetime:
+    """Snap a moment to its bucket start, matching Postgres `date_trunc` in UTC.
+
+    `date_trunc('week', ...)` snaps to Monday and `date_trunc('month', ...)` to the 1st, so the
+    generated buckets have to agree exactly or the zero-fill lookup misses every real row.
+    """
+    aware = moment.astimezone(timezone.utc)
+    midnight = aware.replace(hour=0, minute=0, second=0, microsecond=0)
+    if granularity == "day":
+        return midnight
+    if granularity == "week":
+        return midnight - timedelta(days=midnight.weekday())
+    if granularity == "month":
+        return midnight.replace(day=1)
+    raise ValueError(f"Unsupported granularity: {granularity}")
+
+
+def shift_bucket(bucket_start: datetime, granularity: str, steps: int) -> datetime:
+    """Move `steps` buckets forward (negative moves back). Calendar-aware for months."""
+    if granularity == "day":
+        return bucket_start + timedelta(days=steps)
+    if granularity == "week":
+        return bucket_start + timedelta(weeks=steps)
+    if granularity == "month":
+        total_months = bucket_start.year * 12 + (bucket_start.month - 1) + steps
+        return bucket_start.replace(year=total_months // 12, month=total_months % 12 + 1)
+    raise ValueError(f"Unsupported granularity: {granularity}")
+
+
+def build_bucket_starts(granularity: str, now: datetime, count: int) -> list[datetime]:
+    """The `count` most recent bucket starts, oldest first, ending with the bucket `now` sits in."""
+    latest = truncate_to_bucket(now, granularity)
+    return [shift_bucket(latest, granularity, -offset) for offset in range(count - 1, -1, -1)]
+
+
+def fill_trend_buckets(points: list[TrendPoint], bucket_starts: list[datetime]) -> list[TrendPoint]:
+    """Emit one point per bucket, substituting a zero point where no trips fell in the bucket.
+
+    The grouped query only returns buckets that had trips, so a client slicing the raw series gets
+    "the last N buckets with driving" rather than the last N calendar buckets.
+    """
+    by_start = {point.bucket_start: point for point in points}
+    return [by_start.get(start) or TrendPoint(bucket_start=start) for start in bucket_starts]
+
+
+def split_trend_window(points: list[TrendPoint], bucket_count: int) -> tuple[list[TrendPoint], list[TrendPoint]]:
+    """Split a 2N-bucket series into (previous N, current N)."""
+    return points[:bucket_count], points[bucket_count:]
 
 
 RECENT_TRIPS_LIMIT = 5
@@ -167,9 +222,11 @@ async def _get_trip_trend(
     vehicle_id: uuid.UUID | None = None,
     granularity: str = "day",
     days: int | None = None,
+    since: datetime | None = None,
 ) -> list[TrendPoint]:
-    resolved_days = days if days is not None else resolve_trend_lookback_days(granularity)
-    since = datetime.now(timezone.utc) - timedelta(days=resolved_days)
+    if since is None:
+        resolved_days = days if days is not None else resolve_trend_lookback_days(granularity)
+        since = datetime.now(timezone.utc) - timedelta(days=resolved_days)
     stmt = (
         select(
             func.date_trunc(granularity, Trip.start_time).label("bucket_start"),
@@ -202,6 +259,34 @@ async def _get_trip_trend(
         )
         for row in rows
     ]
+
+
+async def get_trend_series(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    granularity: str = "day",
+    vehicle_id: uuid.UUID | None = None,
+    now: datetime | None = None,
+) -> TrendSeries:
+    bucket_count = TREND_BUCKETS[granularity]
+    resolved_now = now or datetime.now(timezone.utc)
+    bucket_starts = build_bucket_starts(granularity, resolved_now, bucket_count * 2)
+    rows = await _get_trip_trend(
+        db,
+        user_id=user_id,
+        vehicle_id=vehicle_id,
+        granularity=granularity,
+        since=bucket_starts[0],
+    )
+    filled = fill_trend_buckets(rows, bucket_starts)
+    previous, current = split_trend_window(filled, bucket_count)
+    return TrendSeries(
+        granularity=granularity,
+        bucket_count=bucket_count,
+        previous=previous,
+        current=current,
+    )
 
 
 async def _get_fuel_trend(
@@ -298,6 +383,10 @@ async def _get_recent_trips(
             Trip.distance_meters,
             Trip.duration_seconds,
             Trip.driving_score,
+            Trip.avg_speed_mps,
+            Trip.max_speed_mps,
+            Trip.start_address,
+            Trip.end_address,
             func.count(Event.id).label("event_count"),
         )
         .join(Vehicle, Vehicle.id == Trip.vehicle_id)
@@ -323,6 +412,10 @@ async def _get_recent_trips(
             Trip.distance_meters,
             Trip.duration_seconds,
             Trip.driving_score,
+            Trip.avg_speed_mps,
+            Trip.max_speed_mps,
+            Trip.start_address,
+            Trip.end_address,
         )
         .order_by(Trip.start_time.desc())
         .limit(limit)
@@ -343,6 +436,10 @@ async def _get_recent_trips(
             distance_meters=_to_float(row.distance_meters),
             duration_seconds=_to_int(row.duration_seconds),
             driving_score=row.driving_score,
+            avg_speed_mps=float(row.avg_speed_mps) if row.avg_speed_mps is not None else None,
+            max_speed_mps=float(row.max_speed_mps) if row.max_speed_mps is not None else None,
+            start_address=row.start_address,
+            end_address=row.end_address,
             event_count=_to_int(row.event_count),
         )
         for row in rows
@@ -479,7 +576,10 @@ async def get_dashboard_data(db: AsyncSession, *, user_id: uuid.UUID) -> Dashboa
         user_id=user_id,
         since=now.replace(hour=0, minute=0, second=0, microsecond=0),
     )
-    trend = await _get_trip_trend(db, user_id=user_id)
+    # Flattened here for backwards compatibility: `DashboardResponse.trend` stays a single dense
+    # daily series, and clients that want another granularity call /dashboard/trend.
+    day_series = await get_trend_series(db, user_id=user_id, granularity="day", now=now)
+    trend = day_series.previous + day_series.current
     events = await _get_event_breakdown(db, user_id=user_id)
     vehicles = await _get_vehicle_summaries(db, user_id=user_id)
     recent_trips = await _get_recent_trips(db, user_id=user_id)

@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import {Accelerometer} from 'expo-sensors';
 import {MOCK_LIVE_TRACKING} from '../mocks/trackingData';
 import {tripService} from '../services/tripService';
+import {getApiErrorMessage} from '../services/apiClient';
 import {useDashboardStore} from '../store/dashboardStore';
 import {GRAVITY_MPS2, HARSH_BRAKE_MPS2, RAPID_ACCELERATION_MPS2} from '../utils/drivingThresholds';
 
@@ -260,7 +261,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
         setSyncState('recording');
       } catch (error) {
         setSyncState('local_only');
-        setSyncError(error instanceof Error ? error.message : 'Unable to start trip in backend');
+        setSyncError(getApiErrorMessage(error, 'Unable to start trip in backend'));
       }
     },
     [vehicleId],
@@ -320,7 +321,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
         });
       } catch (error) {
         setSyncState('error');
-        setSyncError(error instanceof Error ? error.message : 'Unable to end trip in backend');
+        setSyncError(getApiErrorMessage(error, 'Unable to end trip in backend'));
       } finally {
         endingTripRef.current = false;
       }
@@ -487,7 +488,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
       handleLocationPoint(toTrackingPoint(currentLocation, latestHeadingRef.current, latestPointRef.current));
     } catch (error) {
       if (!isUnmountedRef.current) {
-        setSyncError(error instanceof Error ? error.message : 'Unable to read current location');
+        setSyncError(getApiErrorMessage(error, 'Unable to read current location'));
       }
     }
 
@@ -624,7 +625,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
       } catch (error) {
         if (!cancelled) {
           setSyncState('error');
-          setSyncError(error instanceof Error ? error.message : 'Failed to sync location points');
+          setSyncError(getApiErrorMessage(error, 'Failed to sync location points'));
         }
       } finally {
         sendingPointsRef.current = false;
@@ -662,7 +663,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
       } catch (error) {
         if (!cancelled) {
           setSyncState('error');
-          setSyncError(error instanceof Error ? error.message : 'Failed to sync events');
+          setSyncError(getApiErrorMessage(error, 'Failed to sync events'));
         }
       } finally {
         sendingEventsRef.current = false;

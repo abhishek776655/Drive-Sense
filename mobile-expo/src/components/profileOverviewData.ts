@@ -1,11 +1,14 @@
 import type {ProfileMenuItem} from './ProfileOverviewSidebar';
 
+// Only destinations that actually exist. Entries whose screens are not built yet are commented
+// out rather than deleted, so re-enabling one is a matter of uncommenting both its item here and
+// its route below.
 export const PROFILE_MENU_ITEMS: ProfileMenuItem[] = [
   {icon: 'car-outline', label: 'My Vehicles'},
   {icon: 'time-outline', label: 'Trips History'},
-  {icon: 'document-text-outline', label: 'Reports & Export'},
-  {icon: 'location-outline', label: 'Geofencing'},
-  {icon: 'notifications-outline', label: 'Alerts & Notifications'},
+  // {icon: 'document-text-outline', label: 'Reports & Export'},
+  // {icon: 'location-outline', label: 'Geofencing'},
+  // {icon: 'notifications-outline', label: 'Alerts & Notifications'},
   {icon: 'settings-outline', label: 'Settings'},
   {icon: 'help-circle-outline', label: 'Help & Support'},
   {icon: 'information-circle-outline', label: 'About Drive Sense'},
@@ -18,9 +21,9 @@ export type ProfileMenuDestination =
 const PROFILE_MENU_ROUTES: Record<string, ProfileMenuDestination> = {
   'My Vehicles': {tab: 'VehiclesStack', screen: 'VehicleList'},
   'Trips History': {tab: 'TripsStack', screen: 'TripsList'},
-  'Reports & Export': {comingSoon: 'Reports & Export'},
-  Geofencing: {comingSoon: 'Geofencing'},
-  'Alerts & Notifications': {comingSoon: 'Notifications'},
+  // 'Reports & Export': {comingSoon: 'Reports & Export'},
+  // Geofencing: {comingSoon: 'Geofencing'},
+  // 'Alerts & Notifications': {comingSoon: 'Notifications'},
   Settings: {tab: 'ProfileStack', screen: 'Settings'},
   'Help & Support': {tab: 'ProfileStack', screen: 'HelpSupport'},
   'About Drive Sense': {tab: 'ProfileStack', screen: 'About'},

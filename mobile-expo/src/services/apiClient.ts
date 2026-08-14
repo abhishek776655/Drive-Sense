@@ -43,7 +43,35 @@ export const notifyLoggedOut = () => {
   authExpiredHandler?.('');
 };
 
-export const getApiErrorMessage = (error: unknown) => {
+const SERVER_ERROR_MESSAGE = 'The server is having trouble right now. Please try again in a moment.';
+
+/** Matches axios's own failure text, which carries a bare HTTP status code. */
+const STATUS_CODE_MESSAGE = /request failed with status code\s*(\d{3})/i;
+
+/**
+ * Keeps raw HTTP status text out of user-facing copy. A non-axios `Error` can still originate from
+ * the network layer, so its message is filtered rather than trusted.
+ */
+export const sanitizeErrorText = (
+  message: string,
+  fallback = 'Something went wrong. Please try again.',
+): string => {
+  const match = message.match(STATUS_CODE_MESSAGE);
+  if (!match) {
+    return message;
+  }
+  return Number(match[1]) >= 500 ? SERVER_ERROR_MESSAGE : fallback;
+};
+
+/**
+ * User-facing text for a failed request. `fallback` supplies the caller's context for the cases
+ * where the error itself says nothing usable; it never overrides the specific network/auth/server
+ * wording below.
+ */
+export const getApiErrorMessage = (
+  error: unknown,
+  fallback = 'Something went wrong. Please try again.',
+) => {
   if (axios.isAxiosError(error)) {
     if (error.response?.status === 401) {
       const detail = typeof error.response.data?.detail === 'string' ? error.response.data.detail : '';
@@ -58,23 +86,27 @@ export const getApiErrorMessage = (error: unknown) => {
     if (!error.response) {
       return 'Unable to reach the server right now. Check your connection and try again.';
     }
-    const detail =
-      typeof error.response.data?.detail === 'string'
-        ? error.response.data.detail
-        : typeof error.message === 'string'
-          ? error.message
-          : '';
+    // Checked before any detail is read. A 5xx body is server-side wording ("Internal Server
+    // Error", a stack trace, a driver message) written for operators, and axios's own
+    // error.message is literally "Request failed with status code 500" — none of that belongs in
+    // front of a user.
+    if (error.response.status >= 500) {
+      return SERVER_ERROR_MESSAGE;
+    }
+    const detail = typeof error.response.data?.detail === 'string' ? error.response.data.detail : '';
     if (detail) {
       return detail;
     }
-    if (error.response.status >= 500) {
-      return 'The server is having trouble right now. Please try again in a moment.';
-    }
+    return fallback;
   }
-  return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  return error instanceof Error ? sanitizeErrorText(error.message, fallback) : fallback;
 };
 
 export const authService = {
+  register: async (email: string, password: string) => {
+    const response = await apiClient.post('/api/v1/auth/register', {email, password});
+    return response.data;
+  },
   login: async (email: string, password: string) => {
     const response = await apiClient.post('/api/v1/auth/login', {email, password});
     const {access_token} = response.data;

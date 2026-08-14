@@ -15,6 +15,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {AddVehicleScreenProps} from '../navigation/types';
 import {useAppTheme} from '../theme/appTheme';
+import {useCardStyle} from '../components/Card';
 import {getApiErrorMessage} from '../services/apiClient';
 import {vehicleService, type VehicleFuelType} from '../services/vehicleService';
 import {vehicleCatalogService, type VehicleCatalogCompany} from '../services/vehicleCatalogService';
@@ -43,6 +44,7 @@ const parseOptionalNumber = (raw: string): {value: number | null; error: string 
 
 export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, route}) => {
   const theme = useAppTheme();
+  const cardStyle = useCardStyle();
   const dashboard = useDashboardStore((state) => state.data);
   const fetchDashboard = useDashboardStore((state) => state.fetchDashboard);
   const vehicleId = route.params?.vehicleId;
@@ -194,10 +196,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
             accessibilityRole="button"
             accessibilityLabel="Go back"
             className="size-11 items-center justify-center rounded-[16px] border"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}
+            style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}
             onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={20} color={theme.text} />
           </Pressable>
@@ -249,10 +248,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
 
         <View
           className="mb-[14px] rounded-[20px] border p-4"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
+          style={[cardStyle, {borderRadius: 20}]}>
           <Text className="mb-2.5" style={{color: theme.text, ...theme.typography.sectionTitle}}>Company</Text>
           {catalogLoading ? (
             <ActivityIndicator color={theme.accent} />
@@ -293,10 +289,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
         {selectedCompany ? (
           <View
             className="mb-[14px] rounded-[20px] border p-4"
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.cardBorder,
-            }}>
+            style={[cardStyle, {borderRadius: 20}]}>
             <Text className="mb-2.5" style={{color: theme.text, ...theme.typography.sectionTitle}}>Model</Text>
             <Pressable
               onPress={() => setModelDropdownOpen((open) => !open)}
@@ -351,10 +344,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
 
         <View
           className="mb-[14px] rounded-[20px] border p-4"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
+          style={[cardStyle, {borderRadius: 20}]}>
           <Text className="mb-2" style={{color: theme.textSubtle, ...theme.typography.caption}}>Nickname (optional)</Text>
           <TextInput
             value={nickname}
@@ -368,10 +358,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
 
         <View
           className="mb-[14px] rounded-[20px] border p-4"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
+          style={[cardStyle, {borderRadius: 20}]}>
           <Text className="mb-2" style={{color: theme.textSubtle, ...theme.typography.caption}}>Plate number</Text>
           <TextInput
             value={plateNumber}
@@ -386,10 +373,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
 
         <View
           className="mb-[14px] rounded-[20px] border p-4"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
+          style={[cardStyle, {borderRadius: 20}]}>
           <Text className="mb-2.5" style={{color: theme.text, ...theme.typography.sectionTitle}}>Fuel type</Text>
           <View className="flex-row flex-wrap justify-between">
             {FUEL_TYPES.map((item) => {
@@ -419,10 +403,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
 
         <View
           className="mb-[14px] rounded-[20px] border p-4"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
+          style={[cardStyle, {borderRadius: 20}]}>
           <Text className="mb-2" style={{color: theme.textSubtle, ...theme.typography.caption}}>Tank capacity (optional)</Text>
           <TextInput
             value={tankCapacity}
@@ -443,10 +424,7 @@ export const AddVehicleScreen: React.FC<AddVehicleScreenProps> = ({navigation, r
 
         <View
           className="mb-5 rounded-[20px] border p-4"
-          style={{
-            backgroundColor: theme.card,
-            borderColor: theme.cardBorder,
-          }}>
+          style={[cardStyle, {borderRadius: 20}]}>
           <Text className="mb-2" style={{color: theme.textSubtle, ...theme.typography.caption}}>
             Mileage baseline {isElectric ? '(not required for EVs)' : '(optional)'}
           </Text>

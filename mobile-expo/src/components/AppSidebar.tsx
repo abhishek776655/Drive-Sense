@@ -78,7 +78,11 @@ export const AppSidebarProvider: React.FC<{children: React.ReactNode}> = ({child
       closeSidebar();
       const destination = resolveProfileMenuRoute(item.label);
       if ('comingSoon' in destination) {
-        navigation.navigate('ProfileStack', {screen: 'ComingSoon', params: {title: destination.comingSoon}});
+        navigation.navigate('ProfileStack', {
+          screen: 'ComingSoon',
+          params: {title: destination.comingSoon},
+          initial: false,
+        });
       } else {
         navigation.navigate(destination.tab, {screen: destination.screen} as never);
       }

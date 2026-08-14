@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {MOCK_LIVE_STREAM, MOCK_LIVE_TRACKING} from '../mocks/trackingData';
 import {tripService} from '../services/tripService';
+import {getApiErrorMessage} from '../services/apiClient';
 import {GRAVITY_MPS2} from '../utils/drivingThresholds';
 
 const metersBetween = (
@@ -108,7 +109,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
     } catch (error) {
       setBackendTripId(null);
       setSyncState('local_only');
-      setSyncError(error instanceof Error ? error.message : 'Unable to start backend recording');
+      setSyncError(getApiErrorMessage(error, 'Unable to start backend recording'));
     }
   }, [isStarted, vehicleId]);
 
@@ -168,7 +169,7 @@ export const useMockLiveTracking = ({vehicleId, vehicleName}: UseMockLiveTrackin
           return;
         }
         setSyncState('error');
-        setSyncError(error instanceof Error ? error.message : 'Location sync failed');
+        setSyncError(getApiErrorMessage(error, 'Location sync failed'));
       }
     };
 

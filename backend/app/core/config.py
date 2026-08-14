@@ -24,6 +24,13 @@ class Settings(BaseSettings):
 
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
 
+    # Komoot's public Photon instance. Point this at a self-hosted Photon if trip volume ever makes
+    # the public endpoint's fair-use limits a problem.
+    photon_base_url: str = Field(default="https://photon.komoot.io", alias="PHOTON_BASE_URL")
+    photon_timeout_seconds: float = Field(default=6.0, alias="PHOTON_TIMEOUT_SECONDS")
+    photon_language: str = Field(default="en", alias="PHOTON_LANGUAGE")
+    reverse_geocoding_enabled: bool = Field(default=True, alias="REVERSE_GEOCODING_ENABLED")
+
     jwt_secret_key: str = Field(default="CHANGE_ME", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_days: int = Field(default=7, alias="ACCESS_TOKEN_EXPIRE_DAYS")

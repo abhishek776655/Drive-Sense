@@ -1,20 +1,30 @@
 import React from 'react';
-import {Text, View} from 'react-native';
+import {Image, Pressable, Text, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {useAppTheme} from '../theme/appTheme';
+import {vehicleImageSource} from '../utils/vehicleImage';
+import {useCardStyle} from './Card';
 import {StatTile} from './StatTile';
 import type {MockTrip} from '../mocks/trackingData';
 import type {RouteSummary} from '../utils/tripRoute';
 import {formatDistanceLabel, formatDurationShort, formatSpeedLabel} from '../utils/tripRoute';
 
+const ROUTE_DOT_SIZE = 10;
+
 type Props = {
   trip: MockTrip;
   summary: RouteSummary;
   mapContent: React.ReactNode;
+  /** Opens the vehicle this trip was driven in. Omitted when the vehicle is not addressable. */
+  onPressVehicle?: () => void;
 };
 
-export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapContent}) => {
+export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapContent, onPressVehicle}) => {
   const theme = useAppTheme();
+  const cardStyle = useCardStyle();
+  // `category` carried the vehicle name before it had a field of its own; older mock trips still
+  // only populate that.
+  const vehicleLabel = trip.vehicleName ?? trip.category;
   const tripInsights = trip.insights ?? [];
   const totalEventCount = trip.events.length;
   const eventBreakdown = {
@@ -49,7 +59,10 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
     {label: 'Road Distance', value: formatDistanceLabel(summary.totalDistanceMeters)},
     {label: 'Drive Time', value: formatDurationShort(summary.totalDurationSeconds)},
     {label: 'Avg Speed', value: formatSpeedLabel(summary.averageSpeedKph)},
-    {label: 'Peak Segment', value: formatSpeedLabel(summary.peakSpeedKph)},
+    // The recorded GPS maximum beats the segment speed derived from consecutive route points, which
+    // is only an average over each leg. Fall back to the derived peak for trips recorded before the
+    // backend tracked a maximum.
+    {label: 'Top Speed', value: trip.maxSpeed ?? formatSpeedLabel(summary.peakSpeedKph)},
   ];
 
   const supportStats = [
@@ -126,25 +139,61 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
   return (
     <View>
       <View
-        className="mb-[14px] rounded-[28px] border p-4"
-        style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 28, borderWidth: 1, padding: 16}}>
+                style={[cardStyle, {marginBottom: 14, borderRadius: 28}]}>
+        {/*
+          The vehicle leads the card. It used to be a caption-sized chip competing with the trip
+          date; it is the primary fact about a trip and doubles as the way into that vehicle.
+        */}
         <View className="mb-3 flex-row items-start justify-between gap-3">
-          <Text
-            numberOfLines={2}
-            style={{color: theme.text, ...theme.typography.body, fontWeight: '700', flex: 1, minWidth: 0}}>
-            {trip.date}
-          </Text>
-          <View className="flex-shrink-0 flex-row flex-wrap justify-end gap-2" style={{maxWidth: 150}}>
-            <View className="rounded-full px-2.5 py-[5px]" style={{backgroundColor: theme.accentMuted}}>
-              <Text numberOfLines={1} style={{color: theme.accent, ...theme.typography.caption, fontWeight: '700'}}>
-                {trip.category}
-              </Text>
+          <Pressable
+            onPress={onPressVehicle}
+            disabled={!onPressVehicle}
+            accessibilityRole={onPressVehicle ? 'button' : undefined}
+            accessibilityLabel={onPressVehicle ? `View ${vehicleLabel}` : undefined}
+            hitSlop={8}
+            style={{flex: 1, minWidth: 0}}>
+            <View className="flex-row items-center">
+              {/* Car photos are wide, so the tile is landscape and the image is contained inside
+                  it rather than cropped to a square. */}
+              <View
+                style={{
+                  height: 40,
+                  width: 56,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  backgroundColor: theme.accentMuted,
+                  marginRight: 10,
+                }}>
+                <Image
+                  source={vehicleImageSource(trip.vehicleImageUrl)}
+                  resizeMode="contain"
+                  style={{height: '100%', width: '100%'}}
+                  accessibilityIgnoresInvertColors
+                />
+              </View>
+              <View style={{flex: 1, minWidth: 0}}>
+                <View className="flex-row items-center">
+                  <Text
+                    numberOfLines={1}
+                    style={{color: theme.text, ...theme.typography.sectionTitle, fontSize: 18, flexShrink: 1}}>
+                    {vehicleLabel}
+                  </Text>
+                  {onPressVehicle ? (
+                    <Ionicons name="chevron-forward" size={16} color={theme.textSubtle} style={{marginLeft: 2}} />
+                  ) : null}
+                </View>
+                <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 2}}>
+                  {trip.date}
+                </Text>
+              </View>
             </View>
-            <View className="rounded-full px-2.5 py-[5px]" style={{backgroundColor: theme.successSoft}}>
-              <Text numberOfLines={1} style={{color: theme.success, ...theme.typography.caption, fontWeight: '700'}}>
-                {trip.status}
-              </Text>
-            </View>
+          </Pressable>
+          <View className="flex-shrink-0 rounded-full px-2.5 py-[5px]" style={{backgroundColor: theme.successSoft}}>
+            <Text numberOfLines={1} style={{color: theme.success, ...theme.typography.caption, fontWeight: '700'}}>
+              {trip.status}
+            </Text>
           </View>
         </View>
 
@@ -155,43 +204,48 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
         </View>
 
         <View className="mb-3 rounded-[20px] border p-[14px]" style={{backgroundColor: theme.dark ? '#0E1728' : '#F8FBFF', borderColor: theme.cardBorder}}>
-          <View className="flex-row items-stretch">
-            <View className="mr-3 items-center">
-              <View style={{height: 10, width: 10, borderRadius: 999, backgroundColor: theme.success, marginTop: 4}} />
-              <View style={{width: 2, flex: 1, minHeight: 34, marginVertical: 6, backgroundColor: theme.cardBorder}} />
-              <View style={{height: 10, width: 10, borderRadius: 999, backgroundColor: '#EF4444'}} />
-            </View>
-            <View className="flex-1">
-              <View className="mb-[14px]">
-                <View className="flex-row items-center justify-between gap-3">
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>Start</Text>
-                  <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, flexShrink: 1, textAlign: 'right'}}>
-                    {trip.startTime}
-                  </Text>
+          {/*
+            The dot rides in the label row rather than in a separate rail column. The address below
+            it wraps to two lines, so no fixed-height rail can stay aligned with both endpoints.
+          */}
+          {[
+            {key: 'start', label: 'Start', time: trip.startTime, address: trip.title, color: theme.success},
+            {key: 'end', label: 'End', time: trip.endTime, address: trip.subtitle, color: theme.danger},
+          ].map((endpoint, index) => (
+            <View key={endpoint.key} style={{marginTop: index === 0 ? 0 : 14}}>
+              <View className="flex-row items-center justify-between gap-3">
+                <View className="flex-row items-center">
+                  <View
+                    style={{
+                      height: ROUTE_DOT_SIZE,
+                      width: ROUTE_DOT_SIZE,
+                      borderRadius: 999,
+                      backgroundColor: endpoint.color,
+                      marginRight: 8,
+                    }}
+                  />
+                  <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>{endpoint.label}</Text>
                 </View>
                 <Text
-                  className="mt-1"
-                  numberOfLines={2}
-                  style={{color: theme.text, ...theme.typography.body, fontWeight: '800', flexShrink: 1}}>
-                  {trip.title}
+                  numberOfLines={1}
+                  style={{color: theme.textSubtle, ...theme.typography.caption, flexShrink: 1, textAlign: 'right'}}>
+                  {endpoint.time}
                 </Text>
               </View>
-              <View>
-                <View className="flex-row items-center justify-between gap-3">
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption}}>End</Text>
-                  <Text numberOfLines={1} style={{color: theme.textSubtle, ...theme.typography.caption, flexShrink: 1, textAlign: 'right'}}>
-                    {trip.endTime}
-                  </Text>
-                </View>
-                <Text
-                  className="mt-1"
-                  numberOfLines={2}
-                  style={{color: theme.text, ...theme.typography.body, fontWeight: '800', flexShrink: 1}}>
-                  {trip.subtitle}
-                </Text>
-              </View>
+              <Text
+                className="mt-1"
+                numberOfLines={2}
+                style={{
+                  color: theme.text,
+                  ...theme.typography.body,
+                  fontWeight: '800',
+                  // Indented to hang under the label, not the dot.
+                  marginLeft: ROUTE_DOT_SIZE + 8,
+                }}>
+                {endpoint.address}
+              </Text>
             </View>
-          </View>
+          ))}
         </View>
 
         <View className="mb-3 rounded-[18px] border px-3 py-3" style={{backgroundColor: theme.cardSoft, borderColor: theme.cardBorder}}>
@@ -249,8 +303,7 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
 
       {tripInsights.length > 0 ? (
         <View
-          className="mb-[14px] rounded-3xl border p-4"
-          style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 24, borderWidth: 1, padding: 16}}>
+                    style={[cardStyle, {marginBottom: 14, borderRadius: 24}]}>
           <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Trip Insights</Text>
           <View className="gap-2.5">
             {tripInsights.map((insight) => {
@@ -295,8 +348,7 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
       ) : null}
 
       <View
-        className="mb-[14px] rounded-3xl border p-4"
-        style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 24, borderWidth: 1, padding: 16}}>
+                style={[cardStyle, {marginBottom: 14, borderRadius: 24}]}>
         <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Behavior Events</Text>
         <View className="mb-3 flex-row flex-wrap gap-2">
           {eventCards.map((item) => (
@@ -326,8 +378,7 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
       </View>
 
       <View
-        className="mb-[14px] rounded-3xl border p-4"
-        style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 24, borderWidth: 1, padding: 16}}>
+                style={[cardStyle, {marginBottom: 14, borderRadius: 24}]}>
         <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Speed Profile</Text>
         <View className="gap-2.5">
           {summary.bandStats
@@ -362,8 +413,7 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
       </View>
 
       <View
-        className="mb-[14px] rounded-3xl border p-4"
-        style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 24, borderWidth: 1, padding: 16}}>
+                style={[cardStyle, {marginBottom: 14, borderRadius: 24}]}>
         <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Supporting Stats</Text>
         <View className="flex-row flex-wrap gap-2">
           {supportStats.map((item) => (
@@ -380,8 +430,7 @@ export const TripRouteInsightsCard: React.FC<Props> = ({trip, summary, mapConten
 
       {trip.events.length > 0 ? (
         <View
-          className="mb-[14px] rounded-3xl border p-4"
-          style={{backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 14, borderRadius: 24, borderWidth: 1, padding: 16}}>
+                    style={[cardStyle, {marginBottom: 14, borderRadius: 24}]}>
           <Text className="mb-[14px]" style={{color: theme.text, ...theme.typography.sectionTitle}}>Recent Event Feed</Text>
           <View className="gap-2.5">
             {trip.events.map((event, index) => (

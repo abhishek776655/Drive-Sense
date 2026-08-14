@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {Image, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {StatusBar} from 'expo-status-bar';
@@ -8,17 +8,21 @@ import {VehicleSelector} from '../components/VehicleSelector';
 import {LiveTripCard} from '../components/LiveTripCard';
 import {ScoreCard} from '../components/ScoreCard';
 import {TrendChart} from '../components/TrendChart';
+import {SegmentedTabs} from '../components/SegmentedTabs';
 import {TripListItem} from '../components/TripListItem';
 import {SkeletonBlock} from '../components/SkeletonBlock';
+import {EmptyState} from '../components/EmptyState';
 import {StatTile} from '../components/StatTile';
 import {useAppSidebar} from '../components/AppSidebar';
 import {AppTheme, useAppTheme} from '../theme/appTheme';
+import {useCardStyle} from '../components/Card';
 import {tripsService, type TripRead} from '../services/tripsService';
 import {dashboardService, type RecurringInsight} from '../services/dashboardService';
 import {useDashboardStore} from '../store/dashboardStore';
 import {useVehiclePreferencesStore} from '../store/vehiclePreferencesStore';
 import {DashboardScreenProps} from '../navigation/types';
 import {vehicleImageSource} from '../utils/vehicleImage';
+import {resolveTripRiskLevel} from '../utils/tripRisk';
 
 /** Radius scale for this screen. Anything outside these three is a bug. */
 const RADIUS = {sm: 16, md: 20, lg: 28} as const;
@@ -31,6 +35,12 @@ const RANGE_OPTIONS = [
   {label: 'Today', value: 'today' as const},
   {label: 'Week', value: 'week' as const},
   {label: 'All time', value: 'all' as const},
+];
+
+const TREND_RANGE_OPTIONS = [
+  {label: 'Day', value: 'day' as const},
+  {label: 'Week', value: 'week' as const},
+  {label: 'Month', value: 'month' as const},
 ];
 
 const formatDistance = (meters: number) => `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
@@ -139,6 +149,7 @@ const HeroCarCard = ({
   isDark,
   typography,
   isTracking,
+  onPress,
 }: {
   name: string;
   plate: string;
@@ -148,14 +159,24 @@ const HeroCarCard = ({
   typography: AppTheme['typography'];
   /** Real tracking state. The dot used to be hardcoded green with nothing behind it. */
   isTracking: boolean;
+  /** Opens the vehicle picker. The hero is the biggest thing on the screen and reads as the
+   *  current vehicle, so tapping it is the obvious way to change which vehicle that is. */
+  onPress?: () => void;
 }) => (
-  <View
-    className="mb-3.5 min-h-[286px] overflow-hidden rounded-[28px] border"
-    style={{
+  <Pressable
+    onPress={onPress}
+    disabled={!onPress}
+    accessibilityRole={onPress ? 'button' : undefined}
+    accessibilityLabel={onPress ? `${name}. Change vehicle` : undefined}
+    // No `border` class here: NativeWind's `border` sets a width with its own default colour, and
+    // with a function style there is no reliable merge order — that default is what painted a dark
+    // outline around the hero. The card reads fine on its tinted fill alone.
+    className="mb-3.5 min-h-[286px] overflow-hidden rounded-[28px]"
+    style={({pressed}) => ({
       backgroundColor: palette.cardSoft,
-      borderColor: palette.cardBorder,
-      borderWidth: 1,
-    }}>
+      borderWidth: 0,
+      opacity: pressed ? 0.92 : 1,
+    })}>
     <View
       pointerEvents="none"
       className="absolute"
@@ -201,12 +222,19 @@ const HeroCarCard = ({
           </Text>
         </View>
       </View>
+      {/* Doubles as the affordance for the tap: "My Car" alone gave no hint the hero was
+          interactive, so it gains a chevron once there is somewhere to go. */}
       <View
-        className="rounded-full px-3 py-1.5"
+        className="flex-row items-center rounded-full px-3 py-1.5"
         style={{
           backgroundColor: palette.accentMuted,
         }}>
-        <Text style={{color: palette.accent, ...typography.caption, fontWeight: '700'}}>My Car</Text>
+        <Text style={{color: palette.accent, ...typography.caption, fontWeight: '700'}}>
+          {onPress ? 'Change' : 'My Car'}
+        </Text>
+        {onPress ? (
+          <Ionicons name="chevron-down" size={13} color={palette.accent} style={{marginLeft: 3}} />
+        ) : null}
       </View>
     </View>
 
@@ -224,11 +252,12 @@ const HeroCarCard = ({
         />
       </View>
     </View>
-  </View>
+  </Pressable>
 );
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
+  const cardStyle = useCardStyle();
   const {openSidebar} = useAppSidebar();
   const isDark = theme.dark;
   const palette = theme;
@@ -245,6 +274,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   const loading = useDashboardStore((state) => state.loading);
   const dashboardError = useDashboardStore((state) => state.error);
   const fetchDashboard = useDashboardStore((state) => state.fetchDashboard);
+  const trendGranularity = useDashboardStore((state) => state.trendGranularity);
+  const trendCache = useDashboardStore((state) => state.trendCache);
+  const trendLoading = useDashboardStore((state) => state.trendLoading);
+  const trendError = useDashboardStore((state) => state.trendError);
+  const setTrendGranularity = useDashboardStore((state) => state.setTrendGranularity);
 
   useEffect(() => {
     void fetchDashboard();
@@ -339,10 +373,22 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
   const totalRiskEvents = eventSummary
     ? eventSummary.harshBrakeCount + eventSummary.rapidAccelerationCount + eventSummary.overspeedCount
     : null;
-  const hasTrend = Boolean(dashboard?.trend.current.length);
-  const currentBars = hasTrend ? dashboard!.trend.current : [];
-  const previousBars = hasTrend ? dashboard!.trend.previous : [];
-  const labels = hasTrend ? dashboard!.trend.labels : [];
+  const activeTrend = trendCache[trendGranularity] ?? null;
+  // Keep the card mounted once any range has loaded. Unmounting it while a newly picked range is
+  // in flight would rip the tabs the user just tapped off the screen.
+  const hasTrend = Object.keys(trendCache).length > 0;
+  const trendChartBuckets = useMemo(
+    () =>
+      (activeTrend?.buckets ?? []).map((bucket) => ({
+        key: bucket.key,
+        label: bucket.label,
+        detailLabel: bucket.detailLabel,
+        value: bucket.distanceKm,
+        tripCount: bucket.tripCount,
+        score: bucket.score,
+      })),
+    [activeTrend],
+  );
   const tripHistory = [
     ...(dashboard?.recentTrips?.length
       ? dashboard.recentTrips
@@ -353,6 +399,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           score: trip.driving_score ?? 0,
           eventCount: trip.event_count,
           vehicleName: trip.vehicle_name,
+          vehicleImageUrl: null,
+          startAddress: trip.start_address ?? undefined,
+          endAddress: trip.end_address ?? undefined,
+          state: trip.state,
+          avgSpeedKph:
+            trip.avg_speed_mps != null
+              ? trip.avg_speed_mps * 3.6
+              : trip.duration_seconds > 0
+                ? (trip.distance_meters / trip.duration_seconds) * 3.6
+                : 0,
+          topSpeedKph: trip.max_speed_mps != null ? trip.max_speed_mps * 3.6 : null,
           startedAt: trip.start_time,
           dateLabel: new Date(trip.start_time).toLocaleDateString('en-IN', {month: 'short', day: 'numeric'}),
           timeLabel: new Date(trip.start_time).toLocaleTimeString('en-IN', {
@@ -396,11 +453,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             <Pressable
               onPress={openSidebar}
               className="h-11 w-11 items-center justify-center rounded-[16px] border"
-              style={{
-                backgroundColor: palette.card,
-                borderColor: palette.cardBorder,
-                borderWidth: 1,
-              }}>
+              style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}>
               <Ionicons name="menu" size={20} color={palette.text} />
             </Pressable>
 
@@ -409,18 +462,25 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               <Text style={{color: palette.accent, ...theme.typography.pageTitle}}>Sense</Text>
             </View>
 
-            <Pressable
-              onPress={() =>
-                navigation.navigate('ProfileStack', {screen: 'ComingSoon', params: {title: 'Notifications'}} as never)
-              }
-              className="h-11 w-11 items-center justify-center rounded-[16px] border"
-              style={{
-                backgroundColor: palette.card,
-                borderColor: palette.cardBorder,
-                borderWidth: 1,
-              }}>
-              <Ionicons name="notifications-outline" size={20} color={palette.text} />
-            </Pressable>
+            {/*
+              Notifications are not built yet, so the bell only led to a "coming soon" page.
+              Restore this block once there is something behind it.
+
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('ProfileStack', {
+                    screen: 'ComingSoon',
+                    params: {title: 'Notifications'},
+                    initial: false,
+                  } as never)
+                }
+                className="h-11 w-11 items-center justify-center rounded-[16px] border"
+                style={{backgroundColor: theme.card, borderColor: theme.cardBorder, borderWidth: 1}}>
+                <Ionicons name="notifications-outline" size={20} color={palette.text} />
+              </Pressable>
+            */}
+            {/* Holds the bell's place so the wordmark stays centred between the two edges. */}
+            <View style={{height: 44, width: 44}} />
           </View>
 
           <View className="mb-3.5">
@@ -435,11 +495,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           {dashboardError ? (
             <View
               className="mb-3.5 border p-4"
-              style={{
-                backgroundColor: palette.card,
-                borderColor: palette.cardBorder,
-                borderWidth: 1,
-              }}>
+              style={cardStyle}>
               <View className="flex-row items-start">
                 <Ionicons name="cloud-offline-outline" size={18} color={palette.danger} style={{marginTop: 2, marginRight: 10}} />
                 <View style={{flex: 1}}>
@@ -460,26 +516,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
             isDark={isDark}
             typography={theme.typography}
             isTracking={hasOngoingTrip}
+            // Only offer the picker when there is actually something to pick between.
+            onPress={vehicleOptions.length > 0 ? () => setShowSelector(true) : undefined}
           />
 
           {!dashboard?.vehicles.length && !dashboardError ? (
-            <View
-              className="mb-3.5 border p-4"
-              style={{
-                backgroundColor: palette.card,
-                borderColor: palette.cardBorder,
-                borderWidth: 1,
-              }}>
-              <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>No vehicles yet</Text>
-              <Text style={{color: palette.textSubtle, ...theme.typography.body, marginTop: 6}}>
-                Add your first vehicle to start live tracking, trips, and garage stats.
-              </Text>
-              <Pressable
-                onPress={() => navigation.navigate('VehiclesStack', {screen: 'VehicleList'})}
-                className="mt-3 self-start rounded-full px-4 py-2.5"
-                style={{backgroundColor: palette.accent}}>
-                <Text style={{color: '#FFFFFF', ...theme.typography.caption, fontWeight: '800'}}>Open Garage</Text>
-              </Pressable>
+            <View style={{marginBottom: 14}}>
+              <EmptyState
+                icon="car-sport-outline"
+                title="No vehicles yet"
+                message="Add your first vehicle to start live tracking, trips, and garage stats."
+                actionLabel="Add Vehicle"
+                onAction={() =>
+                  navigation.navigate('VehiclesStack', {screen: 'AddVehicle', initial: false} as never)
+                }
+              />
             </View>
           ) : null}
 
@@ -600,16 +651,32 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           </View>
 
           {/* The headline KPI sits directly under the totals it summarises, not below the fold. */}
-          {score != null ? <ScoreCard score={score} scoreDelta={scoreDelta} /> : null}
+          {/*
+            A score of 0 is a real, terrible score — so an account with nothing scored yet must not
+            be shown one. `score` is null until a trip has actually been scored.
+          */}
+          {score != null ? (
+            <ScoreCard score={score} scoreDelta={scoreDelta} />
+          ) : dashboard ? (
+            <View style={{marginBottom: 12}}>
+              <EmptyState
+                icon="speedometer-outline"
+                title="No driving score yet"
+                message="Record a trip and we'll score your braking, acceleration, cornering and speed."
+                actionLabel={dashboard.vehicles.length > 0 ? 'Start Tracking' : undefined}
+                onAction={
+                  dashboard.vehicles.length > 0
+                    ? () => navigation.navigate('MapStack', {screen: 'LiveTrackingMain'})
+                    : undefined
+                }
+              />
+            </View>
+          ) : null}
 
           {showVehicleInsights && bestVehicle && worstVehicle ? (
             <View
               className="mb-3.5 border p-4"
-              style={{
-                backgroundColor: palette.card,
-                borderColor: palette.cardBorder,
-                borderWidth: 1,
-              }}>
+              style={cardStyle}>
               <View className="mb-3 flex-row items-center justify-between">
                 <View style={{flex: 1, paddingRight: 10}}>
                   <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>Vehicle Insights</Text>
@@ -786,11 +853,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
 
           {hasTrend ? (
             <TrendChart
-              currentData={currentBars}
-              previousData={previousBars}
-              labels={labels}
+              buckets={trendChartBuckets}
+              previousValues={activeTrend?.previousKm ?? []}
               title="Distance Trend"
-              subtitle="This week vs last week"
+              subtitle={activeTrend?.subtitle ?? ''}
+              currentLabel={activeTrend?.currentLabel}
+              previousLabel={activeTrend?.previousLabel}
+              metricValue={activeTrend?.metricValue}
+              metricLabel={activeTrend?.metricLabel}
+              metricDelta={activeTrend?.metricDelta ?? undefined}
+              statusMessage={trendError ?? (trendLoading ? 'Loading range…' : null)}
+              rangeControl={
+                <SegmentedTabs
+                  accessibilityLabel="Distance trend range"
+                  options={TREND_RANGE_OPTIONS}
+                  value={trendGranularity}
+                  onChange={(next) => {
+                    void setTrendGranularity(next);
+                  }}
+                />
+              }
             />
           ) : null}
 
@@ -817,26 +899,42 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
               <TripListItem
                 key={trip.id}
                 id={trip.id}
-                title={`${trip.dateLabel}, ${trip.timeLabel}`}
-                subtitle={trip.vehicleName}
-                timeLabel={`Started ${trip.timeLabel}`}
+                startLabel={trip.startAddress}
+                endLabel={trip.endAddress}
+                vehicleName={trip.vehicleName}
+                timeLabel={`${trip.dateLabel} • ${trip.timeLabel}`}
                 distance={trip.distance}
                 duration={trip.duration}
                 score={trip.score}
-                onPress={() => navigation.navigate('TripsStack', {screen: 'TripDetails', params: {tripId: trip.id}})}
+                category={trip.state === 'ended' ? 'Completed' : 'Active'}
+                avgSpeedLabel={`${Math.round(trip.avgSpeedKph)} km/h`}
+                topSpeedLabel={trip.topSpeedKph != null ? `${Math.round(trip.topSpeedKph)} km/h` : undefined}
+                eventCount={trip.eventCount}
+                riskLevel={resolveTripRiskLevel({
+                  eventCount: trip.eventCount,
+                  score: trip.score,
+                  isCompleted: trip.state === 'ended',
+                })}
+                onPress={() =>
+                  navigation.navigate('TripsStack', {
+                    screen: 'TripDetails',
+                    params: {tripId: trip.id},
+                    // Without this the stack is *replaced* by TripDetails, leaving goBack() nothing
+                    // to pop, so back from a trip opened here unwound to the Home tab.
+                    initial: false,
+                  })
+                }
               />
             )) : (
-              <View
-                style={{
-                  backgroundColor: palette.cardSoft,
-                  borderRadius: RADIUS.md,
-                  padding: 16,
-                }}>
-                <Text style={{color: palette.text, ...theme.typography.sectionTitle}}>No trips yet</Text>
-                <Text style={{color: palette.textSubtle, ...theme.typography.body, marginTop: 6}}>
-                  Start a live trip and your recent drives will appear here automatically.
-                </Text>
-              </View>
+              <EmptyState
+                boxed={false}
+                compact
+                icon="navigate-outline"
+                title="No trips yet"
+                message="Start a live trip and your recent drives will appear here automatically."
+                actionLabel="Start Tracking"
+                onAction={() => navigation.navigate('MapStack', {screen: 'LiveTrackingMain'})}
+              />
             )}
           </View>
         </View>
@@ -851,7 +949,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({navigation}) =>
           void persistActiveVehicleId(vehicleId);
         }}
         onClose={() => setShowSelector(false)}
-        onAddVehicle={() => navigation.navigate('VehiclesStack', {screen: 'AddVehicle'} as never)}
+        onAddVehicle={() => navigation.navigate('VehiclesStack', {screen: 'AddVehicle', initial: false} as never)}
       />
       <RNStatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
     </SafeAreaView>

@@ -15,6 +15,9 @@ export type TripRead = {
   created_at: string;
   driving_score: number | null;
   avg_speed_mps: number | null;
+  max_speed_mps: number | null;
+  start_address: string | null;
+  end_address: string | null;
   event_count: number;
 };
 
@@ -37,6 +40,7 @@ export type TripListParams = {
 
 export type TripDetailRead = TripRead & {
   vehicle_name: string;
+  vehicle_image_url: string | null;
   avg_speed_mps: number | null;
   max_speed_mps: number | null;
   idle_time_seconds: number;
@@ -147,12 +151,12 @@ export const mapTripDetailToMockTrip = (trip: TripDetailRead): MockTrip => {
   const startPoint = routePoints[0];
   const endPoint = routePoints[routePoints.length - 1];
   const avgSpeedKph = trip.avg_speed_mps != null ? Math.round(trip.avg_speed_mps * 3.6) : 0;
-  const maxSpeedKph = trip.max_speed_mps != null ? Math.round(trip.max_speed_mps * 3.6) : 0;
 
   return {
     id: trip.id,
-    title: startPoint ? `Start • ${formatCoordinateLabel(startPoint)}` : trip.vehicle_name,
-    subtitle: endPoint ? `End • ${formatCoordinateLabel(endPoint)}` : 'Trip end unavailable',
+    // Prefer the reverse-geocoded address; coordinates are the last resort, not the default.
+    title: trip.start_address ?? (startPoint ? formatCoordinateLabel(startPoint) : trip.vehicle_name),
+    subtitle: trip.end_address ?? (endPoint ? formatCoordinateLabel(endPoint) : 'Trip end unavailable'),
     date: formatDateLabel(trip.start_time),
     distance: formatDistance(trip.distance_meters),
     duration: formatDuration(trip.duration_seconds),
@@ -162,9 +166,14 @@ export const mapTripDetailToMockTrip = (trip: TripDetailRead): MockTrip => {
     startTime: formatTimeLabel(trip.start_time),
     endTime: trip.end_time ? formatTimeLabel(trip.end_time) : 'In Progress',
     category: trip.vehicle_name,
+    vehicleName: trip.vehicle_name,
+    vehicleId: trip.vehicle_id,
+    vehicleImageUrl: trip.vehicle_image_url,
     status: trip.state === 'ended' ? 'Completed' : 'Active',
     avgSpeed: `${avgSpeedKph} km/h`,
-    maxSpeed: `${maxSpeedKph} km/h`,
+    // Null when the backend never recorded one, so the UI can fall back to the route-derived peak
+    // instead of claiming a confident "0 km/h".
+    maxSpeed: trip.max_speed_mps != null ? `${Math.round(trip.max_speed_mps * 3.6)} km/h` : null,
     fuelConsumed: formatFuel(trip.fuel_used_liters),
     mileage: formatMileage(trip.distance_meters, trip.fuel_used_liters),
     idleTime: formatDuration(trip.idle_time_seconds),

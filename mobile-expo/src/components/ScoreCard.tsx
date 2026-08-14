@@ -1,6 +1,7 @@
 import React from 'react';
 import {View, Text} from 'react-native';
 import {useAppTheme} from '../theme/appTheme';
+import {Card} from './Card';
 
 interface ScoreCardProps {
   score: number;
@@ -23,12 +24,12 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({score, scoreDelta}) => {
   ];
 
   return (
-    <View
-      className="mb-3 overflow-hidden rounded-3xl border p-[18px]"
+    <Card
+      radius={24}
+      padding={18}
       style={{
-        backgroundColor: theme.card,
-        borderColor: theme.cardBorder,
-        borderWidth: 1,
+        marginBottom: 12,
+        overflow: 'hidden',
       }}>
       <View
         pointerEvents="none"
@@ -111,6 +112,6 @@ export const ScoreCard: React.FC<ScoreCardProps> = ({score, scoreDelta}) => {
           </View>
         ))}
       </View>
-    </View>
+    </Card>
   );
 };
