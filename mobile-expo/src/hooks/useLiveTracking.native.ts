@@ -4,6 +4,10 @@ import {Accelerometer} from 'expo-sensors';
 import {MOCK_LIVE_TRACKING} from '../mocks/trackingData';
 import {tripService} from '../services/tripService';
 import {getApiErrorMessage} from '../services/apiClient';
+import {
+  startBackgroundLocationUpdates,
+  stopBackgroundLocationUpdates,
+} from '../services/backgroundLocationTask';
 import {useDashboardStore} from '../store/dashboardStore';
 import {GRAVITY_MPS2, HARSH_BRAKE_MPS2, RAPID_ACCELERATION_MPS2} from '../utils/drivingThresholds';
 
@@ -259,6 +263,13 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
         const trip = await tripService.startTrip(vehicleId, startedAt);
         setBackendTripId(trip.id);
         setSyncState('recording');
+        // Hand the trip to the OS-level task so the route keeps recording once this screen is no
+        // longer foreground. Failing to register must not abort a trip that is otherwise running.
+        try {
+          await startBackgroundLocationUpdates(trip.id);
+        } catch (backgroundError) {
+          console.warn('[live-tracking] background updates unavailable', backgroundError);
+        }
       } catch (error) {
         setSyncState('local_only');
         setSyncError(getApiErrorMessage(error, 'Unable to start trip in backend'));
@@ -304,6 +315,7 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
         await fetchDashboard();
         setSyncState((current) => (current === 'error' ? current : 'saved'));
         setBackendTripId(null);
+        await stopBackgroundLocationUpdates();
         setIsStarted(false);
         setIsPaused(false);
         isPausedRef.current = false;
@@ -559,6 +571,19 @@ export const useLiveTracking = ({vehicleId, vehicleName}: UseLiveTrackingOptions
     setPermissionState('granted');
     setSyncError((current) => (current === 'Location permission denied' ? null : current));
     setSyncState((current) => (current === 'error' ? 'idle' : current));
+
+    // Asked only after "While Using" is granted — iOS will not present the "Always" prompt before
+    // that. A refusal is not fatal: the trip still records in the foreground, it just stops when
+    // the app is backgrounded, so this must not block startWatchers().
+    try {
+      await Location.requestBackgroundPermissionsAsync();
+    } catch (backgroundPermissionError) {
+      console.warn('[live-tracking] background permission unavailable', backgroundPermissionError);
+    }
+    if (isUnmountedRef.current) {
+      return;
+    }
+
     await startWatchers();
   }, [startWatchers]);
 

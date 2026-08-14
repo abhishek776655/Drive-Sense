@@ -11,6 +11,10 @@ import {
 import {LoginScreen} from './screens/LoginScreen';
 import {RegisterScreen} from './screens/RegisterScreen';
 import {OnboardingScreen} from './screens/OnboardingScreen';
+// Imported for its side effect: registering the background location task at boot. The OS
+// relaunches this JS context on its own to deliver updates, before any screen has mounted, so
+// registration cannot wait for the live-tracking screen to load.
+import './services/backgroundLocationTask';
 import {authService, setAuthExpiredHandler} from './services/apiClient';
 import {vehicleService} from './services/vehicleService';
 import {useUserStore, type CurrentUser} from './store/userStore';

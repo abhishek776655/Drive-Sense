@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile-expo",
-    "slug": "mobile-expo",
+    "name": "DriveSense",
+    "slug": "drivesense",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,10 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobileexpo",
+      "bundleIdentifier": "com.abhishek.drivesense",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "DriveSense uses your location during a trip to record route, speed, heading, and live driving telemetry.",
-        "NSMotionUsageDescription": "DriveSense uses motion sensors to detect driving events like harsh braking and rapid acceleration."
+        "NSMotionUsageDescription": "DriveSense uses motion sensors to detect driving events like harsh braking and rapid acceleration.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "DriveSense keeps recording your route while the app is in the background so a trip is not cut short when you switch apps or lock your phone.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -27,16 +31,31 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.mobileexpo",
+      "package": "com.abhishek.drivesense",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACTIVITY_RECOGNITION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACTIVITY_RECOGNITION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "scheme": "drivesense",
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "DriveSense keeps recording your route while the app is in the background so a trip is not cut short when you switch apps or lock your phone.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ]
   }
 }
