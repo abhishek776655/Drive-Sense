@@ -101,7 +101,9 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         plate: vehicle.plateNumber ?? 'No plate added',
         mileage: vehicle.mileageBaselineKmPerL != null ? `${vehicle.mileageBaselineKmPerL.toFixed(1)} km/l` : null,
         distance: formatDistance(vehicle.totalDistanceMeters),
-        score: vehicle.avgScore || 84,
+        // A vehicle with no trips has nothing to score. Null, not a stand-in number: the old
+        // `|| 84` made a brand-new vehicle look like it had already been driven well.
+        score: vehicle.tripCount > 0 ? vehicle.avgScore : null,
         trips: vehicle.tripCount,
         lastTrip: formatLastTrip(vehicle.lastTripAt),
         totalDuration: formatDuration(vehicleStatsById[vehicle.id]?.total_duration_seconds ?? 0),
@@ -114,8 +116,12 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
   const featuredVehicle = vehicles.find((vehicle) => vehicle.isActive) ?? vehicles[0];
   const fleetTotals = useMemo(() => {
     const vehicleCount = vehicles.length;
+    // Only driven vehicles carry a score, so only they can move the fleet average.
+    const scoredVehicles = vehicles.filter((vehicle): vehicle is typeof vehicle & {score: number} => vehicle.score != null);
     const averageScore =
-      vehicleCount > 0 ? Math.round(vehicles.reduce((sum, vehicle) => sum + vehicle.score, 0) / vehicleCount) : 0;
+      scoredVehicles.length > 0
+        ? Math.round(scoredVehicles.reduce((sum, vehicle) => sum + vehicle.score, 0) / scoredVehicles.length)
+        : 0;
     const totalTrips = vehicles.reduce((sum, vehicle) => sum + vehicle.trips, 0);
     const totalDistance = vehicles.reduce((sum, vehicle) => sum + Number.parseFloat(vehicle.distance), 0);
 
@@ -128,7 +134,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
       {key: 'fair', label: 'fair', min: 70, tone: theme.warning, count: 0},
       {key: 'low', label: 'needs work', min: 0, tone: theme.danger, count: 0},
     ];
-    vehicles.forEach((vehicle) => {
+    scoredVehicles.forEach((vehicle) => {
       const band = bands.find((item) => vehicle.score >= item.min);
       if (band) {
         band.count += 1;
@@ -138,6 +144,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
     return {
       vehicleCount,
       averageScore,
+      hasScores: scoredVehicles.length > 0,
       totalTrips,
       totalDistance: `${totalDistance.toFixed(1)} km`,
       totalDuration: formatDuration(dashboard?.stats.totalDurationSeconds ?? 0),
@@ -257,8 +264,11 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                 <View style={{flexDirection: 'row', alignItems: 'baseline'}}>
                   <Text
                     numberOfLines={1}
-                    style={{color: scoreTone(theme, fleetTotals.averageScore), ...theme.typography.statHero}}>
-                    {fleetTotals.averageScore}
+                    style={{
+                      color: fleetTotals.hasScores ? scoreTone(theme, fleetTotals.averageScore) : theme.textSubtle,
+                      ...theme.typography.statHero,
+                    }}>
+                    {fleetTotals.hasScores ? fleetTotals.averageScore : '—'}
                   </Text>
                   <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginLeft: 8}}>avg score</Text>
                 </View>
@@ -270,14 +280,16 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                     marginTop: 10,
                     overflow: 'hidden',
                   }}>
-                  <View
-                    style={{
-                      width: `${Math.min(100, Math.max(0, fleetTotals.averageScore))}%`,
-                      height: '100%',
-                      borderRadius: 3,
-                      backgroundColor: scoreTone(theme, fleetTotals.averageScore),
-                    }}
-                  />
+                  {fleetTotals.hasScores ? (
+                    <View
+                      style={{
+                        width: `${Math.min(100, Math.max(0, fleetTotals.averageScore))}%`,
+                        height: '100%',
+                        borderRadius: 3,
+                        backgroundColor: scoreTone(theme, fleetTotals.averageScore),
+                      }}
+                    />
+                  ) : null}
                 </View>
               </View>
 
@@ -385,14 +397,19 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
         </View>
 
         {vehicles.map((vehicle) => {
-          const tone = scoreTone(theme, vehicle.score);
+          const scored = vehicle.score != null;
+          const tone = scored ? scoreTone(theme, vehicle.score as number) : theme.textSubtle;
 
           return (
             <Pressable
               key={vehicle.id}
               onPress={() => navigation.navigate('VehicleAnalytics', {vehicleId: vehicle.id})}
               accessibilityRole="button"
-              accessibilityLabel={`${vehicle.name}, score ${vehicle.score}. Open analytics`}
+              accessibilityLabel={
+                scored
+                  ? `${vehicle.name}, score ${vehicle.score}. Open analytics`
+                  : `${vehicle.name}, no score yet. Open analytics`
+              }
               className="mb-[14px] overflow-hidden border"
               style={{
                 borderRadius: RADIUS.lg,
@@ -474,9 +491,11 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
               <View style={{flexDirection: 'row', alignItems: 'flex-end', marginTop: 18}}>
                 <View style={{width: 92}}>
                   <Text numberOfLines={1} style={{color: tone, ...theme.typography.statHero}}>
-                    {vehicle.score}
+                    {scored ? vehicle.score : '—'}
                   </Text>
-                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 2}}>score</Text>
+                  <Text style={{color: theme.textSubtle, ...theme.typography.caption, marginTop: 2}}>
+                    {scored ? 'score' : 'no trips yet'}
+                  </Text>
                 </View>
                 {/* Three stats, not four: a quarter of the remaining width clips `2h 34m`. */}
                 <View style={{flex: 1, flexDirection: 'row', paddingBottom: 4}}>
@@ -486,6 +505,7 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                 </View>
               </View>
 
+              {/* An empty track for an unscored vehicle — a filled bar would imply a rating. */}
               <View
                 style={{
                   height: 6,
@@ -494,14 +514,16 @@ export const VehiclesScreen: React.FC<VehicleListScreenProps> = ({navigation}) =
                   marginTop: 14,
                   overflow: 'hidden',
                 }}>
-                <View
-                  style={{
-                    width: `${Math.min(100, Math.max(0, vehicle.score))}%`,
-                    height: '100%',
-                    borderRadius: 3,
-                    backgroundColor: tone,
-                  }}
-                />
+                {scored ? (
+                  <View
+                    style={{
+                      width: `${Math.min(100, Math.max(0, vehicle.score as number))}%`,
+                      height: '100%',
+                      borderRadius: 3,
+                      backgroundColor: tone,
+                    }}
+                  />
+                ) : null}
               </View>
             </Pressable>
           );

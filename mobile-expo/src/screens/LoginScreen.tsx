@@ -1,21 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {Animated, Easing, KeyboardAvoidingView, Platform, Pressable, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {Ionicons} from '@expo/vector-icons';
 import {authService, getApiErrorMessage} from '../services/apiClient';
 import {useAppTheme} from '../theme/appTheme';
 import {AuthTextField} from '../components/AuthTextField';
-import {BrandMark} from '../components/AuthChrome';
+import {AuthBackdrop, AuthErrorBanner, AuthPrimaryButton, BrandMark, Wordmark} from '../components/AuthChrome';
 
 interface LoginScreenProps {
   initialError?: string;
@@ -23,11 +12,41 @@ interface LoginScreenProps {
   onGoToRegister: () => void;
 }
 
+export type LoginFieldErrors = {
+  email?: string;
+  password?: string;
+};
+
+/**
+ * Validates the sign-in form. Pure so the rules can be tested without rendering.
+ *
+ * Deliberately weaker than `validateRegistration`: an account created before today's password rules
+ * must still be able to sign in, so length is never checked here — only presence and a shape that
+ * could plausibly reach the server as an email.
+ */
+export const validateLogin = ({email, password}: {email: string; password: string}): LoginFieldErrors => {
+  const errors: LoginFieldErrors = {};
+  const trimmedEmail = email.trim();
+
+  if (!trimmedEmail) {
+    errors.email = 'Enter your email address.';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    errors.email = 'That does not look like an email address.';
+  }
+
+  if (!password) {
+    errors.password = 'Enter your password.';
+  }
+
+  return errors;
+};
+
 export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLoginSuccess, onGoToRegister}) => {
   const theme = useAppTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
   const [error, setError] = useState(initialError);
 
   const entrance = useRef(new Animated.Value(0)).current;
@@ -46,10 +65,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
   }, [entrance]);
 
   const handleLogin = async () => {
-    setLoading(true);
+    const errors = validateLogin({email, password});
+    setFieldErrors(errors);
     setError('');
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    setLoading(true);
     try {
-      await authService.login(email, password);
+      await authService.login(email.trim(), password);
       onLoginSuccess();
     } catch (loginError) {
       setError(getApiErrorMessage(loginError));
@@ -78,8 +103,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
 
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: theme.screen}}>
-      <View pointerEvents="none" style={{position: 'absolute', top: -120, left: -60, width: 280, height: 280, borderRadius: 140, backgroundColor: theme.screenGlow, opacity: theme.dark ? 0.6 : 0.9}} />
-      <View pointerEvents="none" style={{position: 'absolute', top: -40, right: -90, width: 220, height: 220, borderRadius: 110, backgroundColor: theme.accentSoft, opacity: theme.dark ? 0.5 : 0.7}} />
+      <AuthBackdrop />
 
       <KeyboardAvoidingView
         style={{flex: 1}}
@@ -88,9 +112,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
           <Animated.View style={[{alignItems: 'center', marginBottom: 40}, headerStyle]}>
             <BrandMark />
 
-            <View style={{flexDirection: 'row'}}>
-              <Text style={{color: theme.text, ...theme.typography.pageTitle, fontSize: 34, lineHeight: 40}}>Drive</Text>
-              <Text style={{color: theme.accent, ...theme.typography.pageTitle, fontSize: 34, lineHeight: 40}}>Sense</Text>
+            {/* Same mark-to-wordmark gap as sign-up, so the two screens don't shift on navigation. */}
+            <View style={{marginTop: 16}}>
+              <Wordmark />
             </View>
             <Text style={{color: theme.textSubtle, ...theme.typography.body, marginTop: 8, textAlign: 'center'}}>
               Know your drive. Every mile. Every detail.
@@ -98,30 +122,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
           </Animated.View>
 
           <Animated.View style={formStyle}>
-            {error ? (
-              <View
-                style={{
-                  marginBottom: 14,
-                  borderRadius: 16,
-                  padding: 12,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: theme.dangerSoft,
-                  borderWidth: 1,
-                  borderColor: theme.danger,
-                }}>
-                <Ionicons name="alert-circle" size={16} color={theme.danger} />
-                <Text style={{flex: 1, marginLeft: 8, color: theme.danger, ...theme.typography.caption, fontWeight: '700'}}>
-                  {error}
-                </Text>
-              </View>
-            ) : null}
+            {error ? <AuthErrorBanner message={error} /> : null}
 
             <AuthTextField
               icon="mail-outline"
               placeholder="Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                setFieldErrors((current) => ({...current, email: undefined}));
+              }}
+              error={fieldErrors.email}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -133,7 +144,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
               icon="lock-closed-outline"
               placeholder="Password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(value) => {
+                setPassword(value);
+                setFieldErrors((current) => ({...current, password: undefined}));
+              }}
+              error={fieldErrors.password}
               secure
               textContentType="password"
               returnKeyType="go"
@@ -141,29 +156,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({initialError = '', onLo
               marginBottom={20}
             />
 
-            <TouchableOpacity
-              onPress={() => void handleLogin()}
-              disabled={loading}
-              activeOpacity={0.85}
-              style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 18,
-                height: 54,
-                backgroundColor: theme.accent,
-                opacity: loading ? 0.7 : 1,
-                shadowColor: theme.accent,
-                shadowOpacity: 0.28,
-                shadowRadius: 16,
-                shadowOffset: {width: 0, height: 8},
-                elevation: 6,
-              }}>
-              {loading ? (
-                <ActivityIndicator color={theme.onAccent} />
-              ) : (
-                <Text style={{color: theme.onAccent, ...theme.typography.body, fontWeight: '800', fontSize: 16}}>Sign In</Text>
-              )}
-            </TouchableOpacity>
+            <AuthPrimaryButton label="Sign In" onPress={() => void handleLogin()} loading={loading} />
 
             <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20}}>
               <Text style={{color: theme.textSubtle, ...theme.typography.body}}>New to DriveSense?</Text>

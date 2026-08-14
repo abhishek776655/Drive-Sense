@@ -70,13 +70,28 @@ export type AppTheme = {
   cardShadowSubtle: {boxShadow: string};
 };
 
-type ThemeMode = 'light' | 'dark';
+/** The palette actually in effect. Never `system` — that has already been resolved. */
+export type ThemeMode = 'light' | 'dark';
+
+/** What the user picked. `system` follows the OS appearance, including live changes. */
+export type ThemePreference = ThemeMode | 'system';
+
+export const THEME_PREFERENCE_OPTIONS: ReadonlyArray<{value: ThemePreference; label: string}> = [
+  {value: 'system', label: 'System'},
+  {value: 'light', label: 'Light'},
+  {value: 'dark', label: 'Dark'},
+];
+
+const isThemePreference = (value: unknown): value is ThemePreference =>
+  value === 'system' || value === 'light' || value === 'dark';
 
 type ThemeContextValue = {
+  /** Resolved palette — read this to branch on appearance. */
   mode: ThemeMode;
+  /** The stored choice, which may be `system`. Read this to render the selector. */
+  preference: ThemePreference;
   theme: AppTheme;
-  setThemeMode: (mode: ThemeMode) => Promise<void>;
-  toggleThemeMode: () => Promise<void>;
+  setThemePreference: (preference: ThemePreference) => Promise<void>;
 };
 
 const THEME_MODE_KEY = 'theme_mode';
@@ -200,22 +215,24 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export const ThemeProvider: React.FC<{children: React.ReactNode}> = ({children}) => {
   const colorScheme = useColorScheme();
-  const [mode, setMode] = useState<ThemeMode>(colorScheme === 'dark' ? 'dark' : 'light');
+  const [preference, setPreference] = useState<ThemePreference>('system');
 
   useEffect(() => {
     let mounted = true;
 
     const hydrateThemeMode = async () => {
       try {
-        const storedMode = await AsyncStorage.getItem(THEME_MODE_KEY);
+        const stored = await AsyncStorage.getItem(THEME_MODE_KEY);
         if (!mounted) {
           return;
         }
-        if (storedMode === 'light' || storedMode === 'dark') {
-          setMode(storedMode);
+        // Anything else — absent, or a value from an older build — leaves the `system` default,
+        // which is also what a fresh install gets.
+        if (isThemePreference(stored)) {
+          setPreference(stored);
         }
       } catch {
-        // Keep the current mode if stored preferences are unavailable.
+        // Keep the current preference if stored settings are unavailable.
       }
     };
 
@@ -226,28 +243,26 @@ export const ThemeProvider: React.FC<{children: React.ReactNode}> = ({children})
     };
   }, []);
 
-  const setThemeMode = useCallback(async (nextMode: ThemeMode) => {
-    setMode(nextMode);
+  const setThemePreference = useCallback(async (next: ThemePreference) => {
+    setPreference(next);
     try {
-      await AsyncStorage.setItem(THEME_MODE_KEY, nextMode);
+      await AsyncStorage.setItem(THEME_MODE_KEY, next);
     } catch {
       // The visual change should still apply for this session if persistence fails.
     }
   }, []);
 
-  const toggleThemeMode = useCallback(async () => {
-    const nextMode = mode === 'dark' ? 'light' : 'dark';
-    await setThemeMode(nextMode);
-  }, [mode, setThemeMode]);
+  // `useColorScheme` re-renders on OS appearance changes, so `system` tracks them live.
+  const mode: ThemeMode = preference === 'system' ? (colorScheme === 'dark' ? 'dark' : 'light') : preference;
 
   const value = useMemo(
     () => ({
       mode,
+      preference,
       theme: getAppTheme(mode === 'dark'),
-      setThemeMode,
-      toggleThemeMode,
+      setThemePreference,
     }),
-    [mode, setThemeMode, toggleThemeMode],
+    [mode, preference, setThemePreference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -12,6 +12,8 @@ interface SegmentedTabsProps<T extends string> {
   value: T;
   onChange: (next: T) => void;
   accessibilityLabel?: string;
+  /** Segments share the row equally instead of hugging their labels. */
+  stretch?: boolean;
 }
 
 /** Minimum tap target. Matches the 44pt floor used across the app's pressables. */
@@ -22,6 +24,7 @@ export function SegmentedTabs<T extends string>({
   value,
   onChange,
   accessibilityLabel,
+  stretch = false,
 }: SegmentedTabsProps<T>) {
   const theme = useAppTheme();
 
@@ -45,6 +48,7 @@ export function SegmentedTabs<T extends string>({
               backgroundColor: active ? theme.card : 'transparent',
               minHeight: HIT,
               justifyContent: 'center',
+              ...(stretch ? {flex: 1, alignItems: 'center'} : null),
             }}>
             <Text
               style={{

@@ -1,13 +1,29 @@
 import React from 'react';
-import {Pressable, ScrollView, Switch, Text, View} from 'react-native';
+import {Pressable, ScrollView, Text, View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {SettingsScreenProps} from '../navigation/types';
-import {useAppTheme, useThemeMode} from '../theme/appTheme';
+import {SegmentedTabs} from '../components/SegmentedTabs';
+import {THEME_PREFERENCE_OPTIONS, useAppTheme, useThemeMode, type ThemePreference} from '../theme/appTheme';
+
+const PREFERENCE_ICON: Record<ThemePreference, keyof typeof Ionicons.glyphMap> = {
+  system: 'phone-portrait-outline',
+  light: 'sunny',
+  dark: 'moon',
+};
+
+/** Says what the choice does, and for `system` what it currently resolves to. */
+const preferenceCaption = (preference: ThemePreference, isDarkMode: boolean) => {
+  if (preference === 'system') {
+    return `Following your device — currently ${isDarkMode ? 'dark' : 'light'}`;
+  }
+
+  return isDarkMode ? 'Always the darker DriveSense palette' : 'Always the lighter DriveSense palette';
+};
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
   const theme = useAppTheme();
-  const {mode, toggleThemeMode} = useThemeMode();
+  const {mode, preference, setThemePreference} = useThemeMode();
   const isDarkMode = mode === 'dark';
 
   return (
@@ -34,20 +50,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
             <View
               className="mr-3 size-9 items-center justify-center rounded-[14px]"
               style={{backgroundColor: theme.accentMuted}}>
-              <Ionicons name={isDarkMode ? 'moon' : 'sunny'} size={18} color={theme.accent} />
+              <Ionicons name={PREFERENCE_ICON[preference]} size={18} color={theme.accent} />
             </View>
             <View className="flex-1">
-              <Text style={{color: theme.text, fontSize: 14, fontWeight: '700'}}>Dark mode</Text>
+              <Text style={{color: theme.text, fontSize: 14, fontWeight: '700'}}>Theme</Text>
               <Text className="mt-0.5" style={{color: theme.textSubtle, fontSize: 11}}>
-                {isDarkMode ? 'Using the darker DriveSense palette' : 'Using the lighter DriveSense palette'}
+                {preferenceCaption(preference, isDarkMode)}
               </Text>
             </View>
-            <Switch
-              value={isDarkMode}
-              onValueChange={() => void toggleThemeMode()}
-              trackColor={{false: theme.lineMuted, true: theme.accentSoft}}
-              thumbColor={isDarkMode ? theme.accent : theme.card}
-              ios_backgroundColor={theme.lineMuted}
+          </View>
+
+          <View className="mt-3.5">
+            <SegmentedTabs
+              stretch
+              accessibilityLabel="Theme"
+              options={THEME_PREFERENCE_OPTIONS}
+              value={preference}
+              onChange={(next) => void setThemePreference(next)}
             />
           </View>
         </View>
