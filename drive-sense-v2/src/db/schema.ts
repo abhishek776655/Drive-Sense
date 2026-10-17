@@ -63,6 +63,18 @@ export const MIGRATIONS: string[] = [
     PRIMARY KEY (drive_started_at, ts)
   );
   `,
+  // v4 (local-first part 2c): each stored route's numbers for the stats (altitude, time at speed),
+  // and a full pull again so every trip comes back with its idle time and event counts.
+  `
+  ALTER TABLE trip_details ADD COLUMN point_stats TEXT;
+  DELETE FROM sync_meta WHERE key = 'pull_cursor';
+  `,
+  // v5 (local-first part 3): whether the server has the drive. Drives saved with "This phone only",
+  // or left after "Delete cloud data", upload when cloud backup is turned back on.
+  `
+  ALTER TABLE trips ADD COLUMN in_cloud INTEGER NOT NULL DEFAULT 1;
+  UPDATE trips SET in_cloud = 0 WHERE id LIKE 'local:%';
+  `,
 ];
 
 export const TABLES = ['vehicles', 'trips', 'trip_details', 'api_cache', 'sync_meta', 'outbox', 'drive_points'];

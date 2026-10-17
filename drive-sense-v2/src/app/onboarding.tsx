@@ -3,7 +3,7 @@ import {useEffect} from 'react';
 import {View} from 'react-native';
 import {StepEnter} from '../components/onboarding/motion';
 import {FrequencyStep, PhotoStep, RideStep, VehicleStep} from '../components/onboarding/profileSteps';
-import {DoneStep, LocationStep, NotificationsStep, SafetyStep} from '../components/onboarding/setupSteps';
+import {BackupStep, DoneStep, LocationStep, NotificationsStep, SafetyStep} from '../components/onboarding/setupSteps';
 import {useAuthStore} from '../stores/authStore';
 import {useOnboardingStore, type OnboardingStep} from '../stores/onboardingStore';
 import {useProfileStore} from '../stores/profileStore';
@@ -16,6 +16,7 @@ const STEPS: Record<OnboardingStep, typeof PhotoStep> = {
   frequency: FrequencyStep,
   location: LocationStep,
   notifications: NotificationsStep,
+  backup: BackupStep,
   safety: SafetyStep,
   done: DoneStep,
 };

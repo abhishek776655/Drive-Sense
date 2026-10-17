@@ -3,7 +3,8 @@ import {getApiErrorMessage} from '../services/apiClient';
 import {tripDetailApi, tripUploadApi, type TripDetail} from '../services/tripService';
 import {progressFor, uploadDrive, type UploadProgress} from '../services/tripUpload';
 import {getDb} from '../db';
-import {clearDrivePoints, drivePoints, outboxId, outboxPut, putLocalTrip} from '../db/repos';
+import {clearDrivePoints, drivePoints, getDetail, outboxId, outboxPut, putLocalTrip} from '../db/repos';
+import {isPhoneOnly, lookUpAddresses} from '../sync/driveBackup';
 import {tripMetrics, type TripMetrics} from '../utils/tripMetrics';
 import {finishOutboxItem, isOfflineError} from '../sync/outbox';
 import {useSyncStore} from '../sync/syncStore';
@@ -60,7 +61,17 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
     const points = db ? drivePoints(db, drive.startedAt) : [];
     const metrics = points.length > 1 ? tripMetrics(points) : null;
     set({drive, metrics, samples: drive.unsentSamples, progress: progressFor(drive), saveStatus: drive.vehicle ? 'saving' : 'local', error: null, detail: null, detailDone: false});
-    if (drive.vehicle) {
+    if (drive.vehicle && db && isPhoneOnly()) {
+      // "This phone only" (part 3): stored here for good, nothing uploads. The phone looks up the
+      // addresses itself.
+      putLocalTrip(db, drive, metrics ?? undefined, points);
+      clearDrivePoints(db, drive.startedAt);
+      // The summary's score and events come from the phone's own copy of the trip.
+      set({saveStatus: 'saved', detail: getDetail(db, outboxId(drive)), detailDone: true});
+      useSyncStore.setState((s) => ({version: s.version + 1}));
+      const route = points.length > 0 ? points : drive.route;
+      void lookUpAddresses(db, outboxId(drive), route[0], route[route.length - 1]);
+    } else if (drive.vehicle) {
       // Saved on the phone before anything else (part 2a): it is in the Logbook now, and survives
       // the app closing or no signal until it is uploaded.
       if (db) {

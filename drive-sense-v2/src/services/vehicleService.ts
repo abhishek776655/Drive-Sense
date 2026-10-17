@@ -1,3 +1,6 @@
+import {statsFacts} from '../db/repos';
+import {homeStats} from '../stats/home';
+import {currentProfile, localFirst} from '../stats/source';
 import {apiClient} from './apiClient';
 import {timeZone, type HomeStats} from './homeService';
 
@@ -57,8 +60,11 @@ export const vehicleService = {
     return response.data;
   },
   /** All-time stats for one vehicle, in the Home stats shape. */
-  stats: async (id: string): Promise<HomeStats> => {
-    const response = await apiClient.get<HomeStats>(`/api/v1/vehicles/${id}/home-stats`, {params: {tz: timeZone()}});
-    return response.data;
-  },
+  stats: (id: string): Promise<HomeStats> =>
+    localFirst(
+      `vehicle-stats:${id}`,
+      // The server's version has no weekly goal either: that is the whole account's.
+      (db) => homeStats(statsFacts(db, id), {frequency: currentProfile(db)?.driving_frequency}),
+      async () => (await apiClient.get<HomeStats>(`/api/v1/vehicles/${id}/home-stats`, {params: {tz: timeZone()}})).data,
+    ),
 };

@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {useSyncStore} from '../sync/syncStore';
 import {getApiErrorMessage} from '../services/apiClient';
 import {statsService, type StatsOverview, type StatsPeriod} from '../services/statsService';
 import type {DayRange} from '../utils/calendar';
@@ -48,3 +49,10 @@ export const useStatsStore = create<StatsState>((set, get) => ({
     await get().load();
   },
 }));
+
+// The phone's drives changed (a sync, a drive saved offline): numbers on screen follow.
+useSyncStore.subscribe((next, prev) => {
+  if (next.version !== prev.version && useStatsStore.getState().status !== 'idle') {
+    void useStatsStore.getState().load();
+  }
+});

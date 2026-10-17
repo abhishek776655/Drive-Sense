@@ -8,7 +8,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import TripState
@@ -73,6 +73,9 @@ async def pull(db: AsyncSession, *, user_id: uuid.UUID, since: str | None, limit
                     _vehicle_display_name_expr().label("vehicle_name"),
                     VehicleModel.image_url.label("vehicle_image_url"),
                     func.count(Event.id).label("event_count"),
+                    _count_of("harsh_brake"),
+                    _count_of("rapid_acceleration"),
+                    _count_of("overspeed"),
                 )
                 .join(Vehicle, Vehicle.id == Trip.vehicle_id)
                 .join(VehicleModel, VehicleModel.id == Vehicle.model_id)
@@ -144,3 +147,12 @@ async def pull(db: AsyncSession, *, user_id: uuid.UUID, since: str | None, limit
             cursor = encode_cursor(newest.updated_at, newest.id)
 
     return SyncPage(vehicles=vehicles, deleted_vehicles=deleted_vehicles, trips=trips, deleted_trips=deleted_trips, cursor=cursor, has_more=has_more)
+
+
+async def delete_cloud_drives(db: AsyncSession, *, user_id: uuid.UUID) -> int:
+    """Permanently deletes every drive the user has on the server, with its points and events (the
+    database cascades). For "This phone only" (local-first part 3): no tombstones are left, since
+    the phone keeps its own copies. The account and vehicles stay. Returns how many went."""
+    result = await db.execute(delete(Trip).where(Trip.user_id == user_id))
+    await db.commit()
+    return result.rowcount or 0

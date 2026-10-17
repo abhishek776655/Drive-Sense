@@ -1,6 +1,9 @@
 import {isAxiosError} from 'axios';
-import {withOfflineCache} from '../db/offlineCache';
+import {statsFacts} from '../db/repos';
+import {homeStats, lastTripOf, trendDays} from '../stats/home';
+import {currentProfile, localFirst} from '../stats/source';
 import {apiClient} from './apiClient';
+import {trendLabel, type TrendGranularity} from '../utils/trend';
 
 /** Shape of `GET /dashboard/home` (spec section 4.2). Every metric is nullable: no data is "–". */
 export interface HomeStats {
@@ -33,19 +36,7 @@ export interface LastTrip {
   maxSpeedMps: number | null;
 }
 
-export type TrendGranularity = 'day' | 'week' | 'month';
-
-/** Axis label per bucket: weekday initial, day of month for weeks, month initial for months. */
-export const trendLabel = (bucketStart: string, granularity: TrendGranularity): string => {
-  const date = new Date(bucketStart);
-  if (granularity === 'week') {
-    return String(date.getDate());
-  }
-  if (granularity === 'month') {
-    return date.toLocaleDateString('en-IN', {month: 'narrow'});
-  }
-  return date.toLocaleDateString('en-IN', {weekday: 'narrow'});
-};
+export {trendLabel, type TrendGranularity} from '../utils/trend';
 
 export interface TrendDay {
   key: string;
@@ -145,9 +136,19 @@ export const timeZone = () => {
 };
 
 export const homeService = {
-  /** Kept on the phone, so Home still shows the last numbers offline. */
-  getHome: (): Promise<{stats: HomeStats; lastTrip: LastTrip | null}> => withOfflineCache('home', fetchHome),
-  getTrend: (granularity: TrendGranularity = 'day'): Promise<TrendDay[]> => withOfflineCache(`trend:${granularity}`, () => fetchTrend(granularity)),
+  /** Worked out on the phone once it holds every drive (local-first part 2c), else the server's. */
+  getHome: (): Promise<{stats: HomeStats; lastTrip: LastTrip | null}> =>
+    localFirst(
+      'home',
+      (db) => {
+        const trips = statsFacts(db);
+        const profile = currentProfile(db);
+        return {stats: homeStats(trips, {frequency: profile?.driving_frequency, weeklyGoal: profile?.weekly_goal}), lastTrip: lastTripOf(trips)};
+      },
+      fetchHome,
+    ),
+  getTrend: (granularity: TrendGranularity = 'day'): Promise<TrendDay[]> =>
+    localFirst(`trend:${granularity}`, (db) => trendDays(statsFacts(db), granularity), () => fetchTrend(granularity)),
 };
 
 async function fetchHome(): Promise<{stats: HomeStats; lastTrip: LastTrip | null}> {

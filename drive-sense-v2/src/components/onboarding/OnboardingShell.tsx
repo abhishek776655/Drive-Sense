@@ -8,7 +8,7 @@ import {BackChip, ProgressBar} from './controls';
 import {FadeUp} from './motion';
 
 /** Account, photo, ride, vehicle, frequency, location, notifications, safety (done has no bar). */
-export const ONBOARDING_STEPS = 8;
+export const ONBOARDING_STEPS = 9;
 
 function useKeyboardOpen(): boolean {
   const [open, setOpen] = useState(false);

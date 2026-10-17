@@ -1,4 +1,6 @@
-import {withOfflineCache} from '../db/offlineCache';
+import {statsFacts} from '../db/repos';
+import {statsOverview} from '../stats/overview';
+import {localFirst} from '../stats/source';
 import {apiClient} from './apiClient';
 import type {DayRange} from '../utils/calendar';
 import {timeZone} from './homeService';
@@ -67,7 +69,7 @@ export interface StatsOverview {
 export const statsService = {
   /** `range` is used (and needed) only by the `custom` period. */
   /** `overKmh` is the speeding limit for the time-over figure (the Settings speed alert). */
-  /** Kept on the phone per period / vehicle / range, so the last answer still shows offline. */
+  /** Worked out on the phone once it holds every drive (local-first part 2c), else the server's. */
   overview: async ({period, vehicleId, range, overKmh}: {period: StatsPeriod; vehicleId: string | null; range?: DayRange | null; overKmh?: number}): Promise<StatsOverview> => {
     const params = {
       period,
@@ -76,6 +78,10 @@ export const statsService = {
       ...(vehicleId ? {vehicle_id: vehicleId} : {}),
       ...(period === 'custom' && range ? {start: range.start, end: range.end} : {}),
     };
-    return withOfflineCache(`stats:${JSON.stringify(params)}`, async () => (await apiClient.get<StatsOverview>('/api/v1/stats/overview', {params})).data);
+    return localFirst(
+      `stats:${JSON.stringify(params)}`,
+      (db) => statsOverview(statsFacts(db, vehicleId), {period, range, overKmh}),
+      async () => (await apiClient.get<StatsOverview>('/api/v1/stats/overview', {params})).data,
+    );
   },
 };

@@ -11,7 +11,8 @@ describe('onboarding steps', () => {
     expect(nextStep('photo')).toBe('ride');
     expect(nextStep('done')).toBe('done');
     expect(prevStep('photo')).toBe('photo');
-    expect(prevStep('safety')).toBe('notifications');
+    expect(prevStep('safety')).toBe('backup');
+    expect(prevStep('backup')).toBe('notifications');
   });
 
   it('remembers the direction so the next page slides in from the right side', () => {

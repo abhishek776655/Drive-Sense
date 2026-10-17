@@ -6,6 +6,7 @@ import {useFinishedDriveStore} from '../stores/finishedDriveStore';
 import {useRecordingStore} from '../stores/recordingStore';
 import {outboxId} from '../db/repos';
 import {backfillRoutes} from './backfill';
+import {isPhoneOnly} from './driveBackup';
 import {flushOutbox} from './outbox';
 import {hasSynced, pullAll} from './pull';
 import {useSyncStore} from './syncStore';
@@ -54,6 +55,11 @@ export const requestSync = (): Promise<void> => {
   if (running) {
     return running;
   }
+  if (isPhoneOnly()) {
+    // "This phone only" (part 3): drives neither go up nor come down; the phone's copy is the one.
+    useSyncStore.setState({ready: true});
+    return Promise.resolve();
+  }
   useSyncStore.setState({syncing: true});
   running = (async () => {
     try {
@@ -89,7 +95,7 @@ export function startSync(): () => void {
   if (!db) {
     return () => {};
   }
-  useSyncStore.setState({ready: hasSynced(db)});
+  useSyncStore.setState({ready: hasSynced(db) || isPhoneOnly()});
   void requestSync();
   const app = AppState.addEventListener('change', (next) => {
     if (next === 'active' && Date.now() - lastPullAt >= FOREGROUND_PULL_MS) {

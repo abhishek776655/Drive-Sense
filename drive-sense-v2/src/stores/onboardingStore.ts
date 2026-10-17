@@ -5,7 +5,7 @@ import type {DrivingFrequency} from '../services/profileService';
 import type {Preferences} from './preferencesStore';
 
 /** The signed-in part of onboarding, in order (account creation comes before, on /signup). */
-export const ONBOARDING_STEPS = ['photo', 'ride', 'vehicle', 'frequency', 'location', 'notifications', 'safety', 'done'] as const;
+export const ONBOARDING_STEPS = ['photo', 'ride', 'vehicle', 'frequency', 'location', 'notifications', 'backup', 'safety', 'done'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 const KEY = 'onboarding_v1';

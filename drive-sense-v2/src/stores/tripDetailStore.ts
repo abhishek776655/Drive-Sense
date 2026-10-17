@@ -2,7 +2,9 @@ import {isAxiosError} from 'axios';
 import {create} from 'zustand';
 import {getApiErrorMessage} from '../services/apiClient';
 import {getDb} from '../db';
-import {deleteTrips, getDetail, isLocalTripId, putDetail} from '../db/repos';
+import {deleteTrips, getDetail, isInCloud, isLocalTripId, putDetail, setTripVehicle} from '../db/repos';
+import {isPhoneOnly} from '../sync/driveBackup';
+import {useVehicleStore} from './vehicleStore';
 import {finishOutboxItem} from '../sync/outbox';
 import {useSyncStore} from '../sync/syncStore';
 import {tripDetailApi, tripUploadApi, type TripDetail} from '../services/tripService';
@@ -73,8 +75,8 @@ export const useTripDetailStore = create<TripDetailState>((set, get) => {
     remove: async (id) => {
       set({busy: true, actionError: null});
       const local = getDb();
-      // Not uploaded yet: deleting it is forgetting it on the phone.
-      if (isLocalTripId(id) && local) {
+      // Not on the server (waiting to upload, or phone only): deleting it is forgetting it here.
+      if (local && !isInCloud(local, id)) {
         finishOutboxItem(local, id);
         useSyncStore.setState((s) => ({version: s.version + 1}));
         set((s) => {
@@ -102,9 +104,18 @@ export const useTripDetailStore = create<TripDetailState>((set, get) => {
       }
     },
     changeVehicle: async (id, vehicleId) => {
-      if (isLocalTripId(id)) {
-        set({actionError: 'This drive is still uploading. Change its vehicle once it is online.'});
-        return false;
+      const local = getDb();
+      if (local && !isInCloud(local, id)) {
+        if (isLocalTripId(id) && !isPhoneOnly()) {
+          set({actionError: 'This drive is still uploading. Change its vehicle once it is online.'});
+          return false;
+        }
+        // Phone only: the drive lives here, so the change does too.
+        const vehicle = useVehicleStore.getState().vehicles.find((v) => v.id === vehicleId);
+        setTripVehicle(local, id, vehicleId, vehicle?.display_name ?? '');
+        useSyncStore.setState((s) => ({version: s.version + 1}));
+        await fetch(id);
+        return true;
       }
       set({busy: true, actionError: null});
       try {

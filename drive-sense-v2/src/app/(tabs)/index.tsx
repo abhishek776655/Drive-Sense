@@ -52,7 +52,16 @@ export default function HomeScreen() {
       kicker="My"
       title="Stats"
       contentContainerStyle={{paddingBottom: bottomInset}}
-      refreshControl={<RefreshControl refreshing={loading && stats != null} onRefresh={load} tintColor={c.accent} />}>
+      refreshControl={
+        <RefreshControl
+          refreshing={loading && stats != null}
+          onRefresh={() => {
+            void load();
+            void loadWeather(true);
+          }}
+          tintColor={c.accent}
+        />
+      }>
 
       {weather ? (
         <View style={{marginBottom: 26}}>
@@ -62,6 +71,25 @@ export default function HomeScreen() {
         <View style={{marginBottom: 26}}>
           <WeatherSkeleton />
         </View>
+      ) : weatherStatus === 'error' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Weather unavailable. Retry"
+          onPress={() => void loadWeather(true)}
+          style={{flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 20, padding: 16, marginBottom: 26}}>
+          <Ionicons name="cloud-offline" size={22} color={c.textSecondary} />
+          <View style={{flex: 1}}>
+            <AppText size={15} weight="extrabold">
+              Weather unavailable
+            </AppText>
+            <AppText size={12} weight="semibold" tone="secondary">
+              No location or no connection right now.
+            </AppText>
+          </View>
+          <AppText size={14} weight="black" tone="accent">
+            Retry
+          </AppText>
+        </Pressable>
       ) : null}
 
       {error ? (

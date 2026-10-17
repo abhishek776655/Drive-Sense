@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {useSyncStore} from '../sync/syncStore';
 import {getApiErrorMessage} from '../services/apiClient';
 import {homeService, type HomeStats, type LastTrip, type TrendDay} from '../services/homeService';
 
@@ -28,3 +29,10 @@ export const useHomeStore = create<HomeState>((set) => ({
     }
   },
 }));
+
+// The phone's drives changed (a sync, a drive saved offline): numbers on screen follow.
+useSyncStore.subscribe((next, prev) => {
+  if (next.version !== prev.version && useHomeStore.getState().stats != null) {
+    void useHomeStore.getState().load();
+  }
+});

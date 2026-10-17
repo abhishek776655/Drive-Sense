@@ -1,5 +1,6 @@
 import {tripUploadApi} from '../services/tripService';
 import {toPointPayload, UPLOAD_BATCH} from '../services/tripUpload';
+import {usePreferencesStore} from '../stores/preferencesStore';
 import {useRecordingStore, type Sample} from '../stores/recordingStore';
 
 /**
@@ -27,6 +28,11 @@ export const waitForSyncIdle = async (): Promise<void> => {
 async function runSync(): Promise<void> {
   const store = useRecordingStore.getState();
   if (store.status === 'ready' || !store.vehicle) {
+    return;
+  }
+  if (usePreferencesStore.getState().driveBackup === 'phone') {
+    // "This phone only": nothing goes up. Every fix is already kept in `drive_points`.
+    store.takePending(store.pending.length);
     return;
   }
   let tripId = store.tripId;

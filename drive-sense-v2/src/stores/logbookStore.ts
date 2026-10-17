@@ -10,7 +10,7 @@ import {
   type TripSummary,
 } from '../services/tripService';
 import {getDb} from '../db';
-import {deleteTrips, isLocalTripId, listTrips, routePreviews} from '../db/repos';
+import {deleteTrips, isInCloud, listTrips, routePreviews} from '../db/repos';
 import {finishOutboxItem} from '../sync/outbox';
 import {useSyncStore} from '../sync/syncStore';
 import {periodRange, type Period} from '../utils/logbook';
@@ -153,8 +153,8 @@ export const useLogbookStore = create<LogbookState>((set, get) => {
       for (const id of ids) {
         try {
           const db = getDb();
-          if (isLocalTripId(id) && db) {
-            // Not uploaded yet: forget it on the phone.
+          if (db && !isInCloud(db, id)) {
+            // Not on the server (waiting to upload, or phone only): forget it on the phone.
             finishOutboxItem(db, id);
           } else {
             await tripUploadApi.remove(id);

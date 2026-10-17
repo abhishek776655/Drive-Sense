@@ -73,3 +73,40 @@ download in the background on Wi-Fi).
   from the phone.
 - Tests: 442 mobile (repositories, filters, pull paging and deletions, cursor safety, route
   download) and 139 backend.
+
+## Part 2c: stats on the phone (built)
+
+- `GET /sync/pull` trips also carry `idle_time_seconds` and per-type event counts. Local migration
+  v4 adds `trip_details.point_stats` (altitude, climb, time per speed band, moving seconds by
+  km/h) and clears the pull cursor so every trip is pulled again with the new fields.
+- `src/stats/`: ports of `home_stats_service`, `stats_overview_service`, `achievement_service` and
+  the Home trend, over `statsFacts(db)`. Days are the phone's local days (the Home trend too,
+  where the server uses UTC days).
+- `localFirst` (`src/stats/source.ts`): the phone answers when `statsComplete` (every trip has its
+  numbers and its route); otherwise the server, and the phone's partial answer if the server
+  cannot be reached. Before the first sync: the server with its kept answer.
+- The profile (`/auth/me`) is kept offline for the weekly goal and streak unit. Routes that failed
+  to download are retried after new ones.
+- Verified: the server's unit-test cases replayed on the phone; the demo account (60 trips)
+  computed on the phone matches the server's Home, every overview period, custom range, vehicle
+  stats and achievements, except the order of exact ties.
+
+## Part 3: the drive backup setting (built)
+
+- Preference `driveBackup`: `cloud` (default) or `phone`, on the device. The account, profile and
+  vehicles stay on the server either way; only drives are affected.
+- Phone only: no live upload (`tripSync` drops its queue; fixes stay in `drive_points`), the drive
+  is stored with `putLocalTrip` and kept, addresses come from `expo-location` reverse geocoding,
+  the sync engine skips pull/upload/route download, and stats are always local.
+- Local migration v5: `trips.in_cloud`. Back to the cloud, `queueForUpload` puts every `in_cloud = 0`
+  drive in the outbox (relabelled to its `local:` id) and it uploads through `/finish`.
+- Delete cloud data (`POST /sync/delete-drives`, password checked): downloads any missing routes
+  first, refuses if some are still missing, hard-deletes the user's trips on the server (no
+  tombstones), then marks every local drive `in_cloud = 0`.
+- Backup file: JSON (`drivesense-backup`, version 1) of every trip with its detail, shared via the
+  share sheet; import (expo-document-picker) skips drives already present (same id or start time).
+- Settings: "Drive backup" choice cards with a status line, Back up to file, Import from file, and
+  Delete cloud data (phone only, while the server still has drives). Onboarding step 8 "Back up your
+  drives" (now 9 steps).
+- Verified on the simulator: a phone-only drive stayed on the phone with Apple addresses and no
+  server trip; switching back uploaded it via `/finish`; the backup file held all 61 drives.

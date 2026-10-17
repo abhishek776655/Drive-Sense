@@ -1,4 +1,5 @@
 import {create} from 'zustand';
+import {useSyncStore} from '../sync/syncStore';
 import {getApiErrorMessage} from '../services/apiClient';
 import {achievementsService, type AchievementsOverview} from '../services/achievementsService';
 
@@ -20,3 +21,10 @@ export const useAchievementsStore = create<AchievementsState>((set) => ({
     }
   },
 }));
+
+// The phone's drives changed (a sync, a drive saved offline): the level follows.
+useSyncStore.subscribe((next, prev) => {
+  if (next.version !== prev.version && useAchievementsStore.getState().data != null) {
+    void useAchievementsStore.getState().load();
+  }
+});

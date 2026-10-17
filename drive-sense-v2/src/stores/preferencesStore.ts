@@ -4,6 +4,8 @@ import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
 export type MapStyle = 'standard' | 'muted' | 'satellite' | 'hybrid';
 export type PowerMode = 'maximum' | 'balanced' | 'efficient';
+/** Where drives are kept (local-first part 3): synced to the account, or never leaving this phone. */
+export type DriveBackup = 'cloud' | 'phone';
 
 export interface Preferences {
   units: UnitSystem;
@@ -19,6 +21,7 @@ export interface Preferences {
   powerMode: PowerMode;
   /** Drive-saved and forgotten-drive notifications (they still need the system permission). */
   notifications: boolean;
+  driveBackup: DriveBackup;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -39,6 +42,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   speedAlertKmh: 100,
   powerMode: 'balanced',
   notifications: true,
+  driveBackup: 'cloud',
 };
 
 const KEY = 'preferences_v1';
@@ -63,6 +67,7 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     speedAlertKmh: Math.min(SPEED_ALERT_MAX_KMH, Math.max(SPEED_ALERT_MIN_KMH, alert)),
     powerMode: oneOf(r.powerMode, ['maximum', 'balanced', 'efficient'] as const, d.powerMode),
     notifications: bool(r.notifications, d.notifications),
+    driveBackup: oneOf(r.driveBackup, ['cloud', 'phone'] as const, d.driveBackup),
   };
 };
 

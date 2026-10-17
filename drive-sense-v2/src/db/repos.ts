@@ -1,12 +1,28 @@
 import type {UploadProgress} from '../services/tripUpload';
 import type {TripDetail, TripListParams, TripListResult, TripRoutePreview, TripSummary} from '../services/tripService';
 import type {FinishedDrive, Sample} from '../stores/recordingStore';
-import type {TripMetrics} from '../utils/tripMetrics';
+import type {PhoneEvent, TripMetrics} from '../utils/tripMetrics';
 import type {Vehicle} from '../services/vehicleService';
+import {pointStats, type PointStats} from '../stats/pointStats';
+import type {TripFacts} from '../stats/facts';
 import type {SqlDb, SqlValue} from './sql';
 
-/** A trip as the sync pull sends it: the list summary plus the ids and times the phone needs. */
-export type SyncTrip = TripSummary & {vehicle_id: string; updated_at: string};
+/**
+ * A trip as the sync pull sends it: the list summary plus the ids and times the phone needs, and
+ * what its stats need (local-first part 2c).
+ */
+export type SyncTrip = TripSummary & {
+  vehicle_id: string;
+  updated_at: string;
+  idle_time_seconds?: number;
+  harsh_brake_count?: number;
+  rapid_acceleration_count?: number;
+  overspeed_count?: number;
+  max_g_force?: number | null;
+  max_g_source?: string | null;
+  left_turns?: number | null;
+  right_turns?: number | null;
+};
 
 /** Route lines on the Logbook map are thinned to at most this many points per drive. */
 export const ROUTE_POINTS = 120;
@@ -56,13 +72,13 @@ export const upsertTrips = (db: SqlDb, trips: SyncTrip[]) => {
     const before = db.get<{updated_at: string | null}>('SELECT updated_at FROM trips WHERE id = ?', [t.id]);
     const changed = before != null && before.updated_at !== t.updated_at;
     db.run(
-      `INSERT INTO trips (id, vehicle_id, start_time, distance_meters, duration_seconds, driving_score, max_speed_mps, search_text, json, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO trips (id, vehicle_id, start_time, distance_meters, duration_seconds, driving_score, max_speed_mps, search_text, json, updated_at, in_cloud)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET vehicle_id = excluded.vehicle_id, start_time = excluded.start_time,
          distance_meters = excluded.distance_meters, duration_seconds = excluded.duration_seconds,
          driving_score = excluded.driving_score, max_speed_mps = excluded.max_speed_mps,
          search_text = excluded.search_text, json = excluded.json, updated_at = excluded.updated_at`,
-      [t.id, t.vehicle_id, t.start_time, t.distance_meters, t.duration_seconds, t.driving_score, t.max_speed_mps, searchText(t), JSON.stringify(t), t.updated_at],
+      [t.id, t.vehicle_id, t.start_time, t.distance_meters, t.duration_seconds, t.driving_score, t.max_speed_mps, searchText(t), JSON.stringify(t), t.updated_at, isLocalTripId(t.id) ? 0 : 1],
     );
     if (changed) {
       db.run("UPDATE trips SET points_state = 'none' WHERE id = ?", [t.id]);
@@ -139,9 +155,11 @@ export const listTrips = (db: SqlDb, p: TripListParams): TripListResult => {
 
 export const tripCount = (db: SqlDb): number => db.get<{n: number}>('SELECT COUNT(*) AS n FROM trips')?.n ?? 0;
 
-/** Newest drives whose route has not been downloaded yet. */
+/** Newest drives whose route has not been downloaded yet; ones that failed before go last. */
 export const tripsMissingRoutes = (db: SqlDb, limit: number): string[] =>
-  db.all<{id: string}>("SELECT id FROM trips WHERE points_state = 'none' ORDER BY start_time DESC LIMIT ?", [limit]).map((r) => r.id);
+  db
+    .all<{id: string}>("SELECT id FROM trips WHERE points_state IN ('none', 'failed') ORDER BY points_state = 'failed', start_time DESC LIMIT ?", [limit])
+    .map((r) => r.id);
 
 export const markRouteState = (db: SqlDb, tripId: string, state: 'none' | 'ready' | 'failed') => {
   db.run('UPDATE trips SET points_state = ? WHERE id = ?', [state, tripId]);
@@ -164,8 +182,9 @@ export const thinRoute = (points: TripDetail['location_points'], max = ROUTE_POI
 export const putDetail = (db: SqlDb, detail: TripDetail, now = new Date()) => {
   db.transaction(() => {
     db.run(
-      'INSERT INTO trip_details (trip_id, json, route, fetched_at) VALUES (?, ?, ?, ?) ON CONFLICT(trip_id) DO UPDATE SET json = excluded.json, route = excluded.route, fetched_at = excluded.fetched_at',
-      [detail.id, JSON.stringify(detail), JSON.stringify(thinRoute(detail.location_points)), now.toISOString()],
+      `INSERT INTO trip_details (trip_id, json, route, fetched_at, point_stats) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(trip_id) DO UPDATE SET json = excluded.json, route = excluded.route, fetched_at = excluded.fetched_at, point_stats = excluded.point_stats`,
+      [detail.id, JSON.stringify(detail), JSON.stringify(thinRoute(detail.location_points)), now.toISOString(), JSON.stringify(pointStats(detail.location_points))],
     );
     db.run("UPDATE trips SET points_state = 'ready' WHERE id = ?", [detail.id]);
   });
@@ -200,6 +219,67 @@ export const routePreviews = (db: SqlDb, p: Omit<TripListParams, 'offset' | 'sor
     });
   // Complete when every matching drive in the window has its route on the phone.
   return {routes, complete: routes.length === rows.length};
+};
+
+// ── stats on the phone (local-first part 2c) ──────────────────────────────────
+
+/** Routes stored before part 2c get their numbers worked out once, on first use. */
+const fillPointStats = (db: SqlDb) => {
+  const missing = db.all<{trip_id: string; json: string}>('SELECT trip_id, json FROM trip_details WHERE point_stats IS NULL');
+  if (missing.length === 0) {
+    return;
+  }
+  db.transaction(() => {
+    for (const row of missing) {
+      const detail = JSON.parse(row.json) as TripDetail;
+      db.run('UPDATE trip_details SET point_stats = ? WHERE trip_id = ?', [JSON.stringify(pointStats(detail.location_points ?? [])), row.trip_id]);
+    }
+  });
+};
+
+/**
+ * True when the phone holds everything the stats need: every trip came with its idle time and
+ * event counts, and every route is stored. Until then the server answers (the phone's numbers are
+ * the fallback offline).
+ */
+export const statsComplete = (db: SqlDb): boolean =>
+  (db.get<{n: number}>(
+    "SELECT COUNT(*) AS n FROM trips t LEFT JOIN trip_details d ON d.trip_id = t.id WHERE d.trip_id IS NULL OR json_extract(t.json, '$.idle_time_seconds') IS NULL",
+  )?.n ?? 0) === 0;
+
+/** Every stored drive (or one vehicle's) as the stats see it. */
+export const statsFacts = (db: SqlDb, vehicleId: string | null = null): TripFacts[] => {
+  fillPointStats(db);
+  const names = new Map(listVehicles(db).map((v) => [v.id, v.display_name]));
+  const rows = db.all<{json: string; point_stats: string | null}>(
+    `SELECT t.json, d.point_stats FROM trips t LEFT JOIN trip_details d ON d.trip_id = t.id ${vehicleId ? 'WHERE t.vehicle_id = ?' : ''}`,
+    vehicleId ? [vehicleId] : [],
+  );
+  return rows.map((r) => {
+    const t = JSON.parse(r.json) as SyncTrip;
+    return {
+      id: t.id,
+      vehicleId: t.vehicle_id,
+      vehicleName: names.get(t.vehicle_id) ?? t.vehicle_name,
+      startTime: t.start_time,
+      startMs: Date.parse(t.start_time),
+      startAddress: t.start_address,
+      endAddress: t.end_address,
+      distance: t.distance_meters ?? 0,
+      duration: t.duration_seconds ?? 0,
+      idle: t.idle_time_seconds ?? 0,
+      maxSpeed: t.max_speed_mps,
+      maxG: t.max_g_force ?? null,
+      maxGSource: t.max_g_source ?? null,
+      leftTurns: t.left_turns ?? null,
+      rightTurns: t.right_turns ?? null,
+      score: t.driving_score,
+      harshBrakes: t.harsh_brake_count ?? 0,
+      rapidAccels: t.rapid_acceleration_count ?? 0,
+      overspeeds: t.overspeed_count ?? 0,
+      points: r.point_stats ? (JSON.parse(r.point_stats) as PointStats) : null,
+    };
+  });
 };
 
 // ── API answers kept for offline (Home, stats, achievements) ──────────────────
@@ -265,6 +345,8 @@ export const outboxRemove = (db: SqlDb, id: string) => {
   db.run('DELETE FROM outbox WHERE id = ?', [id]);
 };
 
+const countOf = (metrics: TripMetrics | undefined, type: string) => metrics?.events.filter((e) => e.event_type === type).length ?? 0;
+
 /**
  * The drive as a Logbook row and a trip page right away, from the phone's own numbers, marked
  * pending. The server's version replaces it once uploaded.
@@ -292,6 +374,14 @@ export const putLocalTrip = (db: SqlDb, drive: FinishedDrive, metrics?: TripMetr
     event_count: metrics?.events.length ?? drive.eventCount,
     pending: true,
     updated_at: end,
+    idle_time_seconds: metrics?.idleSeconds ?? 0,
+    harsh_brake_count: countOf(metrics, 'harsh_brake'),
+    rapid_acceleration_count: countOf(metrics, 'rapid_acceleration'),
+    overspeed_count: countOf(metrics, 'overspeed'),
+    max_g_force: metrics ? metrics.maxG : drive.maxG,
+    max_g_source: metrics ? metrics.maxGSource : drive.maxG != null ? 'sensor' : null,
+    left_turns: metrics?.leftTurns ?? null,
+    right_turns: metrics?.rightTurns ?? null,
   };
   const detail: TripDetail = {
     id,
@@ -352,4 +442,194 @@ export const drivePoints = (db: SqlDb, startedAt: number): Sample[] =>
 
 export const clearDrivePoints = (db: SqlDb, startedAt: number) => {
   db.run('DELETE FROM drive_points WHERE drive_started_at = ?', [startedAt]);
+};
+
+// ── phone-only drives, cloud deletion and backup files (local-first part 3) ──
+
+/** True when the server has the drive; false for drives kept on this phone only. */
+export const isInCloud = (db: SqlDb, id: string): boolean => (db.get<{in_cloud: number}>('SELECT in_cloud FROM trips WHERE id = ?', [id])?.in_cloud ?? 0) === 1;
+
+/** Drives the server does not have, oldest first. */
+export const localOnlyTrips = (db: SqlDb): string[] => db.all<{id: string}>('SELECT id FROM trips WHERE in_cloud = 0 ORDER BY start_time').map((r) => r.id);
+
+/** After "Delete cloud data": the phone's copies are now the only ones. */
+export const markAllLocalOnly = (db: SqlDb) => {
+  db.run('UPDATE trips SET in_cloud = 0');
+};
+
+/** Drives whose route (points, events) is not on the phone yet. */
+export const tripsWithoutRoutes = (db: SqlDb): number =>
+  db.get<{n: number}>('SELECT COUNT(*) AS n FROM trips t LEFT JOIN trip_details d ON d.trip_id = t.id WHERE d.trip_id IS NULL')?.n ?? 0;
+
+/** Street addresses the phone looked up itself (phone-only drives), on the row and the trip page. */
+export const setTripAddresses = (db: SqlDb, id: string, start: string | null, end: string | null) => {
+  const row = db.get<{json: string}>('SELECT json FROM trips WHERE id = ?', [id]);
+  if (!row) {
+    return;
+  }
+  const trip = {...(JSON.parse(row.json) as SyncTrip), start_address: start, end_address: end};
+  db.transaction(() => {
+    db.run('UPDATE trips SET json = ?, search_text = ? WHERE id = ?', [JSON.stringify(trip), searchText(trip), id]);
+    const detail = getDetail(db, id);
+    if (detail) {
+      db.run('UPDATE trip_details SET json = ? WHERE trip_id = ?', [JSON.stringify({...detail, start_address: start, end_address: end}), id]);
+    }
+  });
+};
+
+/**
+ * Puts a phone-only drive back in the outbox so it uploads like a just-finished one, with every
+ * point and the phone's numbers. Its row takes the drive's local id first (an imported drive or one
+ * left after "Delete cloud data" still has its old server id), so the upload swaps it out cleanly.
+ * Returns the outbox id, or null for a drive the phone cannot rebuild.
+ */
+export const queueForUpload = (db: SqlDb, id: string): string | null => {
+  const row = db.get<{json: string}>('SELECT json FROM trips WHERE id = ?', [id]);
+  const detail = getDetail(db, id);
+  if (!row || !detail) {
+    return null;
+  }
+  const trip = JSON.parse(row.json) as SyncTrip;
+  const startedAt = Date.parse(trip.start_time);
+  const endedAt = trip.end_time ? Date.parse(trip.end_time) : startedAt + trip.duration_seconds * 1000;
+  const drive: FinishedDrive = {
+    vehicle: {id: trip.vehicle_id, name: trip.vehicle_name},
+    tripId: null,
+    startedAt,
+    endedAt,
+    durationSeconds: trip.duration_seconds,
+    distanceM: trip.distance_meters,
+    topSpeedMps: trip.max_speed_mps,
+    avgSpeedMps: detail.avg_speed_mps ?? null,
+    eventCount: trip.event_count,
+    score: trip.driving_score ?? undefined,
+    maxG: trip.max_g_force ?? null,
+    route: [],
+    unsentSamples: [],
+    autoEnded: false,
+  };
+  const samples: Sample[] = detail.location_points
+    .filter((p) => p.recorded_at)
+    .map((p) => ({
+      latitude: p.latitude,
+      longitude: p.longitude,
+      speedMps: p.speed_mps,
+      altitudeM: p.altitude_m,
+      headingDeg: null,
+      accuracyM: p.accuracy_m ?? null,
+      timestamp: Date.parse(p.recorded_at),
+      peakG: p.peak_g ?? null,
+    }));
+  const metrics: TripMetrics = {
+    // The server takes the three kinds it scores, each with a place.
+    events: detail.events
+      .filter((e) => ['harsh_brake', 'rapid_acceleration', 'overspeed'].includes(e.event_type) && e.latitude != null && e.longitude != null)
+      .map((e) => ({event_type: e.event_type as PhoneEvent['event_type'], intensity: e.intensity ?? 0, occurred_at: e.occurred_at, latitude: e.latitude as number, longitude: e.longitude as number})),
+    score: trip.driving_score ?? 100,
+    leftTurns: trip.left_turns ?? 0,
+    rightTurns: trip.right_turns ?? 0,
+    maxG: trip.max_g_force ?? null,
+    maxGSource: (trip.max_g_source as TripMetrics['maxGSource']) ?? null,
+    idleSeconds: trip.idle_time_seconds ?? 0,
+  };
+  const localId = outboxId(drive);
+  db.transaction(() => {
+    if (localId !== id) {
+      db.run('UPDATE trips SET id = ?, json = ?, in_cloud = 0 WHERE id = ?', [localId, JSON.stringify({...trip, id: localId}), id]);
+      db.run('UPDATE trip_details SET trip_id = ?, json = ? WHERE trip_id = ?', [localId, JSON.stringify({...detail, id: localId}), id]);
+    }
+    outboxPut(db, {id: localId, drive, samples, progress: {tripId: null, uploadedPoints: 0, ended: false}, metrics});
+  });
+  return localId;
+};
+
+export const BACKUP_FORMAT = 'drivesense-backup';
+export const BACKUP_VERSION = 1;
+
+export interface BackupFile {
+  format: typeof BACKUP_FORMAT;
+  version: number;
+  exported_at: string;
+  trips: {trip: SyncTrip; detail: TripDetail | null}[];
+}
+
+/** Every drive on the phone with its route, as one file's content. */
+export const backupSnapshot = (db: SqlDb, now = new Date()): BackupFile => ({
+  format: BACKUP_FORMAT,
+  version: BACKUP_VERSION,
+  exported_at: now.toISOString(),
+  trips: db
+    .all<{json: string; detail: string | null}>('SELECT t.json, d.json AS detail FROM trips t LEFT JOIN trip_details d ON d.trip_id = t.id ORDER BY t.start_time')
+    .map((r) => ({trip: JSON.parse(r.json) as SyncTrip, detail: r.detail ? (JSON.parse(r.detail) as TripDetail) : null})),
+});
+
+/** Throws a readable message for anything that is not a DriveSense backup this app can read. */
+export const parseBackup = (text: string): BackupFile => {
+  let data: Partial<BackupFile>;
+  try {
+    data = JSON.parse(text) as Partial<BackupFile>;
+  } catch {
+    throw new Error('That file is not a DriveSense backup.');
+  }
+  if (data?.format !== BACKUP_FORMAT || !Array.isArray(data.trips)) {
+    throw new Error('That file is not a DriveSense backup.');
+  }
+  if ((data.version ?? 0) > BACKUP_VERSION) {
+    throw new Error('This backup is from a newer DriveSense. Update the app, then import it.');
+  }
+  return data as BackupFile;
+};
+
+/**
+ * Adds the backup's drives the phone does not have (same id, or the same start time), as drives the
+ * server does not have. Returns how many were added and skipped.
+ */
+export const restoreBackup = (db: SqlDb, backup: BackupFile): {added: number; skipped: number} => {
+  let added = 0;
+  let skipped = 0;
+  db.transaction(() => {
+    for (const {trip, detail} of backup.trips) {
+      if (!trip?.id || !trip.start_time || db.get('SELECT 1 FROM trips WHERE id = ? OR start_time = ?', [trip.id, trip.start_time])) {
+        skipped += 1;
+        continue;
+      }
+      upsertTrips(db, [{...trip, pending: undefined}]);
+      db.run('UPDATE trips SET in_cloud = 0 WHERE id = ?', [trip.id]);
+      if (detail) {
+        putDetail(db, {...detail, id: trip.id});
+      }
+      added += 1;
+    }
+  });
+  return {added, skipped};
+};
+
+/** A phone-only drive moved to another vehicle. */
+export const setTripVehicle = (db: SqlDb, id: string, vehicleId: string, vehicleName: string) => {
+  const row = db.get<{json: string}>('SELECT json FROM trips WHERE id = ?', [id]);
+  if (!row) {
+    return;
+  }
+  const trip = {...(JSON.parse(row.json) as SyncTrip), vehicle_id: vehicleId, vehicle_name: vehicleName};
+  db.transaction(() => {
+    db.run('UPDATE trips SET vehicle_id = ?, json = ?, search_text = ? WHERE id = ?', [vehicleId, JSON.stringify(trip), searchText(trip), id]);
+    const detail = getDetail(db, id);
+    if (detail) {
+      db.run('UPDATE trip_details SET json = ? WHERE trip_id = ?', [JSON.stringify({...detail, vehicle_id: vehicleId, vehicle_name: vehicleName}), id]);
+    }
+  });
+};
+
+/** What Settings' Drive backup card reports: drives here, how many the server has, how many wait to upload. */
+export const backupCounts = (db: SqlDb): {total: number; inCloud: number; waiting: number} => {
+  const row = db.get<{total: number; in_cloud: number | null}>('SELECT COUNT(*) AS total, SUM(in_cloud) AS in_cloud FROM trips');
+  return {total: row?.total ?? 0, inCloud: row?.in_cloud ?? 0, waiting: db.get<{n: number}>('SELECT COUNT(*) AS n FROM outbox')?.n ?? 0};
+};
+
+/** Where the newest stored drive ended: the weather card's fallback when there is no GPS fix. */
+export const lastRoutePoint = (db: SqlDb): {latitude: number; longitude: number} | null => {
+  const row = db.get<{route: string | null}>('SELECT d.route FROM trips t JOIN trip_details d ON d.trip_id = t.id WHERE d.route IS NOT NULL ORDER BY t.start_time DESC LIMIT 1');
+  const route = row?.route ? (JSON.parse(row.route) as [number, number][]) : [];
+  const end = route[route.length - 1];
+  return end ? {latitude: end[0], longitude: end[1]} : null;
 };

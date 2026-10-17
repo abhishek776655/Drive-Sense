@@ -5,12 +5,14 @@ import {useState, type ComponentProps} from 'react';
 import {Alert, Pressable, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {requestNotificationPermission} from '../../notifications/driveNotifications';
+import {usePreferencesStore, type DriveBackup} from '../../stores/preferencesStore';
 import {useProfileStore} from '../../stores/profileStore';
+import {DRIVE_BACKUP_COPY, setDriveBackup} from '../../sync/driveBackup';
 import {withAlpha} from '../../theme/color';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {AppText} from '../AppText';
 import {BenefitRow, DoneCheck, NotificationArt, RouteArt} from './art';
-import {GhostButton, PillButton} from './controls';
+import {ChoiceCard, GhostButton, PillButton} from './controls';
 import {FadeUp} from './motion';
 import {OnboardingShell} from './OnboardingShell';
 import type {StepProps} from './profileSteps';
@@ -80,16 +82,44 @@ export function NotificationsStep({onNext, onBack}: StepProps) {
   );
 }
 
+/**
+ * Step 8: where drives are kept (local-first part 3). Cloud backup is chosen already; phone only
+ * shows its warning in its own card. Changeable any time in Settings.
+ */
+export function BackupStep({onNext, onBack}: StepProps) {
+  const saved = usePreferencesStore((s) => s.driveBackup);
+  const [choice, setChoice] = useState<DriveBackup>(saved);
+  const choose = async () => {
+    await setDriveBackup(choice);
+    onNext();
+  };
+  return (
+    <OnboardingShell
+      step={8}
+      onBack={onBack}
+      title="Back up your drives"
+      subtitle="Choose where your drives are kept. You can change it any time in Settings."
+      footer={<PillButton label="Continue" onPress={choose} />}>
+      <FadeUp index={2}>
+        <ChoiceCard title={`${DRIVE_BACKUP_COPY.cloud.title} (Recommended)`} subtitle={DRIVE_BACKUP_COPY.cloud.body} selected={choice === 'cloud'} onPress={() => setChoice('cloud')} />
+      </FadeUp>
+      <FadeUp index={3}>
+        <ChoiceCard title={DRIVE_BACKUP_COPY.phone.title} subtitle={DRIVE_BACKUP_COPY.phone.body} selected={choice === 'phone'} onPress={() => setChoice('phone')} />
+      </FadeUp>
+    </OnboardingShell>
+  );
+}
+
 const TERMS: {icon: ComponentProps<typeof Ionicons>['name']; title: string; body: string}[] = [
   {icon: 'eye', title: 'Stay focused', body: "Never use the app while driving. Handling a phone at the wheel is against the law in most places and puts lives at risk."},
   {icon: 'person', title: 'Your responsibility', body: 'You are responsible for how you drive, your safety, and following the rules of the road.'},
   {icon: 'book', title: 'Follow the law', body: 'Always obey traffic laws and speed limits. DriveSense does not encourage speeding or risky driving.'},
   {icon: 'speedometer', title: 'No accuracy guarantee', body: 'Speed, distance and location come from GPS and can be wrong. They are not fit for legal, safety or navigation use.'},
   {icon: 'hand-left', title: 'Limitation of liability', body: 'The developer is not liable for damage caused by improper use of the app.'},
-  {icon: 'shield-checkmark', title: 'Your data', body: 'Drives are stored on your DriveSense account. Export or delete them in Settings whenever you like.'},
+  {icon: 'shield-checkmark', title: 'Your data', body: 'Drives are kept where you chose: your DriveSense account, or only this phone. Back up, export or delete them in Settings whenever you like.'},
 ];
 
-/** Step 8: the safety terms. Continue stays dimmed until the box is ticked. */
+/** Step 9: the safety terms. Continue stays dimmed until the box is ticked. */
 export function SafetyStep({onNext, onBack}: StepProps) {
   const c = useAppTheme().colors;
   const updateProfile = useProfileStore((s) => s.update);
@@ -110,7 +140,7 @@ export function SafetyStep({onNext, onBack}: StepProps) {
 
   return (
     <OnboardingShell
-      step={8}
+      step={9}
       onBack={onBack}
       title="Safety first"
       subtitle="Read and accept before you start."

@@ -1,3 +1,4 @@
+import {PROFILE_CACHE_KEY, withOfflineCache} from '../db/offlineCache';
 import {apiClient} from './apiClient';
 
 export type DrivingFrequency = 'daily' | 'most' | 'weekends' | 'rarely';
@@ -32,7 +33,7 @@ export interface HandleCheck {
 }
 
 export const profileService = {
-  me: async (): Promise<Profile> => (await apiClient.get<Profile>('/api/v1/auth/me')).data,
+  me: (): Promise<Profile> => withOfflineCache(PROFILE_CACHE_KEY, async () => (await apiClient.get<Profile>('/api/v1/auth/me')).data),
   checkHandle: async (handle: string): Promise<HandleCheck> =>
     (await apiClient.get<HandleCheck>('/api/v1/auth/handle-available', {params: {handle}})).data,
   /** Sign-up's check, before there is an account (no token needed). */

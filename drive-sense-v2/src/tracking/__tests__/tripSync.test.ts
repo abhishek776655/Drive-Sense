@@ -1,4 +1,5 @@
 import {tripUploadApi} from '../../services/tripService';
+import {usePreferencesStore} from '../../stores/preferencesStore';
 import {EMPTY_STATS, useRecordingStore, type Sample} from '../../stores/recordingStore';
 import {syncNow, takeOrphans} from '../tripSync';
 
@@ -29,6 +30,16 @@ describe('tripSync', () => {
     reset();
     api.start.mockResolvedValue({id: 't1', driving_score: null});
     api.locations.mockResolvedValue({});
+  });
+
+  it('sends nothing with "This phone only": the queue is dropped (the fixes are kept on the phone)', async () => {
+    usePreferencesStore.setState({driveBackup: 'phone'});
+    useRecordingStore.getState().start({id: 'v1', name: 'Citigo'}, 5000);
+    [0, 1].forEach((i) => useRecordingStore.getState().ingest(sample(i)));
+    await syncNow();
+    usePreferencesStore.setState({driveBackup: 'cloud'});
+    expect(api.start).not.toHaveBeenCalled();
+    expect(useRecordingStore.getState().pending).toEqual([]);
   });
 
   it('does nothing at Ready or without a vehicle', async () => {

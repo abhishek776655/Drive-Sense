@@ -50,14 +50,14 @@ export default function ProfileScreen() {
         title="My Profile"
         left={
           <GlassButton accessibilityLabel="Done" onPress={() => router.back()} style={{height: 44, paddingHorizontal: 18}}>
-            <AppText size={17} weight="bold">
+            <AppText size={15} weight="bold">
               Done
             </AppText>
           </GlassButton>
         }
         right={
           <GlassButton accessibilityLabel="Edit profile" onPress={() => router.push('/settings/edit-profile')} style={{height: 44, paddingHorizontal: 18}}>
-            <AppText size={17} weight="extrabold" tone="accent">
+            <AppText size={15} weight="extrabold" tone="accent">
               Edit
             </AppText>
           </GlassButton>
@@ -65,11 +65,11 @@ export default function ProfileScreen() {
       />
       <ScrollView contentContainerStyle={{paddingHorizontal: theme.space.screen, paddingBottom: insets.bottom + 32, alignItems: 'stretch'}}>
         <View style={{alignItems: 'center', marginTop: 12, gap: 6}}>
-          <Avatar profile={profile} size={132} />
-          <AppText size={30} weight="black" style={{marginTop: 12}} numberOfLines={1} adjustsFontSizeToFit>
+          <Avatar profile={profile} size={112} />
+          <AppText size={24} weight="black" style={{marginTop: 10}} numberOfLines={1} adjustsFontSizeToFit>
             {profile?.handle ?? 'No handle yet'}
           </AppText>
-          <AppText size={16} weight="semibold" tone="secondary">
+          <AppText size={14} weight="semibold" tone="secondary">
             {vehicle?.display_name ?? 'No vehicle yet'}
           </AppText>
         </View>
@@ -79,10 +79,10 @@ export default function ProfileScreen() {
             <View key={item.label} style={{flex: 1, flexDirection: 'row'}}>
               {i > 0 ? <View style={{width: 1, marginVertical: 6, backgroundColor: c.separator}} /> : null}
               <View style={{flex: 1, alignItems: 'center'}}>
-                <AppText size={24} weight="black">
+                <AppText size={20} weight="black">
                   {item.value}
                 </AppText>
-                <AppText size={13} weight="semibold" tone="secondary">
+                <AppText size={12} weight="semibold" tone="secondary">
                   {item.label}
                 </AppText>
               </View>
@@ -90,21 +90,21 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <AppText size={18} weight="black" style={{marginTop: 22, marginBottom: 12}}>
+        <AppText size={16} weight="black" style={{marginTop: 22, marginBottom: 12}}>
           My Stats
         </AppText>
         <View style={{gap}}>
           <View style={{flexDirection: 'row', gap}}>
-            <BentoTile label="Top Speed" value={topSpeed} unit={known(topSpeed, u.speedUnit)} icon="speedometer" iconColor={c.accent} />
-            <BentoTile label="Total Distance" value={total} unit={known(total, u.distanceUnit)} icon="map" iconColor={c.cyan} />
+            <BentoTile compact label="Top Speed" value={topSpeed} unit={known(topSpeed, u.speedUnit)} icon="speedometer" iconColor={c.accent} />
+            <BentoTile compact label="Total Distance" value={total} unit={known(total, u.distanceUnit)} icon="map" iconColor={c.cyan} />
           </View>
           <View style={{flexDirection: 'row', gap}}>
-            <BentoTile label="Drives" value={formatInt(stats?.trip_count)} icon="car-sport" iconColor={c.blue} />
-            <BentoTile label="Drive Time" value={formatDuration(stats?.drive_time_seconds)} icon="time" iconColor={c.teal} />
+            <BentoTile compact label="Drives" value={formatInt(stats?.trip_count)} icon="car-sport" iconColor={c.blue} />
+            <BentoTile compact label="Drive Time" value={formatDuration(stats?.drive_time_seconds)} icon="time" iconColor={c.teal} />
           </View>
           <View style={{flexDirection: 'row', gap}}>
-            <BentoTile label="Avg Drive" value={avgDrive} unit={known(avgDrive, u.distanceUnit)} icon="git-commit" iconColor={c.mint} />
-            <BentoTile label="Max G-Force" value={stats?.max_g ? `${stats.max_g.estimated ? '≈' : ''}${formatG(stats.max_g.value)}` : DASH} unit={stats?.max_g ? 'G' : undefined} icon="magnet" iconColor={c.purple} />
+            <BentoTile compact label="Avg Drive" value={avgDrive} unit={known(avgDrive, u.distanceUnit)} icon="git-commit" iconColor={c.mint} />
+            <BentoTile compact label="Max G-Force" value={stats?.max_g ? `${stats.max_g.estimated ? '≈' : ''}${formatG(stats.max_g.value)}` : DASH} unit={stats?.max_g ? 'G' : undefined} icon="magnet" iconColor={c.purple} />
           </View>
         </View>
       </ScrollView>

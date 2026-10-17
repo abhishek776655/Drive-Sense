@@ -9,10 +9,16 @@ interface DeleteAccountSheetProps {
   visible: boolean;
   onConfirm: (password: string) => Promise<void>;
   onClose: () => void;
+  /** Defaults are Delete account's; Delete cloud data uses the same password check. */
+  title?: string;
+  message?: string;
+  failure?: string;
 }
 
-/** Password check before the account and every drive are deleted for good. Mounted only while open. */
-export function DeleteAccountSheet({visible, onConfirm, onClose}: DeleteAccountSheetProps) {
+const ACCOUNT_MESSAGE = 'This permanently deletes your account, vehicles and every drive. It cannot be undone. Export your drives first if you want to keep them.';
+
+/** Password check before something is deleted for good (the account, or the cloud's drives). Mounted only while open. */
+export function DeleteAccountSheet({visible, onConfirm, onClose, title = 'Delete account', message = ACCOUNT_MESSAGE, failure = 'Could not delete the account.'}: DeleteAccountSheetProps) {
   const theme = useAppTheme();
   const c = theme.colors;
   const [password, setPassword] = useState('');
@@ -25,16 +31,16 @@ export function DeleteAccountSheet({visible, onConfirm, onClose}: DeleteAccountS
     try {
       await onConfirm(password);
     } catch (e) {
-      setError(getApiErrorMessage(e, 'Could not delete the account.'));
+      setError(e instanceof Error && !('isAxiosError' in e) ? e.message : getApiErrorMessage(e, failure));
       setBusy(false);
     }
   };
 
   return (
-    <BottomSheet visible={visible} title="Delete account" onClose={onClose}>
+    <BottomSheet visible={visible} title={title} onClose={onClose}>
       <View style={{gap: 12, marginTop: 8, marginBottom: 8}}>
         <AppText size={14} weight="semibold" tone="secondary">
-          This permanently deletes your account, vehicles and every drive. It cannot be undone. Export your drives first if you want to keep them.
+          {message}
         </AppText>
         <TextInput
           value={password}

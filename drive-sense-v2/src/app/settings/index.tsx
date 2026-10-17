@@ -10,6 +10,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {AppText} from '../../components/AppText';
 import {Card} from '../../components/Card';
 import {DeleteAccountSheet} from '../../components/settings/DeleteAccountSheet';
+import {DriveBackupSection} from '../../components/settings/DriveBackupSection';
 import {ReliabilityTile} from '../../components/settings/ReliabilityTile';
 import {SelectMenu} from '../../components/settings/SelectMenu';
 import {PillChoice, SettingsGroup, SettingsLabel, SettingsRow, SettingsSwitch} from '../../components/settings/SettingsRows';
@@ -320,6 +321,8 @@ export default function SettingsScreen() {
             <ReliabilityTile icon="phone-portrait" color={c.purple} title="Open the App" hint="Open it briefly during a drive" />
           </View>
         </Card>
+
+        <DriveBackupSection />
 
         <SettingsLabel>ACCOUNT & DATA</SettingsLabel>
         <SettingsGroup>

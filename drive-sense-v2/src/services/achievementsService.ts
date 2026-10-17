@@ -1,4 +1,6 @@
-import {withOfflineCache} from '../db/offlineCache';
+import {statsFacts} from '../db/repos';
+import {achievementsOverview, computeAchievements} from '../stats/achievements';
+import {currentProfile, localFirst} from '../stats/source';
 import {apiClient} from './apiClient';
 import {timeZone} from './homeService';
 
@@ -31,6 +33,11 @@ export interface AchievementsOverview {
 }
 
 export const achievementsService = {
+  /** Worked out on the phone once it holds every drive (local-first part 2c), else the server's. */
   get: (): Promise<AchievementsOverview> =>
-    withOfflineCache('achievements', async () => (await apiClient.get<AchievementsOverview>('/api/v1/achievements', {params: {tz: timeZone()}})).data),
+    localFirst(
+      'achievements',
+      (db) => achievementsOverview(computeAchievements(statsFacts(db), currentProfile(db)?.weekly_goal ?? null)),
+      async () => (await apiClient.get<AchievementsOverview>('/api/v1/achievements', {params: {tz: timeZone()}})).data,
+    ),
 };
