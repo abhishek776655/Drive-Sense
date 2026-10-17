@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from datetime import datetime
 from uuid import UUID
 
@@ -22,6 +24,34 @@ class TripEndRequest(SchemaBase):
     duration_seconds: int | None = Field(default=None, ge=0)
 
 
+class TripFinishEvent(SchemaBase):
+    event_type: Literal["harsh_brake", "rapid_acceleration", "overspeed"]
+    intensity: float = Field(ge=0, le=100)
+    occurred_at: AwareDatetime
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class TripFinishRequest(SchemaBase):
+    """The phone's own numbers for a finished drive (local-first part 2b): computed with the same
+    rules as the server's, from every fix it recorded, and stored as they are."""
+
+    end_time: AwareDatetime
+    distance_meters: float = Field(ge=0)
+    duration_seconds: int = Field(ge=0)
+    idle_time_seconds: int = Field(ge=0)
+    driving_score: int = Field(ge=0, le=100)
+    max_g_force: float | None = Field(default=None, ge=0, le=5)
+    max_g_source: Literal["sensor", "gps"] | None = None
+    left_turns: int = Field(ge=0)
+    right_turns: int = Field(ge=0)
+    events: list[TripFinishEvent] = Field(default_factory=list, max_length=5000)
+
+
+class TripUpdateRequest(SchemaBase):
+    vehicle_id: UUID
+
+
 class TripRead(SchemaBase):
     id: UUID
     user_id: UUID
@@ -32,6 +62,10 @@ class TripRead(SchemaBase):
     distance_meters: float
     duration_seconds: int
     created_at: datetime
+    max_g_force: float | None = None
+    max_g_source: str | None = None
+    left_turns: int | None = None
+    right_turns: int | None = None
 
 
 class TripListRead(TripRead):
@@ -45,8 +79,29 @@ class TripListRead(TripRead):
     event_count: int = 0
 
 
+class TripListTotals(SchemaBase):
+    """Totals over every trip matching the filters, not just the returned page."""
+
+    count: int = 0
+    distance_meters: float = 0
+    duration_seconds: int = 0
+    max_speed_mps: float | None = None
+
+
+class TripRoutePreview(SchemaBase):
+    trip_id: UUID
+    start_time: AwareDatetime
+    distance_meters: float = 0
+    duration_seconds: int = 0
+    max_speed_mps: float | None = None
+    start_address: str | None = None
+    end_address: str | None = None
+    points: list[tuple[float, float]]
+
+
 class TripListPage(SchemaBase):
     items: list[TripListRead] = Field(default_factory=list)
+    totals: TripListTotals = Field(default_factory=TripListTotals)
     total: int = 0
     limit: int = 0
     offset: int = 0
@@ -64,6 +119,8 @@ class TripLocationPointRead(SchemaBase):
     altitude_m: float | None = None
     is_moving: bool | None = None
     provider: str | None = None
+    # Phone accelerometer peak (G, gravity removed) since the previous point; None without sensors.
+    peak_g: float | None = None
 
 
 class TripEventRead(SchemaBase):

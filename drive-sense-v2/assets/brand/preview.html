@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DriveSense — Brand Identity & Design System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --card-bg: #141416;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #FF6D00;
+      --accent-deep: #A84300;
+      --accent-tint: #1E1000;
+      --text-main: #FFFFFF;
+      --text-dim: #A1A0A5;
+      --text-muted: #5E5E60;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(255, 109, 0, 0.12) 0%, transparent 60%),
+        radial-gradient(circle at 80% 80%, rgba(255, 109, 0, 0.05) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    header {
+      padding: 40px 24px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-title h1 {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-title h1 span {
+      color: var(--accent);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      background: var(--accent-tint);
+      border: 1px solid rgba(255, 109, 0, 0.3);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .hero-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-bottom: 60px;
+    }
+
+    @media (max-width: 900px) {
+      .hero-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      min-height: 380px;
+      position: relative;
+    }
+
+    .glow-aura {
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(255, 109, 0, 0.22) 0%, transparent 70%);
+      filter: blur(28px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .interactive-logo {
+      z-index: 2;
+      width: 220px;
+      height: 220px;
+      filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.8));
+      transition: transform 0.2s ease;
+    }
+
+    .interactive-logo:hover {
+      transform: scale(1.02);
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      z-index: 2;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button.btn {
+      background: #1F1F1F;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    button.btn:hover {
+      background: #2a2a2e;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    button.btn.primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    button.btn.primary:hover {
+      background: #ff8124;
+    }
+
+    .slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    input[type=range] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .wordmark-showcase {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      justify-content: center;
+    }
+
+    .wordmark-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px;
+      background: #0A0A0A;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .wm-large {
+      font-size: 38px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .wm-large span {
+      color: var(--accent);
+    }
+
+    .wm-meta {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px;
+      background: #0d0d0e;
+      border-radius: 14px;
+      margin-bottom: 12px;
+    }
+
+    .swatch-color {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      flex-shrink: 0;
+    }
+
+    .swatch-info h4 {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .swatch-info p {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .app-icon-grid {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      gap: 20px;
+      padding: 24px 0;
+      flex-wrap: wrap;
+    }
+
+    .app-icon-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .app-icon-item span {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .icon-ios {
+      width: 96px;
+      height: 96px;
+      border-radius: 22px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+      overflow: hidden;
+    }
+
+    .icon-android {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: #000;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-favicon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: #000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .intro-sim {
+      border: 1px solid var(--card-border);
+      background: #000;
+      border-radius: 28px;
+      height: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .intro-sim .mark-wrapper {
+      transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .intro-sim .wordmark-wrapper {
+      position: absolute;
+      top: 50%;
+      margin-top: 56px;
+      display: flex;
+      gap: 2px;
+      font-size: 32px;
+      font-weight: 900;
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0;
+      transform: translateY(14px);
+    }
+
+    .intro-sim.settled .mark-wrapper {
+      transform: translateY(-56px);
+    }
+
+    .intro-sim.settled .wordmark-wrapper {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand-title">
+      <svg width="36" height="36" viewBox="0 0 1024 1024">
+        <rect width="1024" height="1024" rx="230" fill="#000000"/>
+        <line x1="140" x2="884" y1="330" y2="330" stroke="#FF6D00" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+        <path id="headerRoad" fill="#FF6D00"/>
+        <path id="headerDashes" fill="#000000"/>
+      </svg>
+      <h1>Drive<span>Sense</span></h1>
+      <div class="badge">Brand Identity v2.0</div>
+    </div>
+    <div style="font-size: 13px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">
+      Design Token: #FF6D00
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero / Dynamic Geometry -->
+    <div class="hero-section">
+      <div class="card">
+        <div class="card-title">
+          <span>Vector Geometry in Motion</span>
+          <span style="color: var(--accent); font-family: 'JetBrains Mono', monospace;">src/brand/logo.ts</span>
+        </div>
+        <div class="stage">
+          <div class="glow-aura"></div>
+          <svg id="mainStageLogo" class="interactive-logo" viewBox="0 0 1024 1024">
+            <rect width="1024" height="1024" rx="230" fill="#000000"/>
+            <line x1="140" x2="884" y1="330" y2="330" stroke="#FF6D00" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+            <path id="stageRoad" fill="#FF6D00"/>
+            <path id="stageDashes" fill="#000000"/>
+          </svg>
+          <div class="controls">
+            <button id="toggleAnimBtn" class="btn primary">Pause Motion</button>
+            <div class="slider-wrap">
+              <label for="phaseScrubber">Phase:</label>
+              <input type="range" id="phaseScrubber" min="0" max="1" step="0.01" value="0">
+              <span id="phaseVal">0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>First-Launch Intro Simulator</span>
+          <button id="replayIntroBtn" class="btn" style="padding: 4px 12px; font-size: 11px;">Replay Sequence</button>
+        </div>
+        <div id="introSim" class="intro-sim">
+          <div class="mark-wrapper">
+            <svg width="180" height="180" viewBox="0 0 1024 1024">
+              <defs>
+                <linearGradient id="simFade" x1="0" y1="1024" x2="0" y2="800" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stop-color="#FF6D00" stop-opacity="0"/>
+                  <stop offset="1" stop-color="#FF6D00" stop-opacity="1"/>
+                </linearGradient>
+              </defs>
+              <line x1="140" x2="884" y1="330" y2="330" stroke="#FF6D00" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+              <path id="simRoad" fill="url(#simFade)"/>
+              <path id="simDashes" fill="#000000"/>
+            </svg>
+          </div>
+          <div class="wordmark-wrapper">
+            <span style="color: #FFFFFF;">Drive</span>
+            <span style="color: #FF6D00;">Sense</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wordmark & Lockups -->
+    <div class="card" style="margin-bottom: 40px;">
+      <div class="card-title">Wordmark Typography & Lockups</div>
+      <div class="wordmark-showcase">
+        <div class="wordmark-row">
+          <div class="wm-large">Drive<span>Sense</span></div>
+          <div class="wm-meta">Nunito 900 Black &bull; White &bull; #FF6D00</div>
+        </div>
+        <div class="wordmark-row">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <svg width="42" height="42" viewBox="0 0 1024 1024">
+              <rect width="1024" height="1024" rx="230" fill="#000000"/>
+              <line x1="140" x2="884" y1="330" y2="330" stroke="#FF6D00" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+              <path id="wmRoad" fill="#FF6D00"/>
+              <path id="wmDashes" fill="#000000"/>
+            </svg>
+            <div style="font-size: 26px; font-weight: 900;">Drive<span style="color: #FF6D00;">Sense</span></div>
+          </div>
+          <div class="wm-meta">Primary Nav & Splash Lockup</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Platform Adaptations & Color Tokens -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">Platform App Icons</div>
+        <div class="app-icon-grid">
+          <div class="app-icon-item">
+            <div class="icon-ios">
+              <img src="../icon.png" width="96" height="96" alt="iOS Icon" style="display: block;">
+            </div>
+            <span>iOS (Squircle)</span>
+          </div>
+          <div class="app-icon-item">
+            <div class="icon-android">
+              <img src="../adaptive-icon.png" width="88" height="88" alt="Android Icon" style="display: block;">
+            </div>
+            <span>Android Adaptive</span>
+          </div>
+          <div class="app-icon-item">
+            <div class="icon-favicon">
+              <img src="../favicon.png" width="32" height="32" alt="Favicon" style="display: block;">
+            </div>
+            <span>Favicon (48px)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Brand Color Palette</div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #FF6D00;"></div>
+          <div class="swatch-info">
+            <h4>Brand Road (Accent)</h4>
+            <p>#FF6D00 &bull; rgb(255, 109, 0)</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #000000; border-color: rgba(255,255,255,0.3);"></div>
+          <div class="swatch-info">
+            <h4>Brand Ink (Canvas)</h4>
+            <p>#000000 &bull; rgb(0, 0, 0)</p>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #A84300;"></div>
+          <div class="swatch-info">
+            <h4>Accent Deep</h4>
+            <p>#A84300 &bull; High Contrast</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Verified Artifacts</div>
+        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: #0A0A0A; border-radius: 8px;">
+            <span>assets/icon.png</span>
+            <span style="color: #2BD35A;">1024x1024 Opaque</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: #0A0A0A; border-radius: 8px;">
+            <span>assets/splash-icon.png</span>
+            <span style="color: #2BD35A;">1024x1024 Alpha</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: #0A0A0A; border-radius: 8px;">
+            <span>assets/brand/*.svg</span>
+            <span style="color: #2BD35A;">4 Master SVGs</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: #0A0A0A; border-radius: 8px;">
+            <span>src/brand/logo.ts</span>
+            <span style="color: var(--accent);">Geometry Source</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Pure mathematical road curve and perspective dashing from src/brand/logo.ts
+    const LOGO_SIZE = 1024;
+    const HORIZON_Y = 330;
+    const NEAR_HALF_WIDTH = 240;
+    const NEAR_DEPTH = 2;
+    const FAR_DEPTH = 20;
+    const DASH_LENGTH = 0.45;
+    const DASH_WIDTH = 0.055;
+    const MIN_DASH_HALF_WIDTH = 1.5;
+
+    const MID = [
+      {x: 512, y: 1024},
+      {x: 512, y: 760},
+      {x: 640, y: 560},
+      {x: 560, y: HORIZON_Y},
+    ];
+
+    function bezier(t) {
+      const u = 1 - t;
+      const [a, b, c, d] = MID;
+      return {
+        x: u * u * u * a.x + 3 * u * u * t * b.x + 3 * u * t * t * c.x + t * t * t * d.x,
+        y: u * u * u * a.y + 3 * u * u * t * b.y + 3 * u * t * t * c.y + t * t * t * d.y,
+      };
+    }
+
+    function halfWidthAtY(y) {
+      return NEAR_HALF_WIDTH * Math.max(0, (y - HORIZON_Y) / (LOGO_SIZE - HORIZON_Y));
+    }
+
+    function tAtY(y) {
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (bezier(mid).y > y) lo = mid;
+        else hi = mid;
+      }
+      return (lo + hi) / 2;
+    }
+
+    const fmt = (n) => String(Math.round(n * 10) / 10 + 0);
+
+    function band(y0, y1, steps, scale) {
+      const left = [], right = [];
+      for (let i = 0; i <= steps; i++) {
+        const y = y0 + ((y1 - y0) * i) / steps;
+        const x = bezier(tAtY(y)).x;
+        const w = halfWidthAtY(y) * scale;
+        left.push(`${fmt(x - w)} ${fmt(y)}`);
+        right.push(`${fmt(x + w)} ${fmt(y)}`);
+      }
+      return 'M' + [...left, ...right.reverse()].join('L') + 'Z';
+    }
+
+    function depthToY(z) {
+      return HORIZON_Y + (LOGO_SIZE - HORIZON_Y) * (NEAR_DEPTH / z);
+    }
+
+    function centreDashes(phase) {
+      const parts = [];
+      for (let k = -1; k < FAR_DEPTH - NEAR_DEPTH; k++) {
+        const start = NEAR_DEPTH + k + phase;
+        const from = Math.max(start, NEAR_DEPTH);
+        const to = Math.min(start + DASH_LENGTH, FAR_DEPTH);
+        if (to <= from) continue;
+        const y0 = depthToY(from);
+        const y1 = depthToY(to);
+        if (halfWidthAtY(y1) * DASH_WIDTH < MIN_DASH_HALF_WIDTH) continue;
+        parts.push(band(y0, y1, 6, DASH_WIDTH));
+      }
+      return parts.join('');
+    }
+
+    const roadD = band(LOGO_SIZE, HORIZON_Y, 64, 1);
+    document.getElementById('headerRoad').setAttribute('d', roadD);
+    document.getElementById('headerDashes').setAttribute('d', centreDashes(0));
+    document.getElementById('stageRoad').setAttribute('d', roadD);
+    document.getElementById('simRoad').setAttribute('d', roadD);
+    document.getElementById('wmRoad').setAttribute('d', roadD);
+    document.getElementById('wmDashes').setAttribute('d', centreDashes(0));
+
+    // Animation loop
+    let animating = true;
+    let phase = 0;
+    let lastTime = performance.now();
+
+    function renderPhase(p) {
+      const d = centreDashes(p % 1);
+      document.getElementById('stageDashes').setAttribute('d', d);
+      document.getElementById('simDashes').setAttribute('d', d);
+      document.getElementById('phaseScrubber').value = (p % 1).toFixed(2);
+      document.getElementById('phaseVal').textContent = (p % 1).toFixed(2);
+    }
+
+    function loop(now) {
+      if (animating) {
+        const delta = (now - lastTime) / 1000;
+        phase = (phase + delta * 1.5) % 1;
+        renderPhase(phase);
+      }
+      lastTime = now;
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // Toggle button
+    const toggleBtn = document.getElementById('toggleAnimBtn');
+    toggleBtn.addEventListener('click', () => {
+      animating = !animating;
+      toggleBtn.textContent = animating ? 'Pause Motion' : 'Play Motion';
+      toggleBtn.className = animating ? 'btn primary' : 'btn';
+    });
+
+    // Scrubber
+    const scrubber = document.getElementById('phaseScrubber');
+    scrubber.addEventListener('input', (e) => {
+      animating = false;
+      toggleBtn.textContent = 'Play Motion';
+      toggleBtn.className = 'btn';
+      phase = parseFloat(e.target.value);
+      renderPhase(phase);
+    });
+
+    // Intro simulator
+    const introSim = document.getElementById('introSim');
+    const replayBtn = document.getElementById('replayIntroBtn');
+
+    function playIntroSequence() {
+      introSim.classList.remove('settled');
+      setTimeout(() => {
+        introSim.classList.add('settled');
+      }, 700);
+    }
+
+    replayBtn.addEventListener('click', playIntroSequence);
+    playIntroSequence();
+  </script>
+</body>
+</html>

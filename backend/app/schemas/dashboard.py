@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from datetime import datetime
 from uuid import UUID
 
@@ -133,3 +135,56 @@ class VehicleStatsResponse(SchemaBase):
     fuel_trend: list[TrendPoint]
     events: EventBreakdown
     recent_trips: list[RecentTripSummary]
+
+
+class HomeScore(SchemaBase):
+    current: float | None
+    delta: float | None
+
+
+class HomeMaxG(SchemaBase):
+    value: float
+    # True when the maximum came from a GPS speed estimate rather than the motion sensor.
+    estimated: bool
+
+
+class HomeTurns(SchemaBase):
+    left: int
+    right: int
+
+
+class HomeEvents(SchemaBase):
+    accel: int
+    brake: int
+
+
+class HomeAltitude(SchemaBase):
+    highest_m: float
+    lowest_m: float
+
+
+class HomeWeekGoal(SchemaBase):
+    """Drives aimed for this week (from onboarding) and drives done since Monday."""
+
+    target: int
+    done: int
+
+
+class HomeStats(SchemaBase):
+    """All-time numbers for the v2 Home screen. Every field is null when there is nothing to show."""
+
+    top_speed_mps: float | None = None
+    total_distance_meters: float | None = None
+    # Counted in `streak_unit`: days, or weeks for weekend and occasional drivers.
+    streak_days: int | None = None
+    streak_unit: Literal["days", "weeks"] = "days"
+    week_goal: HomeWeekGoal | None = None
+    avg_speed_mps: float | None = None
+    score: HomeScore | None = None
+    trip_count: int | None = None
+    drive_time_seconds: int | None = None
+    avg_trip_distance_meters: float | None = None
+    max_g: HomeMaxG | None = None
+    turns: HomeTurns | None = None
+    events: HomeEvents | None = None
+    altitude: HomeAltitude | None = None

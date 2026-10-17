@@ -1,0 +1,101 @@
+{
+  "expo": {
+    "name": "DriveSense",
+    "slug": "drive-sense-v2",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "drivesensev2",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abhishek.drivesense.v2",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "DriveSense uses your location during a trip to record route, speed, heading, and live driving telemetry.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "DriveSense keeps recording your route while the app is in the background so a trip is not cut short when you switch apps or lock your phone.",
+        "NSMotionUsageDescription": "DriveSense uses motion sensors to show how smoothly you are driving and to measure G-force.",
+        "UIBackgroundModes": [
+          "location"
+        ],
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.abhishek.drivesense.v2",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "DriveSense keeps recording your route while the app is in the background so a trip is not cut short when you switch apps or lock your phone.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DriveSense uses your photos to show your vehicle in the Garage.",
+          "cameraPermission": "DriveSense uses the camera to take a photo of your vehicle for the Garage."
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.com.abhishek.drivesense.v2",
+          "widgets": [
+            {
+              "name": "DriveWeek",
+              "displayName": "DriveSense week",
+              "description": "This week's driving and your last drive.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "expo-sqlite"
+    ]
+  }
+}

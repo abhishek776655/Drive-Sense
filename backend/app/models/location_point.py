@@ -40,6 +40,7 @@ class LocationPoint(Base):
     heading_deg: Mapped[float | None] = mapped_column(Float)
     accuracy_m: Mapped[float | None] = mapped_column(Float)
     altitude_m: Mapped[float | None] = mapped_column(Float)
+    peak_g: Mapped[float | None] = mapped_column(Float)
     is_moving: Mapped[bool | None] = mapped_column(Boolean)
     provider: Mapped[str | None] = mapped_column(Text)
 

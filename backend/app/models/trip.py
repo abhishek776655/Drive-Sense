@@ -9,12 +9,14 @@ from sqlalchemy import (
     DateTime,
     desc,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
     Numeric,
     SmallInteger,
     String,
+    Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -44,6 +46,10 @@ class Trip(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     cost_amount: Mapped[float | None] = mapped_column(Numeric(12, 2))
     cost_currency: Mapped[str | None] = mapped_column(String(3))
     driving_score: Mapped[int | None] = mapped_column(SmallInteger)
+    max_g_force: Mapped[float | None] = mapped_column(Float)
+    max_g_source: Mapped[str | None] = mapped_column(Text)
+    left_turns: Mapped[int | None] = mapped_column(Integer)
+    right_turns: Mapped[int | None] = mapped_column(Integer)
 
     # Reverse-geocoded from the trip's first and last location point. `geocoded_at` records the
     # attempt, not the success — without it a trip whose lookup failed (or whose endpoints resolve

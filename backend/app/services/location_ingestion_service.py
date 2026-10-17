@@ -15,6 +15,7 @@ from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 from app.schemas.event import EventCreate
 from app.schemas.location_point import LocationPointCreate
+from app.services.g_force_service import merge_sensor_peak
 from app.services.driving_event_detection_service import (
     DetectionPoint,
     detect_driving_events,
@@ -91,6 +92,7 @@ async def ingest_location_points(
             "heading_deg": point.heading_deg,
             "accuracy_m": point.accuracy_m,
             "altitude_m": point.altitude_m,
+            "peak_g": point.peak_g,
             "is_moving": point.is_moving,
             "provider": point.provider,
         }
@@ -146,6 +148,13 @@ async def ingest_location_points(
     trip.idle_time_seconds = int(trip.idle_time_seconds or 0) + incremental_idle_seconds
     batch_max_speed = max((point.speed_mps or 0) for point in points)
     trip.max_speed_mps = max(float(trip.max_speed_mps or 0), batch_max_speed)
+    sensor_max = merge_sensor_peak(
+        trip.max_g_force if trip.max_g_source == "sensor" else None,
+        [point.peak_g for point in points],
+    )
+    if sensor_max is not None:
+        trip.max_g_force = sensor_max
+        trip.max_g_source = "sensor"
     trip.avg_speed_mps = (
         trip.distance_meters / trip.duration_seconds if trip.duration_seconds > 0 else 0
     )

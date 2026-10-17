@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.dashboard import DashboardResponse, RecentEventPage, TrendSeries, VehicleStatsResponse
+from app.schemas.dashboard import DashboardResponse, HomeStats, RecentEventPage, TrendSeries, VehicleStatsResponse
 from app.schemas.trip import TripInsightRead
+from app.services.home_stats_service import get_home_stats
 from app.services.dashboard_service import (
     get_dashboard_data,
     get_recent_events_page,
@@ -27,6 +28,15 @@ async def get_dashboard(
     db: AsyncSession = Depends(get_db),
 ) -> DashboardResponse:
     return await get_dashboard_data(db, user_id=user.id)
+
+
+@router.get("/dashboard/home", response_model=HomeStats)
+async def get_dashboard_home(
+    tz: str | None = Query(default=None, max_length=64, description="IANA time zone for the streak, e.g. Asia/Kolkata"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> HomeStats:
+    return await get_home_stats(db, user_id=user.id, tz=tz, frequency=user.driving_frequency, weekly_goal=user.weekly_goal)
 
 
 @router.get("/dashboard/events", response_model=RecentEventPage)

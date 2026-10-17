@@ -4,9 +4,28 @@
     {
       "name": "mobile-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "--", "--port", "8084"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "--",
+        "--port",
+        "8084"
+      ],
       "cwd": "mobile-expo",
       "port": 8084
+    },
+    {
+      "name": "v2-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "web",
+        "--",
+        "--port",
+        "8085"
+      ],
+      "cwd": "drive-sense-v2",
+      "port": 8085
     }
   ]
 }

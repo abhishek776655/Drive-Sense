@@ -477,13 +477,16 @@ async def _get_or_create_demo_user(session: AsyncSession) -> User:
     user = existing.scalar_one_or_none()
     if user is not None:
         user.password_hash = hash_password(DEMO_PASSWORD)
+        user.terms_accepted_at = user.terms_accepted_at or datetime.now(timezone.utc)
         await session.flush()
         return user
 
+    # The demo account is past onboarding, so signing in lands on Home.
     user = User(
         id=uuid.uuid4(),
         email=DEMO_EMAIL,
         password_hash=hash_password(DEMO_PASSWORD),
+        terms_accepted_at=datetime.now(timezone.utc),
     )
     session.add(user)
     await session.flush()

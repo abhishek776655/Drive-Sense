@@ -34,3 +34,6 @@ mobile-expo/android/app/build/
 # IDE
 .idea/
 .vscode/
+
+# Brainstorming visual companion mockups
+.superpowers/

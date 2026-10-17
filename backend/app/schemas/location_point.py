@@ -16,6 +16,8 @@ class LocationPointCreate(SchemaBase):
     heading_deg: float | None = Field(default=None, ge=0, le=360)
     accuracy_m: float | None = Field(default=None, ge=0)
     altitude_m: float | None = None
+    # Peak motion-sensor G since the previous fix; capped well above anything a car can do.
+    peak_g: float | None = Field(default=None, ge=0, le=5)
     is_moving: bool | None = None
     provider: str | None = None
 

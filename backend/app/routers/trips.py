@@ -3,19 +3,22 @@ from __future__ import annotations
 from uuid import UUID
 
 from datetime import datetime
+from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.event import EventCreate, EventIngestResponse
 from app.schemas.location_point import LocationIngestResponse, LocationPointCreate
-from app.schemas.trip import TripDetailRead, TripEndRequest, TripEventRead, TripInsightRead, TripListPage, TripListRead, TripLocationPointRead, TripRead, TripStartRequest
+from app.schemas.trip import TripDetailRead, TripEndRequest, TripFinishRequest, TripEventRead, TripInsightRead, TripListPage, TripListRead, TripListTotals, TripLocationPointRead, TripRead, TripRoutePreview, TripStartRequest, TripUpdateRequest
 from app.services.geocoding_service import geocode_trip_in_background
+from app.services.home_stats_service import resolve_zone
+from app.services.trip_export_service import list_export_rows, trips_to_csv
 from app.services.location_ingestion_service import ingest_events, ingest_location_points
 from app.services.trip_insight_service import generate_trip_insights
-from app.services.trip_service import end_trip, get_trip_detail, list_trip_summaries, list_trips, start_trip
+from app.services.trip_service import delete_trip, end_trip, finish_trip, get_trip_detail, list_trip_routes, list_trip_summaries, list_trips, start_trip, update_trip_vehicle
 
 router = APIRouter(prefix="/trips")
 
@@ -27,12 +30,13 @@ async def get_trips(
     start_time_lte: datetime | None = Query(default=None),
     min_score: int | None = Query(default=None, ge=0, le=100),
     search: str | None = Query(default=None, max_length=100),
+    sort: Literal["newest", "oldest", "longest", "fastest", "best", "worst"] = Query(default="newest"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TripListPage:
-    trips, total = await list_trip_summaries(
+    trips, total, totals = await list_trip_summaries(
         db,
         user_id=user.id,
         vehicle_id=vehicle_id,
@@ -40,6 +44,7 @@ async def get_trips(
         start_time_lte=start_time_lte,
         min_score=min_score,
         search=search,
+        sort=sort,
         limit=limit,
         offset=offset,
     )
@@ -65,7 +70,46 @@ async def get_trips(
         )
         for row in trips
     ]
-    return TripListPage(items=items, total=total, limit=limit, offset=offset)
+    return TripListPage(items=items, totals=TripListTotals(**totals), total=total, limit=limit, offset=offset)
+
+
+@router.get("/export.csv", response_class=Response)
+async def export_trips_csv(
+    tz: str | None = Query(default=None, max_length=64),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    rows = await list_export_rows(db, user_id=user.id)
+    return Response(
+        content=trips_to_csv(rows, resolve_zone(tz)),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="drivesense-drives.csv"'},
+    )
+
+
+@router.get("/routes", response_model=list[TripRoutePreview])
+async def get_trip_routes(
+    vehicle_id: UUID | None = Query(default=None),
+    start_time_gte: datetime | None = Query(default=None),
+    start_time_lte: datetime | None = Query(default=None),
+    min_score: int | None = Query(default=None, ge=0, le=100),
+    search: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=30, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TripRoutePreview]:
+    """Route lines for the Logbook map: newest first, each thinned to about 40 points."""
+    routes = await list_trip_routes(
+        db,
+        user_id=user.id,
+        vehicle_id=vehicle_id,
+        start_time_gte=start_time_gte,
+        start_time_lte=start_time_lte,
+        min_score=min_score,
+        search=search,
+        limit=limit,
+    )
+    return [TripRoutePreview(**route) for route in routes]
 
 
 @router.get("/{trip_id}", response_model=TripDetailRead)
@@ -97,6 +141,10 @@ async def get_trip_by_id(
         cost_amount=float(trip.cost_amount) if trip.cost_amount is not None else None,
         cost_currency=trip.cost_currency,
         driving_score=trip.driving_score,
+        max_g_force=trip.max_g_force,
+        max_g_source=trip.max_g_source,
+        left_turns=trip.left_turns,
+        right_turns=trip.right_turns,
         start_address=trip.start_address,
         end_address=trip.end_address,
         location_points=[
@@ -144,6 +192,35 @@ async def get_trip_by_id(
     )
 
 
+@router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def delete_trip_by_id(
+    trip_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Discard a trip (soft delete). Owner only; 404 for anything else, so ids cannot be probed."""
+    if not await delete_trip(db, user_id=user.id, trip_id=trip_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{trip_id}", response_model=TripRead)
+async def update_trip_by_id(
+    trip_id: UUID,
+    payload: TripUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripRead:
+    """Change the trip's vehicle. Owner only; 404 for a foreign trip or vehicle."""
+    try:
+        trip = await update_trip_vehicle(db, user_id=user.id, trip_id=trip_id, vehicle_id=payload.vehicle_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    return TripRead.model_validate(trip)
+
+
 @router.post("/start", response_model=TripRead, status_code=201)
 async def post_trip_start(
     payload: TripStartRequest,
@@ -181,6 +258,24 @@ async def post_trip_end(
 
     # Deliberately after the response: an unreachable Photon must never fail or slow a trip end.
     # The addresses appear on the next read of this trip.
+    background_tasks.add_task(geocode_trip_in_background, trip.id)
+    return TripRead.model_validate(trip)
+
+
+@router.post("/{trip_id}/finish", response_model=TripRead)
+async def post_trip_finish(
+    trip_id: UUID,
+    payload: TripFinishRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripRead:
+    """Ends a drive with the phone's own score, events, turns and G-force (local-first part 2b)."""
+    try:
+        trip = await finish_trip(db, user_id=user.id, trip_id=trip_id, data=payload)
+    except ValueError as e:
+        code = status.HTTP_404_NOT_FOUND if str(e) == "Trip not found" else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=str(e)) from e
     background_tasks.add_task(geocode_trip_in_background, trip.id)
     return TripRead.model_validate(trip)
 
