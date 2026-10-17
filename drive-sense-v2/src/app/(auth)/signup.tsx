@@ -16,7 +16,8 @@ import {handleProblem, HANDLE_MAX, normalizeHandle} from '../../utils/handle';
 /** Pause after typing before asking the server whether the handle is free. */
 const CHECK_DELAY_MS = 400;
 
-type Check = {state: 'idle' | 'checking' | 'ok' | 'bad'; message: string | null};
+/** `unknown`: the server could not be asked; sign-up itself still refuses a taken handle. */
+type Check = {state: 'idle' | 'checking' | 'ok' | 'bad' | 'unknown'; message: string | null};
 
 /**
  * Onboarding step 1 (spec 2026-10-17, onboarding): pick a @handle (checked live), a password, and
@@ -50,7 +51,7 @@ export default function SignupScreen() {
         })
         .catch(() => {
           if (!cancelled) {
-            setCheck({state: 'idle', message: null});
+            setCheck({state: 'unknown', message: "Can't check now"});
           }
         });
     }, CHECK_DELAY_MS);
@@ -64,7 +65,7 @@ export default function SignupScreen() {
   const status: Check = !handle ? {state: 'idle', message: null} : problem ? {state: 'bad', message: problem} : check;
   const passwordOk = passwordProblem(password) == null;
   const emailIssue = emailProblem(email);
-  const canCreate = status.state === 'ok' && passwordOk && emailIssue == null && !busy;
+  const canCreate = (status.state === 'ok' || status.state === 'unknown') && passwordOk && emailIssue == null && !busy;
 
   const create = async () => {
     setBusy(true);

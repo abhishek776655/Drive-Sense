@@ -70,7 +70,7 @@ describe('homeStats', () => {
 
   it('keeps a week streak for weekend drivers', () => {
     const trips = [fact(at(2026, 10, 11)), fact(at(2026, 10, 4)), fact(at(2026, 9, 27))];
-    expect(homeStats(trips, {now: NOW, frequency: 'weekends'})).toMatchObject({streak_days: 3, streak_unit: 'weeks', week_goal: null});
+    expect(homeStats(trips, {now: NOW, frequency: 'weekends'})).toMatchObject({streak_days: 3, streak_unit: 'weeks', week_goal: {target: null, done: 0}});
   });
 
   it('finds the newest drive for the last-drive card', () => {

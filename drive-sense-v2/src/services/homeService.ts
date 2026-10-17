@@ -13,7 +13,8 @@ export interface HomeStats {
   /** Unit of `streak_days`: weeks for weekend and occasional drivers (onboarding's frequency). */
   streak_unit?: 'days' | 'weeks';
   /** Drives aimed for this week and done since Monday; null without a goal. */
-  week_goal?: {target: number; done: number} | null;
+  /** `target` is null when no goal is set (the phone still counts the week's drives). */
+  week_goal?: {target: number | null; done: number} | null;
   avg_speed_mps: number | null;
   score: {current: number | null; delta: number | null} | null;
   trip_count: number | null;

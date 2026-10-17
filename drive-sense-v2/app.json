@@ -95,7 +95,9 @@
           ]
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "./plugins/withoutPushEntitlement",
+      "./plugins/withSceneLifecycle"
     ]
   }
 }

@@ -29,7 +29,7 @@ type Sheet = 'sort' | 'period' | 'filter' | null;
 function EmptyState({text, action, onPress}: {text: string; action?: string; onPress?: () => void}) {
   const theme = useAppTheme();
   return (
-    <Card style={{alignItems: 'center', gap: 12, paddingVertical: 28, paddingHorizontal: 20}}>
+    <Card style={{alignItems: 'center', gap: 12, paddingVertical: 28, paddingHorizontal: 20, marginTop: 36}}>
       <Ionicons name="car-outline" size={30} color={theme.colors.textTertiary} />
       <AppText size={15} weight="bold" tone="secondary" style={{textAlign: 'center'}}>
         {text}

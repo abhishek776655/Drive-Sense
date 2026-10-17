@@ -6,7 +6,7 @@ import {useAppTheme} from '../../theme/ThemeProvider';
 import type {StatDisplay} from '../../utils/liveStats';
 import {AppText} from '../AppText';
 import {GaugeDial} from './GaugeDial';
-import {AutoStartLine, PrimaryControls} from './PrimaryControls';
+import {PrimaryControls} from './PrimaryControls';
 
 interface GaugePanelProps {
   status: RecordingStatus;
@@ -57,9 +57,9 @@ export function GaugePanel({status, speed, scale, gaugeStyle, accent, stats, ...
           ))}
         </View>
       ) : null}
-      <View style={{alignSelf: 'stretch', gap: 10}}>
+      {/* At Ready the dial stands alone, so Start sits lower, clear of it. */}
+      <View style={{alignSelf: 'stretch', marginTop: ready ? 40 : 0}}>
         <PrimaryControls status={status} {...actions} />
-        {ready ? <AutoStartLine /> : null}
       </View>
     </View>
   );

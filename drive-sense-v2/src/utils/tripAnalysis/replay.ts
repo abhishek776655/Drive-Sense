@@ -20,6 +20,9 @@ export interface ReplayFrame {
   meters: number;
   g: number;
   heading: number | null;
+  /** A calmer heading for a chase camera: the route's direction over a wider stretch, so the view
+   * sweeps through turns instead of following every wobble. */
+  cameraHeading: number | null;
   /** The point at or before this moment: the route is drawn up to here. */
   index: number;
 }
@@ -42,19 +45,56 @@ export const buildReplay = (points: CleanPoint[]): ReplayTrack => {
   return {points, t, meters, durationMs: t[t.length - 1] ?? 0};
 };
 
-/** Heading at point i: towards the next point that is far enough away to give a direction. */
-const headingFrom = (points: CleanPoint[], i: number): number | null => {
-  for (let j = i + 1; j < Math.min(points.length, i + 20); j += 1) {
-    if (haversineMeters(points[i], points[j]) > 3) {
-      return bearingBetween(points[i], points[j]);
+/** The car points at the route this far ahead: far enough to ignore GPS wobble, close enough for turns. */
+export const HEADING_AHEAD_M = 15;
+
+/** The spot `m` metres into the drive, along the route. */
+const atMeters = (track: ReplayTrack, m: number): {latitude: number; longitude: number} => {
+  const {points, meters} = track;
+  const target = Math.min(Math.max(m, 0), meters[meters.length - 1]);
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (meters[mid] <= target) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
     }
   }
-  for (let j = i - 1; j >= Math.max(0, i - 20); j -= 1) {
-    if (haversineMeters(points[j], points[i]) > 3) {
-      return bearingBetween(points[j], points[i]);
-    }
+  const a = points[lo];
+  const b = points[Math.min(lo + 1, points.length - 1)];
+  const span = meters[Math.min(lo + 1, points.length - 1)] - meters[lo];
+  const f = span > 0 ? (target - meters[lo]) / span : 0;
+  return {latitude: a.latitude + (b.latitude - a.latitude) * f, longitude: a.longitude + (b.longitude - a.longitude) * f};
+};
+
+/**
+ * The direction of travel at a spot on the route: from it towards the route a little ahead (or, at
+ * the very end, from a little behind). Smooth, because it follows the car's exact position rather
+ * than jumping from one GPS point to the next. Null when the drive never moved.
+ */
+const headingAt = (track: ReplayTrack, m: number): number | null => {
+  const total = track.meters[track.meters.length - 1] ?? 0;
+  if (total < 3) {
+    return null;
   }
-  return null;
+  const here = atMeters(track, m);
+  const ahead = m + HEADING_AHEAD_M <= total ? atMeters(track, m + HEADING_AHEAD_M) : here;
+  const from = ahead === here ? atMeters(track, Math.max(0, total - HEADING_AHEAD_M)) : here;
+  const to = ahead === here ? atMeters(track, total) : ahead;
+  return bearingBetween(from, to);
+};
+
+/** The chase camera looks along the route over this stretch behind and ahead of the car. */
+export const CAMERA_SPAN_M = 25;
+
+const cameraHeadingAt = (track: ReplayTrack, m: number): number | null => {
+  const total = track.meters[track.meters.length - 1] ?? 0;
+  if (total < 3) {
+    return null;
+  }
+  return bearingBetween(atMeters(track, Math.max(0, m - CAMERA_SPAN_M)), atMeters(track, Math.min(total, m + CAMERA_SPAN_M)));
 };
 
 /** Where the car was, how fast, how far and how hard it pushed, `ms` into the replay. */
@@ -89,7 +129,8 @@ export const replayAt = (track: ReplayTrack, ms: number): ReplayFrame | null => 
     kmh: lerp(a.mps, b.mps) * 3.6,
     meters: lerp(meters[i], meters[Math.min(i + 1, points.length - 1)]),
     g: Math.abs(g) <= MAX_G ? g : 0,
-    heading: headingFrom(points, i),
+    heading: headingAt(track, lerp(meters[i], meters[Math.min(i + 1, points.length - 1)])),
+    cameraHeading: cameraHeadingAt(track, lerp(meters[i], meters[Math.min(i + 1, points.length - 1)])),
     index: i,
   };
 };

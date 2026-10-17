@@ -1,11 +1,8 @@
 import {Ionicons} from '@expo/vector-icons';
 import {useEffect, useState, type ReactNode} from 'react';
 import {Animated, Easing, Pressable, View} from 'react-native';
-import {useUnits} from '../../hooks/useUnits';
-import {usePreferencesStore} from '../../stores/preferencesStore';
 import type {RecordingStatus} from '../../stores/recordingStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
-import {AUTO_START_SPEED_MPS} from '../../utils/autoTrip';
 import {AppText} from '../AppText';
 import {Glass} from '../Glass';
 import {hasLiquidGlass} from '../../theme/liquidGlass';
@@ -139,24 +136,6 @@ export function PrimaryControls({status, onStart, onPause, onResume, onEnd}: Pri
           </Glass>
         </PressScale>
       </Animated.View>
-    </View>
-  );
-}
-
-/** Shown only while auto-start is on (Settings): otherwise the line would promise a start that won't come. */
-export function AutoStartLine() {
-  const theme = useAppTheme();
-  const u = useUnits();
-  const autoStart = usePreferencesStore((s) => s.autoStart);
-  if (!autoStart) {
-    return null;
-  }
-  return (
-    <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6}}>
-      <View style={{width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.green}} />
-      <AppText size={11} weight="bold" tone="secondary">
-        Auto-start on · begins above {u.speed(AUTO_START_SPEED_MPS)} {u.speedUnit}
-      </AppText>
     </View>
   );
 }

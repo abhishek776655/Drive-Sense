@@ -5,6 +5,7 @@ import type {Vehicle} from '../../services/vehicleService';
 import {withAlpha} from '../../theme/color';
 import {softShadow} from '../../theme/shadow';
 import {useAppTheme} from '../../theme/ThemeProvider';
+import {AuthedImage} from '../AuthedImage';
 import {DashedOutline} from './DashedOutline';
 import {VehicleIcon} from './VehicleIcon';
 
@@ -55,9 +56,15 @@ export function VehicleStrip({vehicles, activeId, onPick, onAdd}: VehicleStripPr
                 backgroundColor: c.accentTint,
                 alignItems: 'center',
                 justifyContent: 'center',
+                overflow: 'hidden',
                 ...(on ? null : softShadow(c, 'small')),
               }}>
-              <VehicleIcon type={v.vehicle_type} size={34} color={c.accent} />
+              {/* The vehicle's own photo fills the tile; the glyph stands in without one. */}
+              {v.photo_url ? (
+                <AuthedImage path={v.photo_url} style={{width: '100%', height: '100%', borderRadius: RADIUS - 3}} />
+              ) : (
+                <VehicleIcon type={v.vehicle_type} size={34} color={c.accent} />
+              )}
             </View>
             {on ? (
               <View style={{position: 'absolute', right: -3, bottom: -3, width: 20, height: 20, borderRadius: 10, backgroundColor: c.accent, borderWidth: 2, borderColor: c.canvas, alignItems: 'center', justifyContent: 'center'}}>

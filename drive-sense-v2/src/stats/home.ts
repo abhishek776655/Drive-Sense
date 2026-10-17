@@ -46,7 +46,7 @@ export function homeStats(trips: TripFacts[], {now = new Date(), frequency, week
     total_distance_meters: count ? distance : null,
     streak_days: count ? (unit === 'weeks' ? weekStreak(starts, today) : dayStreak(starts, today)) : null,
     streak_unit: unit,
-    week_goal: weeklyGoal ? {target: weeklyGoal, done: starts.filter((d) => d >= monday && d <= today).length} : null,
+    week_goal: {target: weeklyGoal || null, done: starts.filter((d) => d >= monday && d <= today).length},
     avg_speed_mps: moving > 0 && distance > 0 ? distance / moving : null,
     score: current != null ? {current, delta: previous != null ? current - previous : null} : null,
     trip_count: count || null,

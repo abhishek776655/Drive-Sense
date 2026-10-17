@@ -140,18 +140,30 @@ export function VehicleSheet({vehicle, onSave, onDelete, onClose}: VehicleSheetP
             {TYPES.map((type) => {
               const on = draft.vehicle_type === type;
               return (
-                <GlassButton
+                <Pressable
                   key={type}
+                  accessibilityRole="radio"
                   accessibilityLabel={vehicleNoun(type)}
                   accessibilityState={{selected: on}}
                   onPress={() => pickType(type)}
-                  fill={on ? c.accent : undefined}
-                  style={{flex: 1, height: 44, flexDirection: 'row', gap: 8}}>
-                  <VehicleIcon type={type} size={20} color={on ? c.onAccent : c.textPrimary} />
+                  style={({pressed}) => ({
+                    flex: 1,
+                    height: 52,
+                    borderRadius: 18,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
+                    backgroundColor: on ? c.accent : c.glassRow,
+                    borderWidth: 1,
+                    borderColor: on ? c.accent : c.separator,
+                    opacity: pressed ? 0.8 : 1,
+                  })}>
+                  <VehicleIcon type={type} size={22} color={on ? c.onAccent : c.textPrimary} />
                   <AppText size={16} weight="extrabold" color={on ? c.onAccent : c.textPrimary}>
                     {vehicleNoun(type)}
                   </AppText>
-                </GlassButton>
+                </Pressable>
               );
             })}
           </View>

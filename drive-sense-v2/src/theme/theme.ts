@@ -16,6 +16,9 @@ export interface AppTheme {
     accent: string;
     accentDeep: string;
     onAccent: string;
+    /** Text and icons over a photo, and the dark fade under them; the same in both appearances. */
+    onPhoto: string;
+    photoShade: string;
   };
   font: typeof FONT;
   radius: {card: number; hero: number; pill: number};
@@ -25,7 +28,7 @@ export interface AppTheme {
 /** Theme is `{palette, accent}` in, tokens out, so a new accent never touches a component. */
 export const buildTheme = (palette: Palette, accent: Accent, scheme: ColorScheme): AppTheme => ({
   scheme,
-  colors: {...palette, accent: accent.base, accentDeep: accent.deep, onAccent: '#FFFFFF'},
+  colors: {...palette, accent: accent.base, accentDeep: accent.deep, onAccent: '#FFFFFF', onPhoto: '#FFFFFF', photoShade: '#000000'},
   font: FONT,
   radius: {card: 24, hero: 26, pill: 999},
   space: {cardGap: 10, screen: 16},

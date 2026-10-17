@@ -5,6 +5,7 @@ import {Pressable, RefreshControl, View} from 'react-native';
 import {AppText} from '../../components/AppText';
 import {BentoTile} from '../../components/BentoTile';
 import {WeekGoalTile} from '../../components/WeekGoalTile';
+import {LevelTile} from '../../components/LevelTile';
 import {HeroTile} from '../../components/HeroTile';
 import {LastTripCard} from '../../components/LastTripCard';
 import {StickyHeaderScroll} from '../../components/StickyHeaderScroll';
@@ -18,6 +19,8 @@ import {useUnits} from '../../hooks/useUnits';
 import {useHomeStore} from '../../stores/homeStore';
 import {useRecordingStore} from '../../stores/recordingStore';
 import {useWeatherStore} from '../../stores/weatherStore';
+import {useAchievementsStore} from '../../stores/achievementsStore';
+import {useProfileStore} from '../../stores/profileStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {DASH, formatDuration, formatInt} from '../../utils/format';
 
@@ -34,12 +37,18 @@ export default function HomeScreen() {
   const weather = useWeatherStore((s) => s.weather);
   const weatherStatus = useWeatherStore((s) => s.status);
   const loadWeather = useWeatherStore((s) => s.load);
+  const achievements = useAchievementsStore((s) => s.data);
+  const loadAchievements = useAchievementsStore((s) => s.load);
+  const loadProfile = useProfileStore((s) => s.load);
 
   useFocusEffect(
     useCallback(() => {
       void load();
       void loadWeather();
-    }, [load, loadWeather]),
+      void loadAchievements();
+      // The weekly goal and streak unit come from the profile.
+      void loadProfile();
+    }, [load, loadWeather, loadAchievements, loadProfile]),
   );
 
   const gap = theme.space.cardGap;
@@ -134,9 +143,20 @@ export default function HomeScreen() {
         />
       </View>
 
-      {stats?.week_goal ? (
-        <View style={{marginTop: gap}}>
-          <WeekGoalTile target={stats.week_goal.target} done={stats.week_goal.done} />
+      {/* This week's goal beside the level, each half a row (either may be missing). */}
+      {stats || achievements ? (
+        <View style={{flexDirection: 'row', gap, marginTop: gap}}>
+          {/* Equal columns, the same split as the tiles above. */}
+          {stats ? (
+            <View style={{flex: 1, flexBasis: 0}}>
+              <WeekGoalTile target={stats.week_goal?.target ?? null} done={stats.week_goal?.done ?? 0} />
+            </View>
+          ) : null}
+          {achievements ? (
+            <View style={{flex: 1, flexBasis: 0}}>
+              <LevelTile data={achievements} onPress={() => router.push('/settings/achievements')} />
+            </View>
+          ) : null}
         </View>
       ) : null}
       <View style={{flexDirection: 'row', gap, marginTop: gap}}>

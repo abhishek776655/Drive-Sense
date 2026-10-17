@@ -10,7 +10,7 @@ import type {StatDisplay} from '../../utils/liveStats';
 import {AppText} from '../AppText';
 import {RollingNumber} from '../RollingNumber';
 import {BumpGlass} from './BumpGlass';
-import {AutoStartLine, PrimaryControls} from './PrimaryControls';
+import {PrimaryControls} from './PrimaryControls';
 
 // Vertical layout inside the sheet (y = 0 is the top of the bump).
 // The bump is tall (rises 82 of its 90 radius); the arc stays its original size inside it.
@@ -85,7 +85,6 @@ export function MapSheet({width, status, speed, scale, stats, onStart, onPause, 
       ) : null}
       <View style={{position: 'absolute', left: 12, right: 12, top: ready ? READY_BUTTON_TOP : LIVE_BUTTON_TOP, gap: 10}}>
         <PrimaryControls status={status} onStart={onStart} onPause={onPause} onResume={onResume} onEnd={onEnd} />
-        {ready ? <AutoStartLine /> : null}
       </View>
     </View>
   );
