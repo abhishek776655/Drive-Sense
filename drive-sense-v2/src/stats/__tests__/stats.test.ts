@@ -117,7 +117,7 @@ describe('statsOverview', () => {
     expect(week.speed_distribution.map((b) => b.trips)).toEqual([0, 0, 1, 0, 0, 1]);
     expect(week.time_at_speed[5]).toEqual({label: '100+', seconds: 300, meters: 9000});
     expect(week.speeding).toEqual({limit_kmh: 100, seconds: 300, share: 300 / 900});
-    expect(week.events).toEqual({harsh_brake: 1, rapid_acceleration: 0, overspeed: 0, per_100km: 1 / 0.24});
+    expect(week.events).toEqual({harsh_brake: 1, rapid_acceleration: 0, overspeed: 0, sharp_turn: 0, per_100km: 1 / 0.24});
     expect(week.elevation_gain_m).toBe(12);
     expect(week.records.best_score).toMatchObject({value: 95, trip_id: trips[1].id});
     expect(week.records.top_speed).toMatchObject({value: 31, end_address: 'Sector 29, Gurugram'});

@@ -28,9 +28,9 @@ export function GaugePanel({status, speed, scale, gaugeStyle, accent, stats, ...
   const ready = status === 'ready';
   return (
     <View style={{alignItems: 'center', paddingHorizontal: 12, gap: 14}}>
-      <GaugeDial speed={speed} scale={scale} gaugeStyle={gaugeStyle} accent={accent} size={230} />
+      <GaugeDial speed={speed} scale={scale} gaugeStyle={gaugeStyle} accent={accent} size={270} />
       {!ready ? (
-        <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignSelf: 'stretch'}}>
+        <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignSelf: 'stretch', marginTop: 14}}>
           {stats.slice(0, 6).map((stat) => (
             <View
               key={stat.id}
@@ -58,7 +58,7 @@ export function GaugePanel({status, speed, scale, gaugeStyle, accent, stats, ...
         </View>
       ) : null}
       {/* At Ready the dial stands alone, so Start sits lower, clear of it. */}
-      <View style={{alignSelf: 'stretch', marginTop: ready ? 40 : 0}}>
+      <View style={{alignSelf: 'stretch', marginTop: ready ? 40 : 16}}>
         <PrimaryControls status={status} {...actions} />
       </View>
     </View>

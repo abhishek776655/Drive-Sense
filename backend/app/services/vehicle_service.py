@@ -21,6 +21,8 @@ async def list_vehicles(db: AsyncSession, *, user_id: uuid.UUID) -> list[Vehicle
         select(Vehicle)
         .where(Vehicle.user_id == user_id, Vehicle.deleted_at.is_(None))
         .options(*_VEHICLE_LOAD_OPTIONS)
+        # In the order they were added (the Garage strip), whatever was edited since.
+        .order_by(Vehicle.created_at, Vehicle.id)
     )
     return list(result.scalars().all())
 

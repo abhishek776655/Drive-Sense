@@ -5,6 +5,7 @@ import MapView, {Marker, Polyline} from 'react-native-maps';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useUnits} from '../../hooks/useUnits';
 import {withAlpha} from '../../theme/color';
+import {softShadow} from '../../theme/shadow';
 import {DARK_MAP_STYLE} from '../../theme/mapStyle';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {formatClock, formatG} from '../../utils/format';
@@ -15,9 +16,10 @@ import {kmhInUnits} from '../../utils/units';
 import {AppText} from '../AppText';
 import {Glass} from '../Glass';
 import {GlassButton} from '../GlassButton';
-import {EventMarker} from '../summary/EventMarker';
+import {MapCompass} from '../drive/MapCompass';
 import {MapButton} from './MapButton';
 import {CarMarker, FinishFlag, StartFlag} from './RouteMarkers';
+import {ReplayEventCard, ReplayEventMarker, type EventFacts, type ReplayEventKind} from './ReplayEvents';
 import type {ReplayModalProps} from './ReplayModal.types';
 import {useMapType} from '../../hooks/useMapType';
 
@@ -34,6 +36,8 @@ const FOLLOW_FLY_MS = 800;
 const FRAME_MS = 33;
 /** Clear of the top buttons (close, Follow / Overview, Events). */
 const TOP_BAR_PT = 76;
+/** The slider's capsule thumb. */
+const THUMB_W = 44;
 
 type View_ = 'follow' | 'overview';
 
@@ -58,6 +62,66 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
   // True while the camera flies down to the car after Follow is tapped; the chase waits for it.
   const [arriving, setArriving] = useState(false);
   const arrival = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // The driving events plus a pin where the drive was fastest.
+  const pins = useMemo(() => {
+    const list: {id: string; kind: ReplayEventKind; latitude: number; longitude: number; atMs: number | null; intensity: number | null; kmh?: number}[] = events.map((e) => ({
+      id: e.id,
+      kind: e.kind,
+      latitude: e.latitude,
+      longitude: e.longitude,
+      atMs: e.at ?? null,
+      intensity: e.intensity ?? null,
+    }));
+    // From every point, not the thinned replay line, so it matches the trip's top speed.
+    const top = points.reduce<(typeof points)[number] | null>((best, p) => (best == null || p.mps > best.mps ? p : best), null);
+    if (top && top.mps > 0) {
+      list.push({id: 'top-speed', kind: 'top_speed', latitude: top.latitude, longitude: top.longitude, atMs: top.t, intensity: null, kmh: top.mps * 3.6});
+    }
+    return list;
+  }, [events, points]);
+
+  /** Replay time of a real moment: the point nearest it in time. */
+  const replayMsAt = (realMs: number): number => {
+    let best = 0;
+    for (let i = 1; i < track.points.length; i++) {
+      if (Math.abs(track.points[i].t - realMs) < Math.abs(track.points[best].t - realMs)) {
+        best = i;
+      }
+    }
+    return track.t[best] ?? 0;
+  };
+
+  const selected = pins.find((pin) => pin.id === selectedId) ?? null;
+  const selectedFacts: EventFacts | null = useMemo(() => {
+    if (!selected) {
+      return null;
+    }
+    const at = selected.atMs != null ? replayAt(track, replayMsAt(selected.atMs)) : null;
+    return {
+      kind: selected.kind,
+      g: selected.kind === 'top_speed' ? null : (at?.g ?? null),
+      kmh: selected.kmh ?? at?.kmh ?? null,
+      intensity: selected.intensity,
+      atS: selected.atMs != null && track.points.length > 0 ? (selected.atMs - track.points[0].t) / 1000 : null,
+    };
+    // replayMsAt only reads the track.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, track]);
+
+  const jumpTo = () => {
+    if (!selected) {
+      return;
+    }
+    if (selected.atMs != null) {
+      setMs(replayMsAt(selected.atMs));
+    }
+    setPlaying(false);
+    if (mode === 'overview') {
+      mapRef.current?.animateCamera({center: {latitude: selected.latitude, longitude: selected.longitude}, zoom: 16, altitude: 1500}, {duration: 450});
+    }
+  };
 
   const frame = replayAt(track, ms);
   const index = frame?.index ?? 0;
@@ -68,6 +132,7 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
     setMs(0);
     setMode('overview');
     setPlaying(false);
+    setSelectedId(null);
   };
   const close = () => {
     setPlaying(false);
@@ -194,20 +259,29 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
             customMapStyle={Platform.OS === 'android' && theme.scheme === 'dark' ? DARK_MAP_STYLE : undefined}
             rotateEnabled={false}
             pitchEnabled={false}
+            // Follow is a chase camera: no dragging or zooming it away from the car.
+            scrollEnabled={mode !== 'follow'}
+            zoomEnabled={mode !== 'follow'}
             toolbarEnabled={false}
-            // iOS puts the compass top right, under the Events button: move it below the top bar.
-            compassOffset={{x: 0, y: TOP_BAR_PT}}
+            // The system compass sat under the Events button; the replay draws its own below the top bar.
+            showsCompass={false}
             showsPointsOfInterests={false}
             showsBuildings
             initialRegion={region}
-            onPanDrag={() => mode === 'follow' && setMode('overview')}>
+            onPress={(e) => e.nativeEvent.action !== 'marker-press' && setSelectedId(null)}>
             <Polyline coordinates={route} strokeColor={withAlpha(c.accent, 0.35)} strokeWidth={5} lineCap="round" lineJoin="round" />
             {driven.map((line) => (
               <Polyline key={line.key} coordinates={line.coords} strokeColor={line.color} strokeWidth={6} lineCap="round" lineJoin="round" zIndex={2} />
             ))}
-            {(showEvents ? events : []).map((event) => (
-              <Marker key={event.id} coordinate={event} title={event.title} description={event.description} anchor={{x: 0.5, y: 0.5}} tracksViewChanges={false} zIndex={3}>
-                <EventMarker kind={event.kind} />
+            {(showEvents ? pins : []).map((pin) => (
+              <Marker
+                key={`${pin.id}-${pin.id === selectedId ? 'on' : 'off'}`}
+                coordinate={pin}
+                anchor={{x: 0.5, y: 0.5}}
+                tracksViewChanges={false}
+                zIndex={pin.id === selectedId ? 6 : 3}
+                onPress={() => setSelectedId(pin.id)}>
+                <ReplayEventMarker kind={pin.kind} selected={pin.id === selectedId} />
               </Marker>
             ))}
             <Marker coordinate={route[0]} anchor={{x: 0.5, y: 0.5}} tracksViewChanges={false} zIndex={4}>
@@ -233,7 +307,7 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
 
         <View style={{position: 'absolute', top: insets.top + 8, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
           <MapButton icon="close" label="Close replay" onPress={close} size={44} />
-          <Glass interactive radius={17} style={{flexDirection: 'row', height: 34, padding: 3}}>
+          <Glass interactive radius={22} style={{flexDirection: 'row', height: 44, padding: 4}}>
             {(['follow', 'overview'] as const).map((m) => {
               const on = mode === m;
               return (
@@ -242,25 +316,24 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
                   accessibilityRole="button"
                   accessibilityState={{selected: on}}
                   onPress={() => chooseMode(m)}
-                  style={{flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, borderRadius: 14, backgroundColor: on ? c.accentTint : undefined}}>
-                  <Ionicons name={m === 'follow' ? 'navigate-circle' : 'map'} size={13} color={on ? c.accent : c.textSecondary} />
-                  <AppText size={12} weight="extrabold" color={on ? c.accent : c.textSecondary}>
+                  style={{flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: 16, backgroundColor: on ? withAlpha(c.accent, 0.16) : undefined}}>
+                  <Ionicons name={m === 'follow' ? 'navigate-circle' : 'map'} size={15} color={on ? c.accent : c.textSecondary} />
+                  <AppText size={14} weight="extrabold" color={on ? c.accent : c.textSecondary}>
                     {m === 'follow' ? 'Follow' : 'Overview'}
                   </AppText>
                 </Pressable>
               );
             })}
           </Glass>
-          {events.length > 0 ? (
+          {pins.length > 0 ? (
             <GlassButton
               accessibilityRole="switch"
               accessibilityState={{checked: showEvents}}
               accessibilityLabel="Events on map"
               onPress={() => setShowEvents((v) => !v)}
-              fill={showEvents ? c.accentTint : undefined}
-              style={{flexDirection: 'row', gap: 4, height: 34, paddingHorizontal: 10}}>
-              <Ionicons name={showEvents ? 'flag' : 'flag-outline'} size={13} color={showEvents ? c.accent : c.textSecondary} />
-              <AppText size={12} weight="extrabold" color={showEvents ? c.accent : c.textSecondary}>
+              style={{flexDirection: 'row', gap: 5, height: 44, paddingHorizontal: 14}}>
+              <Ionicons name={showEvents ? 'flag' : 'flag-outline'} size={15} color={showEvents ? c.accent : c.textSecondary} />
+              <AppText size={14} weight="extrabold" color={showEvents ? c.accent : c.textSecondary}>
                 Events
               </AppText>
             </GlassButton>
@@ -269,39 +342,55 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
           )}
         </View>
 
-        {mode === 'overview' ? (
-          <View style={{position: 'absolute', right: 16, top: insets.top + 8 + TOP_BAR_PT + 56, gap: 10}}>
-            <MapButton icon="add" label="Zoom in" onPress={() => void zoomBy(2)} size={44} />
-            <MapButton icon="remove" label="Zoom out" onPress={() => void zoomBy(0.5)} size={44} />
+        {/* Under the top bar: the tapped event's details, and (Follow) a compass that turns with the map. */}
+        <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + 8 + TOP_BAR_PT - 20, left: 16, right: 16, gap: 10}}>
+          {selectedFacts ? <ReplayEventCard facts={selectedFacts} onJump={jumpTo} /> : null}
+          {/* The Drive map's compass: N points at real north as the Follow camera turns, the car's
+              heading underneath. Tapping it in Follow goes back to the whole route. */}
+          <View style={{alignSelf: 'flex-end', alignItems: 'center', gap: 10}}>
+            <Pressable accessibilityRole="button" accessibilityHint={mode === 'follow' ? 'Back to the whole route' : undefined} disabled={mode !== 'follow'} onPress={() => chooseMode('overview')}>
+              <MapCompass headingDeg={frame?.heading ?? null} moving={(frame?.kmh ?? 0) > 3} mapHeadingDeg={mode === 'follow' ? (frame?.cameraHeading ?? 0) : 0} />
+            </Pressable>
+            {mode === 'overview' ? (
+              <>
+                <MapButton icon="add" label="Zoom in" onPress={() => void zoomBy(2)} size={44} />
+                <MapButton icon="remove" label="Zoom out" onPress={() => void zoomBy(0.5)} size={44} />
+              </>
+            ) : null}
           </View>
-        ) : null}
+        </View>
 
         <View style={{position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 12, gap: 10}}>
-          <Glass radius={26} style={{flexDirection: 'row', paddingVertical: 14}}>
+          <Glass radius={24} style={{flexDirection: 'row', paddingVertical: 10}}>
             {[
               {value: String(kmhInUnits(frame?.kmh ?? 0, u.units)), unit: u.speedUnit, label: 'Speed'},
               {value: (u.distanceValue(frame?.meters ?? 0) ?? 0).toFixed(2), unit: u.distanceUnit, label: 'Distance'},
               {value: formatG(Math.abs(frame?.g ?? 0)), unit: 'g', label: 'G-Force'},
             ].map((s) => (
               <View key={s.label} style={{flex: 1, alignItems: 'center'}}>
-                <AppText size={28} weight="black" style={{fontVariant: ['tabular-nums']}}>
+                <AppText size={22} weight="black" style={{fontVariant: ['tabular-nums']}}>
                   {s.value}
-                  <AppText size={12} weight="bold" tone="secondary">
+                  <AppText size={11} weight="bold" tone="secondary">
                     {' '}
                     {s.unit}
                   </AppText>
                 </AppText>
-                <AppText size={13} weight="bold" tone="secondary">
+                <AppText size={12} weight="bold" tone="secondary">
                   {s.label}
                 </AppText>
               </View>
             ))}
           </Glass>
-          <Glass radius={34} style={{flexDirection: 'row', alignItems: 'center', gap: 12, padding: 8}}>
-            <GlassButton accessibilityLabel={playing ? 'Pause replay' : 'Play replay'} onPress={togglePlay} tint={withAlpha(c.accent, 0.85)} style={{width: 52, height: 52}}>
-              <Ionicons name={playing ? 'pause' : 'play'} size={24} color={c.onAccent} />
-            </GlassButton>
-            <View style={{flex: 1, gap: 6}}>
+          <Glass radius={36} style={{flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, paddingLeft: 10, paddingRight: 18}}>
+            {/* A solid orange play button, as in Rovy. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={playing ? 'Pause replay' : 'Play replay'}
+              onPress={togglePlay}
+              style={({pressed}) => ({width: 52, height: 52, borderRadius: 26, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1, ...softShadow(c, 'small')})}>
+              <Ionicons name={playing ? 'pause' : 'play'} size={22} color={c.onAccent} style={playing ? undefined : {marginLeft: 3}} />
+            </Pressable>
+            <View style={{flex: 1, gap: 4}}>
               <View
                 accessibilityRole="adjustable"
                 accessibilityLabel="Replay position"
@@ -313,34 +402,43 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
                   seek(e.nativeEvent.locationX);
                 }}
                 onResponderMove={(e) => seek(e.nativeEvent.locationX)}
-                style={{height: 24, justifyContent: 'center'}}>
-                <View style={{height: 6, borderRadius: 3, backgroundColor: c.separator}}>
-                  <View style={{width: `${progress * 100}%`, height: 6, borderRadius: 3, backgroundColor: c.accent}} />
+                style={{height: 30, justifyContent: 'center'}}>
+                <View style={{height: 5, borderRadius: 3, backgroundColor: withAlpha(c.textPrimary, 0.12)}}>
+                  <View style={{width: `${progress * 100}%`, height: 5, borderRadius: 3, backgroundColor: withAlpha(c.accent, 0.55)}} />
                 </View>
+                {/* A white glass capsule for the thumb. */}
                 <View
                   pointerEvents="none"
-                  style={{position: 'absolute', left: Math.max(0, progress * trackWidth - 8), width: 16, height: 16, borderRadius: 8, backgroundColor: c.onAccent, borderWidth: 3, borderColor: c.accent}}
+                  style={{
+                    position: 'absolute',
+                    left: Math.min(Math.max(0, progress * trackWidth - THUMB_W / 2), Math.max(0, trackWidth - THUMB_W)),
+                    width: THUMB_W,
+                    height: 26,
+                    borderRadius: 13,
+                    backgroundColor: c.onAccent,
+                    ...softShadow(c, 'small'),
+                  }}
                 />
               </View>
-              <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
-                <AppText size={12} weight="bold" tone="secondary" style={{fontVariant: ['tabular-nums']}}>
+              <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+                <AppText size={13} weight="bold" style={{fontVariant: ['tabular-nums']}}>
                   {formatClock(ms / 1000)}
                 </AppText>
-                <AppText size={12} weight="bold" tone="secondary" style={{fontVariant: ['tabular-nums']}}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Replay speed ${speed} times`}
+                  onPress={() => setSpeed((v) => SPEEDS[(SPEEDS.indexOf(v) + 1) % SPEEDS.length])}
+                  hitSlop={10}
+                  style={{paddingHorizontal: 9, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: withAlpha(c.accent, 0.16)}}>
+                  <AppText size={12} weight="black" tone="accent">
+                    {speed}×
+                  </AppText>
+                </Pressable>
+                <AppText size={13} weight="bold" tone="secondary" style={{fontVariant: ['tabular-nums']}}>
                   {formatClock(track.durationMs / 1000)}
                 </AppText>
               </View>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Replay speed ${speed} times`}
-              onPress={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length])}
-              hitSlop={8}
-              style={{minWidth: 40, height: 32, borderRadius: 16, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accentTint, marginRight: 4}}>
-              <AppText size={13} weight="black" tone="accent">
-                {speed}×
-              </AppText>
-            </Pressable>
           </Glass>
         </View>
       </View>

@@ -25,6 +25,7 @@ import {useAchievementsStore} from '../../stores/achievementsStore';
 import {useAuthStore} from '../../stores/authStore';
 import {useProfileStore} from '../../stores/profileStore';
 import {
+  AUTO_PAUSE_SECONDS,
   AUTO_STOP_MINUTES,
   SPEED_ALERT_MAX_KMH,
   SPEED_ALERT_MIN_KMH,
@@ -245,6 +246,29 @@ export default function SettingsScreen() {
                     options={AUTO_STOP_MINUTES.map((m) => ({value: m, label: `${m} min`}))}
                     value={prefs.autoStopMinutes}
                     onChange={(autoStopMinutes) => void setPrefs({autoStopMinutes})}
+                  />
+                </View>
+              ) : null
+            }
+          />
+          <SettingsRow
+            icon="pause-circle"
+            iconColor={c.amber}
+            title="Auto-pause"
+            subtitle="Pause when the vehicle stands still, resume when you drive off"
+            right={<SettingsSwitch label="Auto-pause" value={prefs.autoPause} onChange={(autoPause) => void setPrefs({autoPause})} />}
+            below={
+              prefs.autoPause ? (
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 14}}>
+                  <AppText size={14} weight="bold" tone="secondary">
+                    Pause after
+                  </AppText>
+                  <SelectMenu
+                    accent
+                    accessibilityLabel="Pause after"
+                    options={AUTO_PAUSE_SECONDS.map((sec) => ({value: sec, label: sec < 60 ? `${sec} s` : `${sec / 60} min`}))}
+                    value={prefs.autoPauseSeconds}
+                    onChange={(autoPauseSeconds) => void setPrefs({autoPauseSeconds})}
                   />
                 </View>
               ) : null

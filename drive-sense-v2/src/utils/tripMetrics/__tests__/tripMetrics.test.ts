@@ -88,3 +88,45 @@ describe('G-force and idle (test_home_stats.py)', () => {
     expect(tripMetrics([fix(2, {speedMps: 0}), fix(0, {speedMps: 12})])).toMatchObject({score: 98, events: [{event_type: 'harsh_brake'}], idleSeconds: 2});
   });
 });
+
+describe('detectSharpTurns (the server tests for detect_sharp_turns)', () => {
+  const {detectSharpTurns, scoreFor} = jest.requireActual('../index') as typeof import('../index');
+  const lonPerM = 1 / (111_195 * Math.cos((28.6 * Math.PI) / 180));
+  const at = (s: number, north: number, east: number, speed: number) => ({
+    latitude: 28.6 + north / 111_195,
+    longitude: 77.2 + east * lonPerM,
+    speedMps: speed,
+    altitudeM: null,
+    headingDeg: null,
+    accuracyM: 5,
+    timestamp: Date.UTC(2026, 9, 18, 9, 0, 0) + s * 1000,
+  });
+
+  it('finds one sharp turn at the corner of a hard right turn', () => {
+    const track = [...Array.from({length: 6}, (_, i) => at(i, 12 * i, 0, 12)), ...Array.from({length: 6}, (_, i) => at(6 + i, 60, 12 * (i + 1), 12))];
+    const events = detectSharpTurns(track);
+    expect(events).toHaveLength(1);
+    expect(events[0].event_type).toBe('sharp_turn');
+    expect(events[0].intensity).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ignores a straight road, a gentle bend and slow turns', () => {
+    expect(detectSharpTurns(Array.from({length: 20}, (_, i) => at(i, 15 * i, 0.8 * (i % 2), 15)))).toEqual([]);
+    let north = 0;
+    let east = 0;
+    const bend = Array.from({length: 20}, (_, i) => {
+      const heading = (Math.min(30, Math.max(0, (i - 5) * 3)) * Math.PI) / 180;
+      north += 10 * Math.cos(heading);
+      east += 10 * Math.sin(heading);
+      return at(i, north, east, 10);
+    });
+    expect(detectSharpTurns(bend)).toEqual([]);
+    const slow = [...Array.from({length: 6}, (_, i) => at(i, 3 * i, 0, 3)), ...Array.from({length: 6}, (_, i) => at(6 + i, 15, 3 * (i + 1), 3))];
+    expect(detectSharpTurns(slow)).toEqual([]);
+  });
+
+  it('costs a point per sharp turn', () => {
+    const turn = {event_type: 'sharp_turn' as const, intensity: 1.2, occurred_at: '', latitude: 0, longitude: 0};
+    expect(scoreFor([turn, turn, turn])).toBe(97);
+  });
+});

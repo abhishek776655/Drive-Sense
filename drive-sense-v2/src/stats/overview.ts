@@ -94,17 +94,20 @@ export const topPlaces = (addresses: (string | null)[], limit = TOP_PLACES) => {
     .map(([name, visits]) => ({name, visits}));
 };
 
-export const driveShares = (trips: TripFacts[]): {timeOfDay: DriveShare[]; weekdays: DriveShare[]} => {
+const HOUR_LABELS = Array.from({length: 24}, (_, h) => String(h).padStart(2, '0'));
+
+export const driveShares = (trips: TripFacts[]): {timeOfDay: DriveShare[]; weekdays: DriveShare[]; hours: DriveShare[]} => {
   const parts = new Map(PARTS_OF_DAY.map(([label]) => [label, {label, trips: 0, distance_meters: 0}]));
   const days = new Map(WEEKDAYS.map((label) => [label, {label, trips: 0, distance_meters: 0}]));
+  const hours = new Map(HOUR_LABELS.map((label) => [label, {label, trips: 0, distance_meters: 0}]));
   for (const t of trips) {
     const start = new Date(t.startMs);
-    for (const bucket of [parts.get(partOfDay(start.getHours())), days.get(WEEKDAYS[weekdayOf(dayKey(start))])]) {
+    for (const bucket of [parts.get(partOfDay(start.getHours())), days.get(WEEKDAYS[weekdayOf(dayKey(start))]), hours.get(HOUR_LABELS[start.getHours()])]) {
       bucket!.trips += 1;
       bucket!.distance_meters += t.distance;
     }
   }
-  return {timeOfDay: [...parts.values()], weekdays: [...days.values()]};
+  return {timeOfDay: [...parts.values()], weekdays: [...days.values()], hours: [...hours.values()]};
 };
 
 export interface OverviewOptions {
@@ -177,6 +180,7 @@ export function statsOverview(owned: TripFacts[], {period, range = null, overKmh
   const brakes = sumOf(scoped, (t) => t.harshBrakes);
   const launches = sumOf(scoped, (t) => t.rapidAccels);
   const speeding = sumOf(scoped, (t) => t.overspeeds);
+  const sharpTurns = sumOf(scoped, (t) => t.sharpTurns);
   const climbing = withPoints.filter((t) => t.points!.climb != null);
 
   const record = (value: (t: TripFacts) => number | null): RecordTrip | null => {
@@ -229,10 +233,17 @@ export function statsOverview(owned: TripFacts[], {period, range = null, overKmh
     top_days: [...perDay.values()].sort((a, b) => b.distance_meters - a.distance_meters || byText(b.date, a.date)).slice(0, TOP_DAYS),
     streaks: {current_days: dayStreak(driveDays, today), best_days: bestStreak(driveDays)},
     places: topPlaces(scoped.map((t) => t.endAddress)),
-    events: {harsh_brake: brakes, rapid_acceleration: launches, overspeed: speeding, per_100km: distance > 0 ? (brakes + launches + speeding) / (distance / 100_000) : null},
+    events: {
+      harsh_brake: brakes,
+      rapid_acceleration: launches,
+      overspeed: speeding,
+      sharp_turn: sharpTurns,
+      per_100km: distance > 0 ? (brakes + launches + speeding + sharpTurns) / (distance / 100_000) : null,
+    },
     speeding: {limit_kmh: overKmh, seconds: overSeconds, share: movingGps > 0 ? overSeconds / movingGps : null},
     elevation_gain_m: climbing.length ? sumOf(climbing, (t) => t.points!.climb as number) : null,
     time_of_day: shares.timeOfDay,
     weekdays: shares.weekdays,
+    hours: shares.hours,
   };
 }

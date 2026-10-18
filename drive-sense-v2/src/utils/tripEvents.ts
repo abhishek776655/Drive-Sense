@@ -1,13 +1,14 @@
 import type {TripEvent} from '../services/tripService';
 
-export type EventKind = 'rapid_acceleration' | 'harsh_brake' | 'overspeed';
+export type EventKind = 'rapid_acceleration' | 'harsh_brake' | 'overspeed' | 'sharp_turn';
 
-export const EVENT_KINDS: EventKind[] = ['rapid_acceleration', 'harsh_brake', 'overspeed'];
+export const EVENT_KINDS: EventKind[] = ['rapid_acceleration', 'harsh_brake', 'overspeed', 'sharp_turn'];
 
 export const EVENT_LABEL: Record<EventKind, string> = {
   rapid_acceleration: 'Accel',
   harsh_brake: 'Brake',
   overspeed: 'Speeding',
+  sharp_turn: 'Sharp turn',
 };
 
 /** Older trips (and the demo seed) use these names for the same events. */
@@ -24,7 +25,7 @@ export const eventKind = (eventType: string): EventKind | null =>
 export const eventRatio = (intensity: number | null): number | null => (intensity != null && intensity > 0 && intensity < 10 ? intensity : null);
 
 export const countEvents = (events: TripEvent[]): Record<EventKind, number> => {
-  const counts: Record<EventKind, number> = {rapid_acceleration: 0, harsh_brake: 0, overspeed: 0};
+  const counts: Record<EventKind, number> = {rapid_acceleration: 0, harsh_brake: 0, overspeed: 0, sharp_turn: 0};
   for (const event of events) {
     const kind = eventKind(event.event_type);
     if (kind) {
@@ -75,5 +76,5 @@ export const eventBreakdown = (events: TripEvent[]): EventBreakdown => {
     const mine = list.filter((e) => e.kind === kind);
     return {count: mine.length, hard: mine.filter((e) => (e.intensity ?? 0) >= HARD_INTENSITY).length};
   };
-  return {rapid_acceleration: tally('rapid_acceleration'), harsh_brake: tally('harsh_brake'), overspeed: tally('overspeed'), list};
+  return {rapid_acceleration: tally('rapid_acceleration'), harsh_brake: tally('harsh_brake'), overspeed: tally('overspeed'), sharp_turn: tally('sharp_turn'), list};
 };

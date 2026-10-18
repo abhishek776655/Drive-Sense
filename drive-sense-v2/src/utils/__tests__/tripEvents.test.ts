@@ -15,6 +15,7 @@ describe('trip events', () => {
       rapid_acceleration: 0,
       harsh_brake: 2,
       overspeed: 1,
+      sharp_turn: 0,
     });
   });
 
@@ -55,7 +56,7 @@ describe('legacy event names', () => {
   const ev = (event_type: string, intensity: number | null) => ({id: event_type, event_type, intensity, occurred_at: '2026-10-11T14:00:00Z', latitude: null, longitude: null});
 
   it('reads the old brake / accel names as their current kinds', () => {
-    expect(countEvents([ev('brake', 0.9), ev('accel', 0.7)])).toEqual({rapid_acceleration: 1, harsh_brake: 1, overspeed: 0});
+    expect(countEvents([ev('brake', 0.9), ev('accel', 0.7)])).toEqual({rapid_acceleration: 1, harsh_brake: 1, overspeed: 0, sharp_turn: 0});
   });
 
   it('only treats small intensities as a ratio of the limit', () => {

@@ -15,6 +15,7 @@ class SyncTrip(TripListRead):
     harsh_brake_count: int = 0
     rapid_acceleration_count: int = 0
     overspeed_count: int = 0
+    sharp_turn_count: int = 0
 
 
 class SyncDeleted(SchemaBase):

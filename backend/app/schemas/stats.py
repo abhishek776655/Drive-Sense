@@ -82,7 +82,8 @@ class StatsEvents(SchemaBase):
     harsh_brake: int
     rapid_acceleration: int
     overspeed: int
-    # All three per 100 km driven, so long and short periods compare fairly; None with no distance.
+    sharp_turn: int = 0
+    # All four per 100 km driven, so long and short periods compare fairly; None with no distance.
     per_100km: float | None
 
 
@@ -118,3 +119,5 @@ class StatsOverview(SchemaBase):
     # Morning, afternoon, evening, night; then Monday to Sunday.
     time_of_day: list[DriveShare] = []
     weekdays: list[DriveShare] = []
+    # When drives start, hour by hour ("00".."23", local time).
+    hours: list[DriveShare] = []

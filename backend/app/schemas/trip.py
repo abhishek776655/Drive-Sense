@@ -25,7 +25,7 @@ class TripEndRequest(SchemaBase):
 
 
 class TripFinishEvent(SchemaBase):
-    event_type: Literal["harsh_brake", "rapid_acceleration", "overspeed"]
+    event_type: Literal["harsh_brake", "rapid_acceleration", "overspeed", "sharp_turn"]
     intensity: float = Field(ge=0, le=100)
     occurred_at: AwareDatetime
     latitude: float = Field(ge=-90, le=90)

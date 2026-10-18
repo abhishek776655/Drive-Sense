@@ -2,7 +2,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import type {SpeedScale} from '../utils/gaugeMath';
 
-export const GAUGE_STYLES = ['arc', 'classic', 'digital', 'minimal', 'ring', 'retro', 'tape', 'heritage', 'neon'] as const;
+/** App dials, then Rovy's vehicle dials (themed needle gauges) and road scenes (`ThemedGauges`). */
+export const GAUGE_STYLES = [
+  'arc',
+  'tape',
+  'neon',
+  'classic',
+  'sport',
+  'luxury',
+  'vintage',
+  'rally',
+  'truck',
+  'motorcycle',
+  'f1',
+  'buggy',
+  'kart',
+  'atv',
+  'scooter',
+  'moped',
+  'openRoad',
+  'daylightRoad',
+  'sunsetRoad',
+] as const;
 export type GaugeStyle = (typeof GAUGE_STYLES)[number];
 export type DriveMode = 'map' | 'gauge';
 

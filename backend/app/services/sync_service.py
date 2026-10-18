@@ -76,6 +76,7 @@ async def pull(db: AsyncSession, *, user_id: uuid.UUID, since: str | None, limit
                     _count_of("harsh_brake"),
                     _count_of("rapid_acceleration"),
                     _count_of("overspeed"),
+                    _count_of("sharp_turn"),
                 )
                 .join(Vehicle, Vehicle.id == Trip.vehicle_id)
                 .join(VehicleModel, VehicleModel.id == Vehicle.model_id)
@@ -114,8 +115,9 @@ async def pull(db: AsyncSession, *, user_id: uuid.UUID, since: str | None, limit
                 harsh_brake_count=int(brakes or 0),
                 rapid_acceleration_count=int(launches or 0),
                 overspeed_count=int(overspeeds or 0),
+                sharp_turn_count=int(sharp_turns or 0),
             )
-            for t, vehicle_name, image_url, event_count, brakes, launches, overspeeds in rows
+            for t, vehicle_name, image_url, event_count, brakes, launches, overspeeds, sharp_turns in rows
         ]
 
     # Vehicles are few: every one changed after the cursor rides along with each page.

@@ -226,16 +226,19 @@ export default function TripSummaryScreen() {
 
       <View style={{position: 'absolute', left: theme.space.screen, right: theme.space.screen, bottom: insets.bottom + 12, flexDirection: 'row', gap: 12}}>
         <MapButton icon="share-outline" label="Share drive" onPress={onShare} size={60} color={c.accent} />
-        <ActionButton
-          label={saveStatus === 'error' ? 'Retry Save' : 'Save'}
-          accessibilityLabel={saveStatus === 'error' ? 'Retry saving drive' : 'Save drive'}
-          onPress={onSave}
-          busy={busy}
-          disabled={local}
-          height={60}
-          size={19}
-          style={{flex: 1}}
-        />
+        {/* Save takes the rest of the row next to Share. */}
+        <View style={{flex: 1}}>
+          <ActionButton
+            label={saveStatus === 'error' ? 'Retry Save' : 'Save'}
+            accessibilityLabel={saveStatus === 'error' ? 'Retry saving drive' : 'Save drive'}
+            onPress={onSave}
+            busy={busy}
+            disabled={local}
+            height={60}
+            size={19}
+            style={{width: '100%'}}
+          />
+        </View>
       </View>
     </View>
   );

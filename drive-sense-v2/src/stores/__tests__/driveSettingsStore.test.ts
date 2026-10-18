@@ -1,4 +1,4 @@
-import {DEFAULT_STATS, MAX_STATS, moveStat, sanitizeSettings, toggleStat} from '../driveSettingsStore';
+import {DEFAULT_STATS, GAUGE_STYLES, MAX_STATS, moveStat, sanitizeSettings, toggleStat} from '../driveSettingsStore';
 
 describe('stat picker', () => {
   it('removes a chosen stat and appends a new one', () => {
@@ -27,9 +27,12 @@ describe('stat picker', () => {
     expect(sanitizeSettings({tilt3d: false}).tilt3d).toBe(false);
   });
 
-  it('keeps each of the nine gauge styles', () => {
-    for (const style of ['ring', 'retro', 'tape', 'heritage', 'neon']) {
+  it('keeps each gauge style, and moves a retired one back to Arc', () => {
+    for (const style of GAUGE_STYLES) {
       expect(sanitizeSettings({gaugeStyle: style}).gaugeStyle).toBe(style);
+    }
+    for (const retired of ['ring', 'retro', 'heritage']) {
+      expect(sanitizeSettings({gaugeStyle: retired}).gaugeStyle).toBe('arc');
     }
   });
 });

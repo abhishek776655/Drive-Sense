@@ -72,17 +72,19 @@ def part_of_day(hour: int) -> str:
     return next(label for label, start, end in PARTS_OF_DAY if start <= h < end)
 
 
-def drive_shares(drives: Iterable[tuple[datetime, float]], zone: ZoneInfo) -> tuple[list[DriveShare], list[DriveShare]]:
-    """(by part of day, by weekday): drives and distance, every bucket present even when empty."""
+def drive_shares(drives: Iterable[tuple[datetime, float]], zone: ZoneInfo) -> tuple[list[DriveShare], list[DriveShare], list[DriveShare]]:
+    """(by part of day, by weekday, by hour "00".."23"): drives and distance, every bucket present
+    even when empty."""
     parts = {label: [0, 0.0] for label, _, _ in PARTS_OF_DAY}
     days = {label: [0, 0.0] for label in WEEKDAYS}
+    hours = {f"{h:02d}": [0, 0.0] for h in range(24)}
     for start, meters in drives:
         local = start.astimezone(zone)
-        for bucket in (parts[part_of_day(local.hour)], days[WEEKDAYS[local.weekday()]]):
+        for bucket in (parts[part_of_day(local.hour)], days[WEEKDAYS[local.weekday()]], hours[f"{local.hour:02d}"]):
             bucket[0] += 1
             bucket[1] += meters
     as_list = lambda d: [DriveShare(label=k, trips=v[0], distance_meters=v[1]) for k, v in d.items()]  # noqa: E731
-    return as_list(parts), as_list(days)
+    return as_list(parts), as_list(days), as_list(hours)
 
 
 def band_index(kmh: float) -> int:
@@ -328,11 +330,12 @@ async def get_stats_overview(
         await db.execute(select(Event.event_type, func.count()).join(Trip, Trip.id == Event.trip_id).where(*scoped).group_by(Event.event_type))
     ).all()
     counts = {row[0]: int(row[1]) for row in event_rows}
-    flagged = counts.get("harsh_brake", 0) + counts.get("rapid_acceleration", 0) + counts.get("overspeed", 0)
+    flagged = counts.get("harsh_brake", 0) + counts.get("rapid_acceleration", 0) + counts.get("overspeed", 0) + counts.get("sharp_turn", 0)
     events = StatsEvents(
         harsh_brake=counts.get("harsh_brake", 0),
         rapid_acceleration=counts.get("rapid_acceleration", 0),
         overspeed=counts.get("overspeed", 0),
+        sharp_turn=counts.get("sharp_turn", 0),
         per_100km=flagged / (distance / 100_000) if distance > 0 else None,
     )
 
@@ -350,7 +353,7 @@ async def get_stats_overview(
     climb = sum(elevation_gain(alts) for alts in per_trip.values()) if per_trip else None
 
     share_rows = (await db.execute(select(Trip.start_time, Trip.distance_meters).where(*scoped))).all()
-    time_of_day, weekdays = drive_shares(((row[0], float(row[1] or 0)) for row in share_rows), zone)
+    time_of_day, weekdays, hours = drive_shares(((row[0], float(row[1] or 0)) for row in share_rows), zone)
 
     async def record(column) -> RecordTrip | None:
         row = (
@@ -409,4 +412,5 @@ async def get_stats_overview(
         elevation_gain_m=climb,
         time_of_day=time_of_day,
         weekdays=weekdays,
+        hours=hours,
     )

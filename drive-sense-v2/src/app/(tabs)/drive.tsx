@@ -105,14 +105,15 @@ export default function DriveScreen() {
         <EventToast event={recording.lastEvent} />
       </View>
 
-      {!gauge && settings.showCompass ? (
+      {settings.showCompass ? (
         // Under the tune button. In 3D the map faces the direction of travel, so north is that far round.
         <View pointerEvents="none" style={{position: 'absolute', right: 9, top: insets.top + 8 + 38 + 10}}>
           <MapCompass
             headingDeg={recording.stats.headingDeg}
             moving={recording.stats.moving}
-            mapHeadingDeg={live && settings.tilt3d && recording.stats.headingDeg != null ? recording.stats.headingDeg : 0}
-            altitudeM={recording.stats.altitudeM}
+            mapHeadingDeg={!gauge && live && settings.tilt3d && recording.stats.headingDeg != null ? recording.stats.headingDeg : 0}
+            // Speedometer mode keeps it to the compass.
+            altitudeM={gauge ? undefined : recording.stats.altitudeM}
           />
         </View>
       ) : null}
@@ -142,7 +143,8 @@ export default function DriveScreen() {
       ) : null}
 
       {gauge ? (
-        <View style={{flex: 1, justifyContent: 'center', paddingBottom: (live ? liveBottom : sheetBottom) - 40}}>
+        // Sits a little above centre, clear of the tab bar and the controls.
+        <View style={{flex: 1, justifyContent: 'center', paddingBottom: (live ? liveBottom : sheetBottom) + 20}}>
           <GaugePanel
             status={recording.status}
             speed={speed}

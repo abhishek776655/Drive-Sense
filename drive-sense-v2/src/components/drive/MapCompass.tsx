@@ -15,8 +15,8 @@ interface MapCompassProps {
   moving: boolean;
   /** Which way the map is turned (0 = north-up); the needle counter-rotates to keep pointing north. */
   mapHeadingDeg: number;
-  /** Current altitude (m); shown in a chip under the compass. */
-  altitudeM: number | null;
+  /** Current altitude (m); shown in a chip under the compass. Leave it out to hide the chip (replay). */
+  altitudeM?: number | null;
 }
 
 /**
@@ -32,7 +32,10 @@ export function MapCompass({headingDeg, moving, mapHeadingDeg, altitudeM}: MapCo
   const r = SIZE / 2;
 
   return (
-    <View style={{alignItems: 'center', gap: 4}} accessibilityRole="image" accessibilityLabel={`${showHeading ? `Heading ${label}` : 'Heading unknown'}, elevation ${altitudeM != null ? `${Math.round(altitudeM)} metres` : 'unknown'}`}>
+    <View
+      style={{alignItems: 'center', gap: 4}}
+      accessibilityRole="image"
+      accessibilityLabel={`${showHeading ? `Heading ${label}` : 'Heading unknown'}${altitudeM === undefined ? '' : `, elevation ${altitudeM != null ? `${Math.round(altitudeM)} metres` : 'unknown'}`}`}>
       <Glass style={{width: SIZE, height: SIZE}}>
         <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
           <G rotation={north} origin={`${r}, ${r}`}>
@@ -69,20 +72,22 @@ export function MapCompass({headingDeg, moving, mapHeadingDeg, altitudeM}: MapCo
           {label}
         </AppText>
       </Glass>
-      <Glass radius={12} style={{marginTop: 4, paddingHorizontal: 8, paddingVertical: 4, alignItems: 'center'}}>
-        <View style={{flexDirection: 'row', alignItems: 'center', gap: 3}}>
-          <Ionicons name="triangle" size={10} color={c.teal} />
-          <AppText size={12} weight="black">
-            {altitudeM != null ? Math.round(altitudeM) : '–'}
+      {altitudeM === undefined ? null : (
+        <Glass radius={12} style={{marginTop: 4, paddingHorizontal: 8, paddingVertical: 4, alignItems: 'center'}}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 3}}>
+            <Ionicons name="triangle" size={10} color={c.teal} />
+            <AppText size={12} weight="black">
+              {altitudeM != null ? Math.round(altitudeM) : '–'}
+            </AppText>
+            <AppText size={9} weight="bold" tone="secondary">
+              m
+            </AppText>
+          </View>
+          <AppText size={8} weight="extrabold" tone="secondary" style={{letterSpacing: 0.5}}>
+            ELEV
           </AppText>
-          <AppText size={9} weight="bold" tone="secondary">
-            m
-          </AppText>
-        </View>
-        <AppText size={8} weight="extrabold" tone="secondary" style={{letterSpacing: 0.5}}>
-          ELEV
-        </AppText>
-      </Glass>
+        </Glass>
+      )}
     </View>
   );
 }

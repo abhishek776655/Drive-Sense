@@ -31,6 +31,13 @@ export const hasStableIdleCluster = (fixes: Fix[]): boolean => {
 export const shouldAutoEnd = (lastMovementAt: number | null, now: number, recentFixes: Fix[], idleSeconds = AUTO_END_IDLE_SECONDS): boolean =>
   lastMovementAt != null && (now - lastMovementAt) / 1000 >= idleSeconds && hasStableIdleCluster(recentFixes);
 
+/** Auto-pause (Settings): standing still this long pauses the drive (traffic lights included). */
+export const shouldAutoPause = (lastMovementAt: number | null, now: number, idleSeconds: number): boolean =>
+  lastMovementAt != null && (now - lastMovementAt) / 1000 >= idleSeconds;
+
+/** An auto-paused drive resumes after this many fresh fixes at driving-off speed. */
+export const AUTO_RESUME_FIXES = 2;
+
 /** "Ignore short drives" (Settings): under 300 m or under a minute is not worth keeping. */
 export const SHORT_DRIVE_METERS = 300;
 export const SHORT_DRIVE_SECONDS = 60;

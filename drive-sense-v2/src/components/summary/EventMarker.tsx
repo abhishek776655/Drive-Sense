@@ -9,11 +9,12 @@ export const EVENT_ICON: Record<EventKind, IconName> = {
   rapid_acceleration: 'flash',
   harsh_brake: 'hand-left',
   overspeed: 'speedometer',
+  sharp_turn: 'return-up-forward',
 };
 
 export const useEventColor = () => {
   const {colors} = useAppTheme();
-  return (kind: EventKind) => (kind === 'harsh_brake' ? colors.red : kind === 'overspeed' ? colors.purple : colors.amber);
+  return (kind: EventKind) => (kind === 'harsh_brake' ? colors.red : kind === 'overspeed' ? colors.blue : kind === 'sharp_turn' ? colors.purple : colors.amber);
 };
 
 /** Small round pin for a driving event on a map. */

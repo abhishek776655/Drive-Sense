@@ -12,7 +12,7 @@ function KindTile({kind, label, count, hard}: {kind: EventKind; label: string; c
   const c = useAppTheme().colors;
   const color = useEventColor()(kind);
   return (
-    <View style={{flex: 1, padding: 12, borderRadius: 18, backgroundColor: c.control, gap: 4}}>
+    <View style={{flexBasis: '45%', flexGrow: 1, padding: 12, borderRadius: 18, backgroundColor: c.control, gap: 4}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
         <Ionicons name={EVENT_ICON[kind]} size={14} color={color} />
         <AppText size={12} weight="bold" tone="secondary">
@@ -44,14 +44,15 @@ export function EventsCard({breakdown, onSelect}: {breakdown: EventBreakdown; on
   const shown = all ? breakdown.list : [];
   return (
     <Card style={{padding: 14, gap: 10}}>
-      <View style={{flexDirection: 'row', gap: 8}}>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
         <KindTile kind="rapid_acceleration" label="Acceleration" {...breakdown.rapid_acceleration} />
         <KindTile kind="harsh_brake" label="Braking" {...breakdown.harsh_brake} />
         <KindTile kind="overspeed" label="Speeding" count={breakdown.overspeed.count} hard={0} />
+        <KindTile kind="sharp_turn" label="Sharp turns" {...breakdown.sharp_turn} />
       </View>
       {breakdown.list.length === 0 ? (
         <AppText size={13} weight="semibold" tone="secondary" style={{textAlign: 'center', paddingVertical: 6}}>
-          No harsh acceleration, braking or speeding. Smooth drive.
+          No harsh acceleration, braking, speeding or sharp turns. Smooth drive.
         </AppText>
       ) : null}
       {shown.map((event) => {

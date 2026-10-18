@@ -1,4 +1,5 @@
 import {Ionicons} from '@expo/vector-icons';
+import {useState} from 'react';
 import {Pressable, View} from 'react-native';
 import {useUnits} from '../../hooks/useUnits';
 import type {TripSummary} from '../../services/tripService';
@@ -7,6 +8,8 @@ import {formatDuration} from '../../utils/format';
 import {tripTitle} from '../../utils/logbook';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
+import {useVehicleStore} from '../../stores/vehicleStore';
+import {VehicleIcon} from '../garage/VehicleIcon';
 import {StatChip} from './StatChip';
 
 interface TripRowProps {
@@ -23,6 +26,11 @@ export function TripRow({trip, selecting, selected, onPress}: TripRowProps) {
   const at = new Date(trip.start_time);
   const title = tripTitle(trip);
   const time = at.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'});
+  // The vehicle's type for its icon; the name comes with the trip (a car glyph when unknown).
+  const vehicleId = (trip as TripSummary & {vehicle_id?: string}).vehicle_id;
+  const vehicleType = useVehicleStore((st) => st.vehicles.find((v) => v.id === vehicleId)?.vehicle_type ?? 'car');
+  // Where the top-speed chip starts: the vehicle name sits right above it, on the title's line.
+  const [speedChipX, setSpeedChipX] = useState<number | null>(null);
   return (
     <Pressable
       accessibilityRole="button"
@@ -44,16 +52,33 @@ export function TripRow({trip, selecting, selected, onPress}: TripRowProps) {
         </View>
         <View style={{flex: 1, gap: 7}}>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-            <AppText size={16} weight="extrabold" numberOfLines={1} style={{flexShrink: 1}}>
+            <AppText size={16} weight="extrabold" numberOfLines={1} style={{flexShrink: 1, maxWidth: speedChipX != null && trip.vehicle_name ? speedChipX - 8 : undefined}}>
               {title}
             </AppText>
             {/* Saved on the phone, not uploaded yet (local-first part 2a). */}
             {trip.pending ? <Ionicons name="cloud-upload-outline" size={15} color={c.textTertiary} accessibilityLabel="Waiting to upload" /> : null}
+            {/* The vehicle on the title's line, so the row keeps its height. */}
+            {/* Chips wrapped onto two lines: the name goes to the end of the title line instead. */}
+            {trip.vehicle_name ? (
+              <View
+                style={
+                  speedChipX != null
+                    ? {position: 'absolute', left: speedChipX, right: 0, flexDirection: 'row', alignItems: 'center', gap: 4}
+                    : {flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto', maxWidth: '45%', flexShrink: 1}
+                }>
+                <VehicleIcon type={vehicleType} size={13} color={c.accent} />
+                <AppText size={12} weight="bold" tone="secondary" numberOfLines={1} style={{flexShrink: 1}}>
+                  {trip.vehicle_name}
+                </AppText>
+              </View>
+            ) : null}
           </View>
           <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 5}}>
             <StatChip icon="map" color={c.blue} label={`${u.distance(trip.distance_meters)} ${u.distanceUnit}`} />
             <StatChip icon="stopwatch" color={c.cyan} label={formatDuration(trip.duration_seconds)} />
-            <StatChip icon="speedometer" color={c.red} label={`${u.speed(trip.max_speed_mps)} ${u.speedUnit}`} />
+            <View onLayout={(e) => setSpeedChipX(e.nativeEvent.layout.y > 4 ? null : e.nativeEvent.layout.x)}>
+              <StatChip icon="speedometer" color={c.red} label={`${u.speed(trip.max_speed_mps)} ${u.speedUnit}`} />
+            </View>
           </View>
         </View>
         {selecting ? (

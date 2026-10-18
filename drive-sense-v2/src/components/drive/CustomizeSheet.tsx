@@ -17,14 +17,24 @@ import {SettingsSwitch} from '../settings/SettingsRows';
 
 const STYLES: {id: GaugeStyle; label: string}[] = [
   {id: 'arc', label: 'Arc'},
-  {id: 'classic', label: 'Classic'},
-  {id: 'digital', label: 'Digital'},
-  {id: 'minimal', label: 'Minimal'},
-  {id: 'ring', label: 'Ring'},
-  {id: 'retro', label: 'Retro'},
   {id: 'tape', label: 'HUD'},
-  {id: 'heritage', label: 'Heritage'},
   {id: 'neon', label: 'Neon'},
+  {id: 'classic', label: 'Classic'},
+  {id: 'sport', label: 'Sport Car'},
+  {id: 'luxury', label: 'Luxury'},
+  {id: 'vintage', label: 'Vintage'},
+  {id: 'rally', label: 'Rally'},
+  {id: 'truck', label: 'Truck'},
+  {id: 'motorcycle', label: 'Motorcycle'},
+  {id: 'f1', label: 'F1'},
+  {id: 'buggy', label: 'RC Buggy'},
+  {id: 'kart', label: 'Go-Kart'},
+  {id: 'atv', label: 'ATV'},
+  {id: 'scooter', label: 'Scooter'},
+  {id: 'moped', label: 'Moped'},
+  {id: 'openRoad', label: 'Open Road'},
+  {id: 'daylightRoad', label: 'Daylight Road'},
+  {id: 'sunsetRoad', label: 'Sunset Road'},
 ];
 const SCALES: SpeedScale[] = ['auto', 120, 200, 300];
 
@@ -45,7 +55,7 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
     <BottomSheet visible={visible} title="Customize" onClose={onClose}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <SectionLabel>GAUGE STYLE</SectionLabel>
-        {/* Three to a row: nine styles do not fit side by side. */}
+        {/* Three to a row. */}
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 6}}>
           {STYLES.map((style) => {
             const on = settings.gaugeStyle === style.id;
@@ -56,7 +66,7 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
                 accessibilityState={{selected: on}}
                 accessibilityLabel={`${style.label} gauge`}
                 onPress={() => settings.update({gaugeStyle: style.id})}
-                style={{width: '32%', flexGrow: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: on ? theme.colors.accent : 'transparent', backgroundColor: on ? theme.colors.accentTint : theme.colors.glassRow}}>
+                style={{width: '32%', alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: on ? theme.colors.accent : 'transparent', backgroundColor: on ? theme.colors.accentTint : theme.colors.glassRow}}>
                 <GaugeDial speed={62} scale={200} gaugeStyle={style.id} accent={settings.gaugeAccent} size={72} />
                 <AppText size={10} weight="extrabold" tone="secondary">
                   {style.label}

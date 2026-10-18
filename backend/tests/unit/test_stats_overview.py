@@ -93,7 +93,8 @@ def test_parts_of_day_and_weekdays():
 
     assert [part_of_day(h) for h in (5, 11, 12, 16, 17, 20, 21, 2)] == ["Morning", "Morning", "Afternoon", "Afternoon", "Evening", "Evening", "Night", "Night"]
     # 03:30 UTC is 09:00 Friday in India; 16:00 UTC is 21:30.
-    parts, days = drive_shares([(datetime(2026, 10, 16, 3, 30, tzinfo=ZoneInfo("UTC")), 5000), (datetime(2026, 10, 16, 16, 0, tzinfo=ZoneInfo("UTC")), 2000)], IST)
+    parts, days, hours = drive_shares([(datetime(2026, 10, 16, 3, 30, tzinfo=ZoneInfo("UTC")), 5000), (datetime(2026, 10, 16, 16, 0, tzinfo=ZoneInfo("UTC")), 2000)], IST)
     assert [(p.label, p.trips) for p in parts] == [("Morning", 1), ("Afternoon", 0), ("Evening", 0), ("Night", 1)]
     assert next(d for d in days if d.label == "Fri").distance_meters == 7000
     assert len(days) == 7
+    assert len(hours) == 24 and hours[9].trips == 1 and hours[21].trips == 1 and hours[3].trips == 0

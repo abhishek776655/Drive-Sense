@@ -44,8 +44,13 @@ export const useVehicleStore = create<VehicleState>((set, get) => ({
     set({loading: true, error: null});
     const db = getDb();
     const stored = await AsyncStorage.getItem(ACTIVE_VEHICLE_KEY);
-    const show = (vehicles: Vehicle[]) =>
+    // The Garage lists vehicles in the order they were added, online or off.
+    const byAdded = (list: Vehicle[]) =>
+      [...list].sort((a, b) => ((a as Vehicle & {created_at?: string}).created_at ?? '').localeCompare((b as Vehicle & {created_at?: string}).created_at ?? ''));
+    const show = (unsorted: Vehicle[]) => {
+      const vehicles = byAdded(unsorted);
       set({vehicles, activeVehicleId: vehicles.some((v) => v.id === stored) ? stored : (vehicles[0]?.id ?? null), loading: false});
+    };
     try {
       const vehicles = await vehicleService.list();
       if (db) {

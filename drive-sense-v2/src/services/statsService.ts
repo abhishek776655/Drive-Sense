@@ -58,12 +58,14 @@ export interface StatsOverview {
   top_days: {date: string; distance_meters: number; trip_count: number}[];
   streaks: {current_days: number; best_days: number};
   places: {name: string; visits: number}[];
-  events: {harsh_brake: number; rapid_acceleration: number; overspeed: number; per_100km: number | null} | null;
+  events: {harsh_brake: number; rapid_acceleration: number; overspeed: number; sharp_turn?: number; per_100km: number | null} | null;
   /** Moving time above `limit_kmh` and its share of moving time. */
   speeding: {limit_kmh: number; seconds: number; share: number | null} | null;
   elevation_gain_m: number | null;
   time_of_day: DriveShare[];
   weekdays: DriveShare[];
+  /** When drives start, hour by hour ("00".."23"); older servers leave it out. */
+  hours?: DriveShare[];
 }
 
 export const statsService = {

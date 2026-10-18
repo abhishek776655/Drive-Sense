@@ -10,6 +10,7 @@ import {DateRangeSheet} from '../components/stats/DateRangeSheet';
 import {DrivingEventsCard} from '../components/stats/DrivingEventsCard';
 import {PlacesCard} from '../components/stats/PlacesCard';
 import {WhenYouDriveCard} from '../components/stats/WhenYouDriveCard';
+import {DistanceByDayCard, PeakHoursCard} from '../components/stats/DayAndHourCards';
 import {RecordsCard} from '../components/stats/RecordsCard';
 import {SpeedDistributionCard} from '../components/stats/SpeedDistributionCard';
 import {StatsChips} from '../components/stats/StatsChips';
@@ -140,6 +141,19 @@ export default function AllStatsScreen() {
               <>
                 <SectionLabel>WHEN YOU DRIVE</SectionLabel>
                 <WhenYouDriveCard parts={data.time_of_day} days={data.weekdays} />
+              </>
+            ) : null}
+            {/* Over a month, a year or a custom range there is enough to see a pattern by day and hour. */}
+            {period !== 'week' && data.summary.trip_count > 0 ? (
+              <>
+                <SectionLabel>DISTANCE BY DAY</SectionLabel>
+                <DistanceByDayCard days={data.weekdays} />
+                {data.hours?.length ? (
+                  <>
+                    <SectionLabel>PEAK DRIVING HOURS</SectionLabel>
+                    <PeakHoursCard hours={data.hours} />
+                  </>
+                ) : null}
               </>
             ) : null}
             <SectionLabel>RECORDS</SectionLabel>

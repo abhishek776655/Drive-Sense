@@ -1,6 +1,6 @@
 import type {Sample} from '../../stores/recordingStore';
 import {GRAVITY_MPS2, HARSH_BRAKE_MPS2, RAPID_ACCELERATION_MPS2} from '../drivingThresholds';
-import {ACCELERATION_PENALTY_WEIGHT, BRAKING_PENALTY_WEIGHT, OVERSPEED_PENALTY_WEIGHT} from '../liveScore';
+import {ACCELERATION_PENALTY_WEIGHT, BRAKING_PENALTY_WEIGHT, OVERSPEED_PENALTY_WEIGHT, SHARP_TURN_PENALTY_WEIGHT} from '../liveScore';
 
 /**
  * A drive's numbers, computed on the phone from every recorded fix (local-first part 2b). Each
@@ -10,7 +10,7 @@ import {ACCELERATION_PENALTY_WEIGHT, BRAKING_PENALTY_WEIGHT, OVERSPEED_PENALTY_W
 
 export const OVERSPEED_MPS = 27.78;
 
-export type TripEventKind = 'harsh_brake' | 'rapid_acceleration' | 'overspeed';
+export type TripEventKind = 'harsh_brake' | 'rapid_acceleration' | 'overspeed' | 'sharp_turn';
 
 export interface PhoneEvent {
   event_type: TripEventKind;
@@ -64,6 +64,57 @@ export function detectEvents(
     }
     previous = point;
   }
+  events.push(...detectSharpTurns(ordered));
+  // Stable, so events at the same moment keep the server's order (speed and G first, then turns).
+  return events.sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
+}
+
+// ── sharp turns: `driving_event_detection_service.detect_sharp_turns` ─────────
+
+/** Sideways acceleration in a turn (speed × rate of turn), about 0.4 g. */
+export const SHARP_TURN_MPS2 = 4.0;
+const SHARP_TURN_MIN_SPEED_MPS = 5;
+const SHARP_TURN_SPAN = 2;
+const SHARP_TURN_MIN_STEP_M = 6;
+const SHARP_TURN_MAX_SPAN_SECONDS = 12;
+
+/** One event per turn taken hard, at its sharpest point; heading read from the track either side. */
+export function detectSharpTurns(points: Sample[], thresholdMps2 = SHARP_TURN_MPS2): PhoneEvent[] {
+  const track = [...points].sort((a, b) => a.timestamp - b.timestamp).filter((p) => p.speedMps != null);
+  const events: PhoneEvent[] = [];
+  let peak: {lateral: number; index: number} | null = null;
+  const emit = ({lateral, index}: {lateral: number; index: number}) => {
+    const p = track[index];
+    events.push({event_type: 'sharp_turn', intensity: intensityOf(lateral / thresholdMps2), occurred_at: new Date(p.timestamp).toISOString(), latitude: p.latitude, longitude: p.longitude});
+  };
+  for (let i = SHARP_TURN_SPAN; i < track.length - SHARP_TURN_SPAN; i++) {
+    const before = track[i - SHARP_TURN_SPAN];
+    const point = track[i];
+    const after = track[i + SHARP_TURN_SPAN];
+    const span = (after.timestamp - before.timestamp) / 1000;
+    let lateral: number | null = null;
+    if (
+      (point.speedMps as number) >= SHARP_TURN_MIN_SPEED_MPS &&
+      span > 0 &&
+      span <= SHARP_TURN_MAX_SPAN_SECONDS &&
+      distanceM(before, point) >= SHARP_TURN_MIN_STEP_M &&
+      distanceM(point, after) >= SHARP_TURN_MIN_STEP_M
+    ) {
+      const turn = signedDelta(bearing(before, point), bearing(point, after));
+      lateral = ((point.speedMps as number) * rad(Math.abs(turn))) / (span / 2);
+    }
+    if (lateral != null && lateral >= thresholdMps2) {
+      if (peak == null || lateral > peak.lateral) {
+        peak = {lateral, index: i};
+      }
+    } else if (peak != null) {
+      emit(peak);
+      peak = null;
+    }
+  }
+  if (peak != null) {
+    emit(peak);
+  }
   return events;
 }
 
@@ -72,7 +123,8 @@ export function scoreFor(events: PhoneEvent[]): number {
   const brakes = events.filter((e) => e.event_type === 'harsh_brake').length;
   const accels = events.filter((e) => e.event_type === 'rapid_acceleration').length;
   const overspeed = Math.trunc(events.filter((e) => e.event_type === 'overspeed').reduce((sum, e) => sum + e.intensity, 0));
-  const score = 100 - brakes * BRAKING_PENALTY_WEIGHT - accels * ACCELERATION_PENALTY_WEIGHT - overspeed * OVERSPEED_PENALTY_WEIGHT;
+  const turns = events.filter((e) => e.event_type === 'sharp_turn').length;
+  const score = 100 - brakes * BRAKING_PENALTY_WEIGHT - accels * ACCELERATION_PENALTY_WEIGHT - overspeed * OVERSPEED_PENALTY_WEIGHT - turns * SHARP_TURN_PENALTY_WEIGHT;
   return Math.max(0, Math.min(100, Math.trunc(score)));
 }
 

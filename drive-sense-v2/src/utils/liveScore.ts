@@ -6,6 +6,7 @@
 export const BRAKING_PENALTY_WEIGHT = 2.0;
 export const ACCELERATION_PENALTY_WEIGHT = 1.5;
 export const OVERSPEED_PENALTY_WEIGHT = 0.1;
+export const SHARP_TURN_PENALTY_WEIGHT = 1.0;
 
 export interface ScoreInput {
   brakeCount: number;

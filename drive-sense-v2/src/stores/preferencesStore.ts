@@ -14,6 +14,9 @@ export interface Preferences {
   autoStart: boolean;
   autoStop: boolean;
   autoStopMinutes: number;
+  /** Pause the drive on its own after standing still this long, and resume on driving off. */
+  autoPause: boolean;
+  autoPauseSeconds: number;
   ignoreShortDrives: boolean;
   speedAlert: boolean;
   /** Stored in km/h whatever the units; shown in the chosen unit. */
@@ -25,6 +28,7 @@ export interface Preferences {
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
+export const AUTO_PAUSE_SECONDS = [30, 60, 120, 300];
 export const SPEED_ALERT_MIN_KMH = 40;
 export const SPEED_ALERT_MAX_KMH = 150;
 export const SPEED_ALERT_STEP_KMH = 10;
@@ -37,6 +41,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autoStart: true,
   autoStop: true,
   autoStopMinutes: 3,
+  autoPause: false,
+  autoPauseSeconds: 60,
   ignoreShortDrives: false,
   speedAlert: false,
   speedAlertKmh: 100,
@@ -62,6 +68,8 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     autoStart: bool(r.autoStart, d.autoStart),
     autoStop: bool(r.autoStop, d.autoStop),
     autoStopMinutes: oneOf(r.autoStopMinutes, AUTO_STOP_MINUTES, d.autoStopMinutes),
+    autoPause: bool(r.autoPause, d.autoPause),
+    autoPauseSeconds: oneOf(r.autoPauseSeconds, AUTO_PAUSE_SECONDS, d.autoPauseSeconds),
     ignoreShortDrives: bool(r.ignoreShortDrives, d.ignoreShortDrives),
     speedAlert: bool(r.speedAlert, d.speedAlert),
     speedAlertKmh: Math.min(SPEED_ALERT_MAX_KMH, Math.max(SPEED_ALERT_MIN_KMH, alert)),

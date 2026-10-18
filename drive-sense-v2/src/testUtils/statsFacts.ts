@@ -25,6 +25,7 @@ export const fact = (start: Date, patch: Partial<TripFacts> = {}): TripFacts => 
   harshBrakes: 0,
   rapidAccels: 0,
   overspeeds: 0,
+  sharpTurns: 0,
   points: null,
   ...patch,
 });

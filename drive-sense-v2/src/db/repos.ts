@@ -18,6 +18,7 @@ export type SyncTrip = TripSummary & {
   harsh_brake_count?: number;
   rapid_acceleration_count?: number;
   overspeed_count?: number;
+  sharp_turn_count?: number;
   max_g_force?: number | null;
   max_g_source?: string | null;
   left_turns?: number | null;
@@ -277,6 +278,7 @@ export const statsFacts = (db: SqlDb, vehicleId: string | null = null): TripFact
       harshBrakes: t.harsh_brake_count ?? 0,
       rapidAccels: t.rapid_acceleration_count ?? 0,
       overspeeds: t.overspeed_count ?? 0,
+      sharpTurns: t.sharp_turn_count ?? 0,
       points: r.point_stats ? (JSON.parse(r.point_stats) as PointStats) : null,
     };
   });
@@ -378,6 +380,7 @@ export const putLocalTrip = (db: SqlDb, drive: FinishedDrive, metrics?: TripMetr
     harsh_brake_count: countOf(metrics, 'harsh_brake'),
     rapid_acceleration_count: countOf(metrics, 'rapid_acceleration'),
     overspeed_count: countOf(metrics, 'overspeed'),
+    sharp_turn_count: countOf(metrics, 'sharp_turn'),
     max_g_force: metrics ? metrics.maxG : drive.maxG,
     max_g_source: metrics ? metrics.maxGSource : drive.maxG != null ? 'sensor' : null,
     left_turns: metrics?.leftTurns ?? null,

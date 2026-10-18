@@ -44,6 +44,37 @@ describe('recordingStore', () => {
     expect(parkFor(400)).toBe('recording');
   });
 
+  it('auto-pause pauses after standing still, then resumes on driving off; a tapped pause stays paused', () => {
+    usePreferencesStore.setState({autoPause: true, autoPauseSeconds: 30, autoStopMinutes: 10});
+    expect(parkFor(40)).toBe('paused');
+    const paused = useRecordingStore.getState();
+    expect(paused.autoPaused).toBe(true);
+    // The standing time from the last movement (1 s) is the pause, not driving time.
+    expect(paused.pausedAt).toBe(1000);
+    const now = jest.spyOn(Date, 'now');
+    for (const t of [41_000, 42_000]) {
+      now.mockReturnValue(t);
+      paused.ingest(sample({timestamp: t, speedMps: 8, latitude: 28.6003}));
+    }
+    expect(useRecordingStore.getState()).toMatchObject({status: 'recording', autoPaused: false});
+    // Pausing by hand: driving does not resume it.
+    useRecordingStore.getState().pause();
+    for (const t of [43_000, 44_000, 45_000]) {
+      now.mockReturnValue(t);
+      useRecordingStore.getState().ingest(sample({timestamp: t, speedMps: 8, latitude: 28.6006}));
+    }
+    expect(useRecordingStore.getState().status).toBe('paused');
+    now.mockRestore();
+  });
+
+  it('auto-pause off by default, and auto-stop still ends a drive left auto-paused', () => {
+    expect(parkFor(60)).toBe('recording');
+    usePreferencesStore.setState({autoPause: true, autoPauseSeconds: 30, autoStopMinutes: 1});
+    useRecordingStore.getState().end();
+    useRecordingStore.setState({justFinished: null});
+    expect(parkFor(70)).toBe('ready');
+  });
+
   it('never auto-starts with Auto-start off', () => {
     usePreferencesStore.setState({autoStart: false});
     const now = jest.spyOn(Date, 'now');

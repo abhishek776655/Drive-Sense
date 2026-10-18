@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 import {usePreferencesStore} from './preferencesStore';
-import {isUsableFix, nextSpeedAlert, shouldAutoEnd, shouldAutoStart, type SpeedAlertState} from '../utils/autoTrip';
+import {AUTO_RESUME_FIXES, isUsableFix, nextSpeedAlert, shouldAutoEnd, shouldAutoPause, shouldAutoStart, type SpeedAlertState} from '../utils/autoTrip';
 import {RAPID_ACCELERATION_MPS2, HARSH_BRAKE_MPS2} from '../utils/drivingThresholds';
 import {haversineMeters} from '../utils/geo';
 import {MOVING_MPS, resolveHeading} from '../utils/heading';
@@ -147,8 +147,10 @@ export interface RecordingState {
   trustedSpeed: {mps: number; at: number} | null;
   /** Highest motion G since the last recorded fix; attached to the next fix as `peakG`. */
   motionPeakG: number | null;
-  /** Consecutive fresh Ready fixes at auto-start speed. */
+  /** Consecutive fresh Ready fixes at auto-start speed (or, auto-paused, at driving-off speed). */
   fastFixes: number;
+  /** Paused by auto-pause (standing still), so driving off resumes it; a tapped Pause never does. */
+  autoPaused: boolean;
   /** Background (OS) location updates are delivering fixes, so the foreground watcher stands down. */
   backgroundActive: boolean;
   /** A drive that just ended, waiting for the app to open its summary. */
@@ -203,6 +205,7 @@ const SESSION_RESET = {
   lastMovementAt: null,
   recentFixes: [],
   fastFixes: 0,
+  autoPaused: false,
   trustedSpeed: null,
   motionPeakG: null,
   lastEvent: null,
@@ -246,14 +249,14 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   pause: () => {
     if (get().status === 'recording') {
       // Paused shows 0, not the last moving speed frozen on screen.
-      set({status: 'paused', pausedAt: Date.now(), stats: {...get().stats, speedMps: 0}});
+      set({status: 'paused', pausedAt: Date.now(), autoPaused: false, stats: {...get().stats, speedMps: 0}});
     }
   },
   resume: () => {
     const {status, pausedAt, pausedMs} = get();
     if (status === 'paused' && pausedAt != null) {
       // Restart the idle clock so a long pause does not read as parked and auto-end at once.
-      set({status: 'recording', pausedMs: pausedMs + (Date.now() - pausedAt), pausedAt: null, lastMovementAt: Date.now(), recentFixes: []});
+      set({status: 'recording', pausedMs: pausedMs + (Date.now() - pausedAt), pausedAt: null, autoPaused: false, fastFixes: 0, lastMovementAt: Date.now(), recentFixes: []});
     }
   },
   end: (endedAt = Date.now(), autoEnded = false) => {
@@ -324,7 +327,19 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       return;
     }
     if (state.status === 'paused') {
-      set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}});
+      if (!state.autoPaused) {
+        set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}});
+        return;
+      }
+      // Auto-paused: driving off resumes the drive; staying parked can still auto-stop it.
+      const recentFixes = [...state.recentFixes, sample].slice(-RECENT_FIXES);
+      const fastFixes = fresh && shouldAutoStart(sample.speedMps, true) ? state.fastFixes + 1 : 0;
+      set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}, recentFixes, fastFixes});
+      if (fastFixes >= AUTO_RESUME_FIXES) {
+        get().resume();
+      } else if (fresh && prefs.autoStop && shouldAutoEnd(state.lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
+        get().end(sample.timestamp, true);
+      }
       return;
     }
 
@@ -409,6 +424,10 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     });
     if (fresh && prefs.autoStop && shouldAutoEnd(lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
       get().end(sample.timestamp, true);
+    } else if (fresh && prefs.autoPause && shouldAutoPause(lastMovementAt, sample.timestamp, prefs.autoPauseSeconds)) {
+      // Paused from when the car stopped, so the standing time is not counted as driving.
+      const since = Math.min(lastMovementAt ?? sample.timestamp, sample.timestamp);
+      set({status: 'paused', pausedAt: since, autoPaused: true, fastFixes: 0, stats: {...get().stats, speedMps: 0}});
     }
   },
   ingestMotion: (accelMps2) => {

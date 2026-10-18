@@ -23,6 +23,7 @@ import {PlaceCard} from '../../components/trip/PlaceCard';
 import {RouteFullscreen} from '../../components/trip/RouteFullscreen';
 import {MapButton} from '../../components/trip/MapButton';
 import {ReplayModal} from '../../components/trip/ReplayModal';
+import {TripWeatherCard} from '../../components/trip/TripWeatherCard';
 import {GlassButton} from '../../components/GlassButton';
 import {SectionTitle} from '../../components/trip/SectionTitle';
 import {SpeedChart} from '../../components/trip/SpeedChart';
@@ -150,6 +151,9 @@ export default function TripDetailScreen() {
                 longitude: e.longitude,
                 title: `${EVENT_LABEL[e.kind]}${(e.intensity ?? 0) >= HARD_INTENSITY ? ' · hard' : ''}`,
                 description: `${clockTime(e.at)}${e.intensity != null ? ` · ${e.intensity.toFixed(1)}× the limit` : ''}`,
+                // The replay's event card reads the moment and the measure.
+                at: e.at,
+                intensity: e.intensity ?? null,
               },
             ]
           : [],
@@ -219,14 +223,13 @@ export default function TripDetailScreen() {
           </View>
         </Card>
         {analysis.points.length > 1 ? (
-          <GlassButton accessibilityLabel="Replay drive" onPress={() => setReplaying(true)} radius={22} style={{height: 48, flexDirection: 'row', gap: 8}}>
+          <GlassButton accessibilityLabel="Replay drive" onPress={() => setReplaying(true)} radius={26} style={{height: 52, flexDirection: 'row', gap: 8}}>
             <Ionicons name="play" size={18} color={c.textPrimary} />
             <AppText size={17} weight="extrabold">
               Replay Drive
             </AppText>
           </GlassButton>
         ) : null}
-        <PlaceCard startAddress={detail.start_address} endAddress={detail.end_address} startTime={detail.start_time} endTime={detail.end_time} period={dayPeriod(detail.start_time)} />
         <View style={{backgroundColor: c.accentTint, borderRadius: theme.radius.hero, paddingVertical: 22, ...softShadow(c)}}>
           <Split dividerColor={withAlpha(c.accent, 0.22)}>
             <>
@@ -247,6 +250,11 @@ export default function TripDetailScreen() {
             </>
           </Split>
         </View>
+        {/* The weather when the drive started, then where it went. */}
+        {analysis.points.length > 0 ? (
+          <TripWeatherCard tripId={detail.id} latitude={analysis.points[0].latitude} longitude={analysis.points[0].longitude} startTime={detail.start_time} />
+        ) : null}
+        <PlaceCard startAddress={detail.start_address} endAddress={detail.end_address} startTime={detail.start_time} endTime={detail.end_time} period={dayPeriod(detail.start_time)} />
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
           {buildTiles(detail, analysis, c, u, limitKmh).map((t) => (
             <BentoTile key={t.label} label={t.label} value={t.value} unit={t.unit} icon={t.icon} iconColor={t.color} style={{flexBasis: '45%', flexGrow: 1}} />

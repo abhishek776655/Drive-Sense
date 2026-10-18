@@ -22,6 +22,7 @@ export interface TripFacts {
   harshBrakes: number;
   rapidAccels: number;
   overspeeds: number;
+  sharpTurns: number;
   /** Null until the drive's route is on the phone. */
   points: PointStats | null;
 }
