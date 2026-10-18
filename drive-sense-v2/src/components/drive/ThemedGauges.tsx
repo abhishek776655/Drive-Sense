@@ -1,4 +1,4 @@
-import {useId} from 'react';
+import {useEffect, useId, useState} from 'react';
 import {Circle, ClipPath, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText} from 'react-native-svg';
 import {arcPath, clampFraction, GAUGE_START_DEG, polar, valueToAngle} from '../../utils/gaugeMath';
 import {GAUGE_INK, type NeedleTheme, type RoadTheme} from '../../theme/gaugeThemes';
@@ -85,12 +85,41 @@ export function ThemedNeedle({speed, scale, unit, t}: Pick<FaceProps, 'speed' | 
 }
 
 
+const ROAD_MARKS = 7;
+
+/**
+ * 0..1, advancing with the speed so the road scene's marks keep rushing past while you drive (one
+ * mark per ~0.5 s at 60 km/h); standing still, it holds.
+ */
+function useRoadPhase(speed: number): number {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    if (speed <= 0.5) {
+      return;
+    }
+    let raf = 0;
+    let last = Date.now();
+    const tick = () => {
+      const now = Date.now();
+      const dt = (now - last) / 1000;
+      last = now;
+      setPhase((p) => (p + dt * Math.min(speed, 200) * 0.035) % 1);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [speed]);
+  return phase;
+}
+
 /** Road scenes: a sky over a road running to the horizon, the speed big at the top (Open, Daylight, Sunset). */
 export function RoadFace({speed, scale, t}: Pick<FaceProps, 'speed' | 'scale'> & {t: RoadTheme}) {
   const id = useId().replace(/:/g, '');
   const fraction = clampFraction(speed, scale);
-  // The lane dashes creep forward with speed, so the road seems to move.
-  const offset = (speed * 3) % 24;
+  const phase = useRoadPhase(speed);
+  const HORIZON = 112;
+  const depth = (k: number) => ((k + phase) / ROAD_MARKS) ** 2.2;
+  const yAt = (d: number) => HORIZON + (200 - HORIZON) * d;
   return (
     <G>
       <Defs>
@@ -115,7 +144,25 @@ export function RoadFace({speed, scale, t}: Pick<FaceProps, 'speed' | 'scale'> &
         <Path d="M96 112 L104 112 L150 200 L50 200 Z" fill={t.road} />
         <Path d="M96 112 L50 200" stroke={t.line} strokeWidth={1.5} strokeOpacity={0.8} />
         <Path d="M104 112 L150 200" stroke={t.line} strokeWidth={1.5} strokeOpacity={0.8} />
-        <Line x1={100} y1={114} x2={100} y2={200} stroke={t.line} strokeWidth={2} strokeDasharray="6 6" strokeDashoffset={-offset} />
+        {/* Lane dashes and roadside posts rushing towards you, bigger as they get closer. */}
+        {Array.from({length: ROAD_MARKS}, (_, k) => {
+          const d = depth(k);
+          const y = yAt(d);
+          const len = 2 + 16 * d;
+          return <Line key={`dash${k}`} x1={100} y1={y} x2={100} y2={Math.min(200, y + len)} stroke={t.line} strokeWidth={0.8 + 2.4 * d} strokeOpacity={0.35 + 0.65 * d} strokeLinecap="round" />;
+        })}
+        {Array.from({length: ROAD_MARKS}, (_, k) => {
+          const d = depth(k + 0.5);
+          const y = yAt(d);
+          const half = 4 + 60 * d;
+          const h = 1 + 9 * d;
+          return (
+            <G key={`post${k}`} opacity={0.25 + 0.6 * d}>
+              <Line x1={100 - half - 4 * d} y1={y} x2={100 - half - 4 * d} y2={y - h} stroke={t.line} strokeWidth={0.6 + 1.6 * d} strokeLinecap="round" />
+              <Line x1={100 + half + 4 * d} y1={y} x2={100 + half + 4 * d} y2={y - h} stroke={t.line} strokeWidth={0.6 + 1.6 * d} strokeLinecap="round" />
+            </G>
+          );
+        })}
       </G>
       <Circle cx={100} cy={100} r={97} fill="none" stroke={GAUGE_INK.rim} strokeOpacity={0.18} strokeWidth={3} />
       {/* How fast, as a thin bar along the rim. */}

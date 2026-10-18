@@ -106,21 +106,15 @@ export default function DriveScreen() {
       </View>
 
       {settings.showCompass ? (
-        // Under the tune button. In 3D the map faces the direction of travel, so north is that far round.
+        // Under the tune button. Speedometer mode keeps it to the compass (no elevation).
         <View pointerEvents="none" style={{position: 'absolute', right: 9, top: insets.top + 8 + 38 + 10}}>
-          <MapCompass
-            headingDeg={recording.stats.headingDeg}
-            moving={recording.stats.moving}
-            mapHeadingDeg={!gauge && live && settings.tilt3d && recording.stats.headingDeg != null ? recording.stats.headingDeg : 0}
-            // Speedometer mode keeps it to the compass.
-            altitudeM={gauge ? undefined : recording.stats.altitudeM}
-          />
+          <MapCompass headingDeg={recording.stats.headingDeg} moving={recording.stats.moving} altitudeM={gauge ? undefined : recording.stats.altitudeM} />
         </View>
       ) : null}
 
       {!gauge && settings.showCoordinates ? (
-        // Under the vehicle chip, clear of the compass column on the right.
-        <View pointerEvents="none" style={{position: 'absolute', left: 16, top: insets.top + 8 + 38 + 10}}>
+        // Under the vehicle chip (or the taller drive timer while recording), clear of the compass column.
+        <View pointerEvents="none" style={{position: 'absolute', left: 16, top: insets.top + 8 + (live ? 66 : 38) + 10}}>
           <CoordinatesChip latitude={recording.position?.latitude ?? null} longitude={recording.position?.longitude ?? null} />
         </View>
       ) : null}

@@ -23,6 +23,8 @@ interface GlassProps {
   shadow?: boolean;
   /** Force light or dark glass (e.g. on the always-dark weather card); defaults to the app's. */
   scheme?: 'light' | 'dark';
+  /** See-through glass that lets the map show through (iOS 26 "clear"); the fallback blurs less. */
+  clear?: boolean;
 }
 
 /** Styles that place and size the element: they go on the outer (shadow) layer. */
@@ -48,7 +50,7 @@ const splitStyle = (style: StyleProp<ViewStyle>) => {
  * Glass surface for the tab bar, map chips and banners. iOS 26 gets native Liquid Glass; other
  * platforms get a blur with a light translucent fill and a 1px edge.
  */
-export function Glass({children, style, radius = 999, interactive = false, tint, fill, shadow = true, scheme}: GlassProps) {
+export function Glass({children, style, radius = 999, interactive = false, tint, fill, shadow = true, scheme, clear = false}: GlassProps) {
   const fillLayer = fill ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: fill, borderRadius: radius}]} /> : null;
   const theme = useAppTheme();
   if (shadow) {
@@ -60,7 +62,7 @@ export function Glass({children, style, radius = 999, interactive = false, tint,
     const sized = outer.height != null || outer.flex != null || outer.flexGrow != null || outer.minHeight != null;
     return (
       <View style={[{borderRadius: radius}, softShadow(theme.colors, 'small'), outer]}>
-        <Glass radius={radius} interactive={interactive} tint={tint} fill={fill} shadow={false} scheme={scheme} style={[{borderRadius: radius}, sized ? {flexGrow: 1} : null, inner]}>
+        <Glass radius={radius} interactive={interactive} tint={tint} fill={fill} shadow={false} scheme={scheme} clear={clear} style={[{borderRadius: radius}, sized ? {flexGrow: 1} : null, inner]}>
           {children}
         </Glass>
       </View>
@@ -68,7 +70,7 @@ export function Glass({children, style, radius = 999, interactive = false, tint,
   }
   if (hasLiquidGlass()) {
     return (
-      <GlassView glassEffectStyle="regular" isInteractive={interactive} tintColor={tint} colorScheme={scheme ?? theme.scheme} style={[{borderRadius: radius, overflow: 'hidden'}, style]}>
+      <GlassView glassEffectStyle={clear ? 'clear' : 'regular'} isInteractive={interactive} tintColor={tint} colorScheme={scheme ?? theme.scheme} style={[{borderRadius: radius, overflow: 'hidden'}, style]}>
         {fillLayer}
         {children}
         {/* No drawn rim: Liquid Glass lights its own edge, and a second one reads as a border. */}
@@ -83,7 +85,7 @@ export function Glass({children, style, radius = 999, interactive = false, tint,
         style={[
           StyleSheet.absoluteFill,
           {
-            backgroundColor: tint ?? theme.colors.glassFill,
+            backgroundColor: tint ?? (clear ? 'transparent' : theme.colors.glassFill),
             borderRadius: radius,
           },
         ]}

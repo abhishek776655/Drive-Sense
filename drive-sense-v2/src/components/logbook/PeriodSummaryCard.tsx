@@ -19,10 +19,12 @@ export function PeriodSummaryCard({totals}: {totals: TripListTotals}) {
     {icon: <Ionicons name="stopwatch" size={17} color={c.accent} />, value: formatDuration(totals.duration_seconds), label: 'TIME'},
   ];
   return (
-    <Card style={{flexDirection: 'row', paddingVertical: 16, paddingHorizontal: 8, borderRadius: 26}}>
+    <Card style={{flexDirection: 'row', alignItems: 'stretch', paddingVertical: 16, paddingHorizontal: 8, borderRadius: 26}}>
       {cells.map((cell, i) => (
-        <View key={cell.label} style={{flex: i === 2 ? 1.3 : 1, flexDirection: 'row'}}>
-          {i > 0 ? <View style={{width: 1.5, marginVertical: 4, borderRadius: 1, backgroundColor: c.separator}} /> : null}
+        <View key={cell.label} style={{flex: 1, flexDirection: 'row', alignItems: 'center'}}>
+          {/* Divider sits as the very first child of every cell except the first — it's a
+              fixed-width sibling so it always lands exactly at the column boundary. */}
+          {i > 0 ? <View style={{width: 1.5, alignSelf: 'stretch', marginVertical: 4, borderRadius: 1, backgroundColor: c.separator}} /> : null}
           <View style={{flex: 1, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 8, paddingHorizontal: 4}}>
             <View style={{paddingTop: 4}}>{cell.icon}</View>
             <View style={{flexShrink: 1}}>

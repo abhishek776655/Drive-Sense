@@ -1,12 +1,6 @@
 import {Ionicons} from '@expo/vector-icons';
 import {Pressable, ScrollView, View} from 'react-native';
-import {
-  ALL_STATS,
-  GAUGE_ACCENTS,
-  MAX_STATS,
-  useDriveSettingsStore,
-  type GaugeStyle,
-} from '../../stores/driveSettingsStore';
+import {ALL_STATS, GAUGE_ACCENTS, MAX_STATS, useDriveSettingsStore, type GaugeStyle} from '../../stores/driveSettingsStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import type {SpeedScale} from '../../utils/gaugeMath';
 import {STAT_META} from '../../utils/liveStats';
@@ -14,6 +8,13 @@ import {AppText} from '../AppText';
 import {BottomSheet} from './BottomSheet';
 import {GaugeDial} from './GaugeDial';
 import {SettingsSwitch} from '../settings/SettingsRows';
+
+/** About two and a half rows of styles show at once; the rest scroll. */
+const STYLE_TILE_HEIGHT = 106;
+const STYLE_GAP = 6;
+const STYLE_PAD = 6;
+/** Exactly three rows of tiles; the rest scroll inside the container. */
+const STYLE_LIST_HEIGHT = STYLE_TILE_HEIGHT * 3 + STYLE_GAP * 2 + STYLE_PAD * 2 + 2;
 
 const STYLES: {id: GaugeStyle; label: string}[] = [
   {id: 'arc', label: 'Arc'},
@@ -55,25 +56,37 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
     <BottomSheet visible={visible} title="Customize" onClose={onClose}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <SectionLabel>GAUGE STYLE</SectionLabel>
-        {/* Three to a row. */}
-        <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 6}}>
-          {STYLES.map((style) => {
-            const on = settings.gaugeStyle === style.id;
-            return (
-              <Pressable
-                key={style.id}
-                accessibilityRole="button"
-                accessibilityState={{selected: on}}
-                accessibilityLabel={`${style.label} gauge`}
-                onPress={() => settings.update({gaugeStyle: style.id})}
-                style={{width: '32%', alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: on ? theme.colors.accent : 'transparent', backgroundColor: on ? theme.colors.accentTint : theme.colors.glassRow}}>
-                <GaugeDial speed={62} scale={200} gaugeStyle={style.id} accent={settings.gaugeAccent} size={72} />
-                <AppText size={10} weight="extrabold" tone="secondary">
-                  {style.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
+        {/* The styles in their own container, scrolling inside it (three to a row), so the rest of
+            Customize stays in reach. */}
+        <View style={{height: STYLE_LIST_HEIGHT, borderRadius: 22, padding: STYLE_PAD, backgroundColor: theme.colors.glassRow, borderWidth: 1, borderColor: theme.colors.separator}}>
+          <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{flexDirection: 'row', flexWrap: 'wrap', gap: STYLE_GAP}}>
+            {STYLES.map((style) => {
+              const on = settings.gaugeStyle === style.id;
+              return (
+                <Pressable
+                  key={style.id}
+                  accessibilityRole="button"
+                  accessibilityState={{selected: on}}
+                  accessibilityLabel={`${style.label} gauge`}
+                  onPress={() => settings.update({gaugeStyle: style.id})}
+                  style={{
+                    width: '32%',
+                    height: STYLE_TILE_HEIGHT,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 14,
+                    borderWidth: 1.5,
+                    borderColor: on ? theme.colors.accent : 'transparent',
+                    backgroundColor: on ? theme.colors.accentTint : theme.colors.card,
+                  }}>
+                  <GaugeDial speed={62} scale={200} gaugeStyle={style.id} accent={settings.gaugeAccent} size={72} />
+                  <AppText size={10} weight="extrabold" tone="secondary" numberOfLines={1} style={{marginTop: 4}}>
+                    {style.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <SectionLabel>ACCENT</SectionLabel>
@@ -87,7 +100,15 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
                 accessibilityState={{selected: on}}
                 accessibilityLabel={`Accent ${color}`}
                 onPress={() => settings.update({gaugeAccent: color})}
-                style={{width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: on ? theme.colors.textPrimary : 'transparent'}}>
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 2,
+                  borderColor: on ? theme.colors.textPrimary : 'transparent',
+                }}>
                 <View style={{width: 24, height: 24, borderRadius: 12, backgroundColor: color}} />
               </Pressable>
             );
@@ -121,7 +142,9 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
               {key: 'showCoordinates', icon: 'locate', label: 'Coordinates', hint: 'Latitude and longitude of the car'},
             ] as const
           ).map((row) => (
-            <View key={row.key} style={{flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.colors.glassRow, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10}}>
+            <View
+              key={row.key}
+              style={{flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.colors.glassRow, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10}}>
               <Ionicons name={row.icon} size={18} color={theme.colors.accent} />
               <View style={{flex: 1}}>
                 <AppText size={13} weight="extrabold">
@@ -139,7 +162,9 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
         <SectionLabel>{`STATS · PICK ${MAX_STATS} · ${settings.stats.length}/${MAX_STATS}`}</SectionLabel>
         <View style={{gap: 6}}>
           {settings.stats.map((id, index) => (
-            <View key={id} style={{flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.colors.glassRow, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9}}>
+            <View
+              key={id}
+              style={{flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.colors.glassRow, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9}}>
               <AppText size={12} weight="black" tone="accent" style={{width: 14}}>
                 {index + 1}
               </AppText>
@@ -150,7 +175,11 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
               <Pressable accessibilityLabel={`Move ${STAT_META[id].pickerLabel} up`} hitSlop={6} onPress={() => settings.move(id, -1)} disabled={index === 0}>
                 <Ionicons name="chevron-up" size={18} color={index === 0 ? theme.colors.textTertiary : theme.colors.textPrimary} />
               </Pressable>
-              <Pressable accessibilityLabel={`Move ${STAT_META[id].pickerLabel} down`} hitSlop={6} onPress={() => settings.move(id, 1)} disabled={index === settings.stats.length - 1}>
+              <Pressable
+                accessibilityLabel={`Move ${STAT_META[id].pickerLabel} down`}
+                hitSlop={6}
+                onPress={() => settings.move(id, 1)}
+                disabled={index === settings.stats.length - 1}>
                 <Ionicons name="chevron-down" size={18} color={index === settings.stats.length - 1 ? theme.colors.textTertiary : theme.colors.textPrimary} />
               </Pressable>
               <Pressable accessibilityLabel={`Remove ${STAT_META[id].pickerLabel}`} hitSlop={6} onPress={() => settings.toggle(id)}>
@@ -168,7 +197,16 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
               accessibilityState={{disabled: full}}
               disabled={full}
               onPress={() => settings.toggle(id)}
-              style={{flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 99, backgroundColor: theme.colors.glassRow, opacity: full ? 0.4 : 1}}>
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+                paddingHorizontal: 10,
+                paddingVertical: 7,
+                borderRadius: 99,
+                backgroundColor: theme.colors.glassRow,
+                opacity: full ? 0.4 : 1,
+              }}>
               <Ionicons name="add" size={13} color={theme.colors.textSecondary} />
               <AppText size={11.5} weight="extrabold" tone="secondary">
                 {STAT_META[id].pickerLabel}

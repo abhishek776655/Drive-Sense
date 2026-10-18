@@ -9,7 +9,7 @@ import {SpeedLegend} from './SpeedLegend';
 import type {LatLng, TripRouteMapProps} from './TripRouteMap.types';
 
 /** Web stand-in: the route drawn to fit the card, coloured by speed, on the map backdrop colour. */
-export function TripRouteMap({points, mode = 'speed', legendStyle = {left: 12, top: 12}, onExpand}: TripRouteMapProps) {
+export function TripRouteMap({points, events = [], showEvents = true, mode = 'speed', legendStyle = {left: 12, top: 12}, onExpand}: TripRouteMapProps) {
   const c = useAppTheme().colors;
   const segs = segments(thin(points, MAP_POINTS));
   if (segs.length === 0) {
@@ -28,6 +28,8 @@ export function TripRouteMap({points, mode = 'speed', legendStyle = {left: 12, t
   const toXY = (p: LatLng) => ({x: 20 + ((p.longitude - minLon) / span) * 260, y: 180 - ((p.latitude - minLat) / span) * 160});
   const first = toXY(segs[0].from);
   const last = toXY(segs[segs.length - 1].to);
+  const eventColor = (kind: string) =>
+    ({rapid_acceleration: c.green, harsh_brake: c.red, overspeed: c.blue, sharp_turn: c.purple, top_speed: c.accent}[kind] ?? c.accent);
   return (
     <View style={[StyleSheet.absoluteFill, {backgroundColor: c.mapBackdrop}]}>
       <Svg width="100%" height="100%" viewBox="0 0 300 200" preserveAspectRatio="xMidYMid meet">
@@ -35,6 +37,10 @@ export function TripRouteMap({points, mode = 'speed', legendStyle = {left: 12, t
           const a = toXY(s.from);
           const b = toXY(s.to);
           return <Line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={mode === 'speed' ? speedColor(s.kmh, c) : c.accent} strokeWidth={4} strokeLinecap="round" />;
+        })}
+        {(showEvents ? events : []).map((e) => {
+          const pt = toXY(e);
+          return <Circle key={e.id} cx={pt.x} cy={pt.y} r={6} fill={eventColor(e.kind)} stroke={c.onAccent} strokeWidth={2} />;
         })}
         <Circle cx={first.x} cy={first.y} r={5} fill={c.green} stroke={c.onAccent} strokeWidth={2} />
         <Circle cx={last.x} cy={last.y} r={5} fill={c.red} stroke={c.onAccent} strokeWidth={2} />

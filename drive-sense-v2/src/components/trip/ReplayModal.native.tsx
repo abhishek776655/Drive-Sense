@@ -1,6 +1,6 @@
 import {Ionicons} from '@expo/vector-icons';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Modal, Platform, Pressable, StyleSheet, View} from 'react-native';
+import {Modal, Animated, Platform, Pressable, StyleSheet, View} from 'react-native';
 import MapView, {Marker, Polyline} from 'react-native-maps';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useUnits} from '../../hooks/useUnits';
@@ -9,6 +9,7 @@ import {softShadow} from '../../theme/shadow';
 import {DARK_MAP_STYLE} from '../../theme/mapStyle';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {formatClock, formatG} from '../../utils/format';
+import {haversineMeters} from '../../utils/geo';
 import {lookAhead, normalizeHeading} from '../../utils/heading';
 import {routeRegion} from '../../utils/routeRegion';
 import {buildReplay, MAP_POINTS, replayAt, speedSegments, thin} from '../../utils/tripAnalysis';
@@ -19,7 +20,8 @@ import {GlassButton} from '../GlassButton';
 import {MapCompass} from '../drive/MapCompass';
 import {MapButton} from './MapButton';
 import {CarMarker, FinishFlag, StartFlag} from './RouteMarkers';
-import {ReplayEventCard, ReplayEventMarker, type EventFacts, type ReplayEventKind} from './ReplayEvents';
+import {ReplayEventCard, type EventFacts, type ReplayEventKind} from './ReplayEvents';
+import {ReplayEventMarker} from './ReplayEventMarker';
 import type {ReplayModalProps} from './ReplayModal.types';
 import {useMapType} from '../../hooks/useMapType';
 
@@ -63,24 +65,80 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
   const [arriving, setArriving] = useState(false);
   const arrival = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Animated slide-up + fade for the event card in the replay.
+  const replayCardAnim = useRef(new Animated.Value(0)).current;
+  const isFirstReplaySelect = useRef(true);
+
+  useEffect(() => {
+    if (selectedId == null) {
+      Animated.timing(replayCardAnim, {toValue: 0, duration: 160, useNativeDriver: true}).start();
+      isFirstReplaySelect.current = true;
+      return;
+    }
+    if (isFirstReplaySelect.current) {
+      isFirstReplaySelect.current = false;
+      replayCardAnim.setValue(0);
+      Animated.spring(replayCardAnim, {toValue: 1, tension: 220, friction: 22, useNativeDriver: true}).start();
+    } else {
+      Animated.sequence([
+        Animated.timing(replayCardAnim, {toValue: 0.6, duration: 80, useNativeDriver: true}),
+        Animated.spring(replayCardAnim, {toValue: 1, tension: 280, friction: 20, useNativeDriver: true}),
+      ]).start();
+    }
+  }, [selectedId, replayCardAnim]);
+
+  // Slide only, no fade: Liquid Glass does not draw its edge under a see-through parent, so a card
+  // fading in from 0 showed no border the first time.
+  const replayCardStyle = {
+    transform: [{translateY: replayCardAnim.interpolate({inputRange: [0, 1], outputRange: [-14, 0]})}],
+  };
+
+  // Map markers are snapshots: pins redraw for a moment after they appear (and the selected one
+  // while selected), so the snapshot never catches them half laid out (off-centre, no ring).
+  const settleKey = `${visible}-${showEvents}-${selectedId}`;
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledKey(settleKey), 900);
+    return () => clearTimeout(timer);
+  }, [settleKey]);
+  const pinsSettled = settledKey === settleKey;
 
   // The driving events plus a pin where the drive was fastest.
   const pins = useMemo(() => {
-    const list: {id: string; kind: ReplayEventKind; latitude: number; longitude: number; atMs: number | null; intensity: number | null; kmh?: number}[] = events.map((e) => ({
-      id: e.id,
-      kind: e.kind,
-      latitude: e.latitude,
-      longitude: e.longitude,
-      atMs: e.at ?? null,
-      intensity: e.intensity ?? null,
-    }));
-    // From every point, not the thinned replay line, so it matches the trip's top speed.
-    const top = points.reduce<(typeof points)[number] | null>((best, p) => (best == null || p.mps > best.mps ? p : best), null);
-    if (top && top.mps > 0) {
+    const list: {id: string; kind: ReplayEventKind; latitude: number; longitude: number; atMs: number | null; intensity: number | null; kmh?: number}[] = events.map((e) => {
+      let lat = e.latitude;
+      let lon = e.longitude;
+      if (track.points.length > 0) {
+        let best = 0;
+        let bestDiff = Infinity;
+        for (let i = 0; i < track.points.length; i++) {
+          const pt = track.points[i];
+          const diff = e.at != null ? Math.abs(pt.t - e.at) : haversineMeters(e, pt);
+          if (diff < bestDiff) {
+            best = i;
+            bestDiff = diff;
+          }
+        }
+        lat = track.points[best].latitude;
+        lon = track.points[best].longitude;
+      }
+      return {
+        id: e.id,
+        kind: e.kind,
+        latitude: lat,
+        longitude: lon,
+        atMs: e.at ?? null,
+        intensity: e.intensity ?? null,
+      };
+    });
+    // From the replay line, so it sits directly on the drawn route line.
+    const top = track.points.reduce<(typeof track.points)[number] | null>((best, p) => (best == null || p.mps > best.mps ? p : best), null);
+    // The trip page may already pass its own top-speed event; never add a second (duplicate keys).
+    if (top && top.mps > 0 && !list.some((pin) => pin.kind === 'top_speed')) {
       list.push({id: 'top-speed', kind: 'top_speed', latitude: top.latitude, longitude: top.longitude, atMs: top.t, intensity: null, kmh: top.mps * 3.6});
     }
     return list;
-  }, [events, points]);
+  }, [events, track.points]);
 
   /** Replay time of a real moment: the point nearest it in time. */
   const replayMsAt = (realMs: number): number => {
@@ -133,6 +191,8 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
     setMode('overview');
     setPlaying(false);
     setSelectedId(null);
+    replayCardAnim.setValue(0);
+    isFirstReplaySelect.current = true;
   };
   const close = () => {
     setPlaying(false);
@@ -278,7 +338,10 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
                 key={`${pin.id}-${pin.id === selectedId ? 'on' : 'off'}`}
                 coordinate={pin}
                 anchor={{x: 0.5, y: 0.5}}
-                tracksViewChanges={false}
+                centerOffset={{x: 0, y: 0}}
+                // A marker is a snapshot: the selected pin (just re-mounted, bigger) keeps redrawing,
+                // or the snapshot can be taken before its white ring and glow are drawn.
+                tracksViewChanges={!pinsSettled || pin.id === selectedId}
                 zIndex={pin.id === selectedId ? 6 : 3}
                 onPress={() => setSelectedId(pin.id)}>
                 <ReplayEventMarker kind={pin.kind} selected={pin.id === selectedId} />
@@ -306,8 +369,8 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
         ) : null}
 
         <View style={{position: 'absolute', top: insets.top + 8, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
-          <MapButton icon="close" label="Close replay" onPress={close} size={44} />
-          <Glass interactive radius={22} style={{flexDirection: 'row', height: 44, padding: 4}}>
+          <MapButton icon="close" label="Close replay" onPress={close} size={38} />
+          <Glass interactive clear tint={withAlpha(c.canvas, 0.22)} radius={19} style={{flexDirection: 'row', height: 38, padding: 3}}>
             {(['follow', 'overview'] as const).map((m) => {
               const on = mode === m;
               return (
@@ -317,8 +380,8 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
                   accessibilityState={{selected: on}}
                   onPress={() => chooseMode(m)}
                   style={{flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, borderRadius: 16, backgroundColor: on ? withAlpha(c.accent, 0.16) : undefined}}>
-                  <Ionicons name={m === 'follow' ? 'navigate-circle' : 'map'} size={15} color={on ? c.accent : c.textSecondary} />
-                  <AppText size={14} weight="extrabold" color={on ? c.accent : c.textSecondary}>
+                  <Ionicons name={m === 'follow' ? 'navigate-circle' : 'map'} size={13} color={on ? c.accent : c.textSecondary} />
+                  <AppText size={12} weight="extrabold" color={on ? c.accent : c.textSecondary}>
                     {m === 'follow' ? 'Follow' : 'Overview'}
                   </AppText>
                 </Pressable>
@@ -331,9 +394,9 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
               accessibilityState={{checked: showEvents}}
               accessibilityLabel="Events on map"
               onPress={() => setShowEvents((v) => !v)}
-              style={{flexDirection: 'row', gap: 5, height: 44, paddingHorizontal: 14}}>
-              <Ionicons name={showEvents ? 'flag' : 'flag-outline'} size={15} color={showEvents ? c.accent : c.textSecondary} />
-              <AppText size={14} weight="extrabold" color={showEvents ? c.accent : c.textSecondary}>
+              style={{flexDirection: 'row', gap: 4, height: 38, paddingHorizontal: 12}}>
+              <Ionicons name={showEvents ? 'flag' : 'flag-outline'} size={13} color={showEvents ? c.accent : c.textSecondary} />
+              <AppText size={12} weight="extrabold" color={showEvents ? c.accent : c.textSecondary}>
                 Events
               </AppText>
             </GlassButton>
@@ -344,7 +407,11 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
 
         {/* Under the top bar: the tapped event's details, and (Follow) a compass that turns with the map. */}
         <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + 8 + TOP_BAR_PT - 20, left: 16, right: 16, gap: 10}}>
-          {selectedFacts ? <ReplayEventCard facts={selectedFacts} onJump={jumpTo} /> : null}
+          {selectedFacts ? (
+            <Animated.View style={replayCardStyle}>
+              <ReplayEventCard key={selectedId} facts={selectedFacts} onJump={jumpTo} />
+            </Animated.View>
+          ) : null}
           {/* The Drive map's compass: N points at real north as the Follow camera turns, the car's
               heading underneath. Tapping it in Follow goes back to the whole route. */}
           <View style={{alignSelf: 'flex-end', alignItems: 'center', gap: 10}}>
@@ -361,7 +428,7 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
         </View>
 
         <View style={{position: 'absolute', left: 16, right: 16, bottom: insets.bottom + 12, gap: 10}}>
-          <Glass radius={24} style={{flexDirection: 'row', paddingVertical: 10}}>
+          <Glass clear tint={withAlpha(c.canvas, 0.22)} radius={24} style={{flexDirection: 'row', paddingVertical: 10}}>
             {[
               {value: String(kmhInUnits(frame?.kmh ?? 0, u.units)), unit: u.speedUnit, label: 'Speed'},
               {value: (u.distanceValue(frame?.meters ?? 0) ?? 0).toFixed(2), unit: u.distanceUnit, label: 'Distance'},
@@ -381,7 +448,7 @@ export function ReplayModal({visible, onClose, points, events}: ReplayModalProps
               </View>
             ))}
           </Glass>
-          <Glass radius={36} style={{flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, paddingLeft: 10, paddingRight: 18}}>
+          <Glass clear tint={withAlpha(c.canvas, 0.22)} radius={36} style={{flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, paddingLeft: 10, paddingRight: 18}}>
             {/* A solid orange play button, as in Rovy. */}
             <Pressable
               accessibilityRole="button"

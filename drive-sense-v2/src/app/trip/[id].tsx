@@ -32,7 +32,7 @@ import {TimeAtSpeedCard} from '../../components/trip/TimeAtSpeedCard';
 import {TRIP_ACTION_BAR_SPACE, TripActionBar} from '../../components/trip/TripActionBar';
 import {TripDetailSkeleton} from '../../components/trip/TripDetailSkeleton';
 import {TripRouteMap} from '../../components/trip/TripRouteMap';
-import type {LatLng} from '../../components/trip/TripRouteMap.types';
+import type {LatLng, TripRouteMapProps} from '../../components/trip/TripRouteMap.types';
 import type {TripDetail} from '../../services/tripService';
 import {useUnits} from '../../hooks/useUnits';
 import {useTripDetailStore} from '../../stores/tripDetailStore';
@@ -139,27 +139,63 @@ export default function TripDetailScreen() {
   const analysis = useMemo(() => (detail ? analyseTrip(detail.location_points) : null), [detail]);
   const breakdown = useMemo(() => (detail ? eventBreakdown(detail.events) : null), [detail]);
   // Located events for the map; the title and description show when a marker is tapped.
-  const events = useMemo(
-    () =>
-      (breakdown?.list ?? []).flatMap((e) =>
-        e.latitude != null && e.longitude != null
-          ? [
-              {
-                id: e.id,
-                kind: e.kind,
-                latitude: e.latitude,
-                longitude: e.longitude,
-                title: `${EVENT_LABEL[e.kind]}${(e.intensity ?? 0) >= HARD_INTENSITY ? ' · hard' : ''}`,
-                description: `${clockTime(e.at)}${e.intensity != null ? ` · ${e.intensity.toFixed(1)}× the limit` : ''}`,
-                // The replay's event card reads the moment and the measure.
-                at: e.at,
-                intensity: e.intensity ?? null,
-              },
-            ]
-          : [],
-      ),
-    [breakdown],
-  );
+  const events: TripRouteMapProps['events'] = useMemo(() => {
+    const list: TripRouteMapProps['events'] = (breakdown?.list ?? []).flatMap((e) => {
+      if (e.latitude == null || e.longitude == null) {
+        return [];
+      }
+      let lat = e.latitude;
+      let lon = e.longitude;
+      if (analysis && analysis.points.length > 0) {
+        let best = 0;
+        let bestDiff = Infinity;
+        for (let i = 0; i < analysis.points.length; i++) {
+          const pt = analysis.points[i];
+          const diff = Math.abs(pt.t - e.at);
+          if (diff < bestDiff) {
+            best = i;
+            bestDiff = diff;
+          }
+        }
+        lat = analysis.points[best].latitude;
+        lon = analysis.points[best].longitude;
+      }
+      return [
+        {
+          id: e.id,
+          kind: e.kind,
+          latitude: lat,
+          longitude: lon,
+          title: `${EVENT_LABEL[e.kind]}${(e.intensity ?? 0) >= HARD_INTENSITY ? ' · hard' : ''}`,
+          description: `${clockTime(e.at)}${e.intensity != null ? ` · ${e.intensity.toFixed(1)}× the limit` : ''}`,
+          // The replay's event card reads the moment and the measure.
+          at: e.at,
+          intensity: e.intensity ?? null,
+        },
+      ];
+    });
+
+    if (analysis && analysis.points.length > 0) {
+      const top = analysis.points.reduce<(typeof analysis.points)[number] | null>(
+        (best, p) => (best == null || p.mps > best.mps ? p : best),
+        null,
+      );
+      if (top && top.mps > 0) {
+        list.push({
+          id: 'top-speed',
+          kind: 'top_speed',
+          latitude: top.latitude,
+          longitude: top.longitude,
+          title: 'Top speed',
+          description: `${u.speed(top.mps)} ${u.speedUnit}`,
+          at: top.t,
+          intensity: null,
+          kmh: top.mps * 3.6,
+        });
+      }
+    }
+    return list;
+  }, [breakdown, analysis, u]);
   const [showEvents, setShowEvents] = useState(true);
   const toggleEvents = () => setShowEvents((v) => !v);
   const showOnMap = (focus: LatLng) => setFullscreen({open: true, focus});

@@ -1,12 +1,12 @@
 import type {CleanPoint} from '../../utils/tripAnalysis';
-import type {EventKind} from '../../utils/tripEvents';
+import type {ReplayEventKind} from './ReplayEvents';
 
 export type LatLng = {latitude: number; longitude: number};
 
 export interface TripRouteMapProps {
   points: CleanPoint[];
   /** Title / description show in the marker's callout when it is tapped. */
-  events: (LatLng & {id: string; kind: EventKind; title?: string; description?: string})[];
+  events: (LatLng & {id: string; kind: ReplayEventKind; title?: string; description?: string; at?: number; intensity?: number | null; kmh?: number})[];
   /** Hide the event markers (the Events pill). Default shown. */
   showEvents?: boolean;
   /** Speed colours the route by speed; Plain draws it in the accent colour. Default Speed. */
