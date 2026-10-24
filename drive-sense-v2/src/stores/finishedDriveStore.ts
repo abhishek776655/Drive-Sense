@@ -6,6 +6,8 @@ import {getDb} from '../db';
 import {clearDrivePoints, drivePoints, getDetail, outboxId, outboxPut, putLocalTrip} from '../db/repos';
 import {clearObdSamples, deleteTripObd, obdSamples} from '../db/obdRepos';
 import {finalizeObd} from '../sync/obdRecorder';
+import {HIGH_RPM} from '../obd/series';
+import {useVehicleStore} from './vehicleStore';
 import {isPhoneOnly, lookUpAddresses} from '../sync/driveBackup';
 import {tripMetrics, type TripMetrics} from '../utils/tripMetrics';
 import {finishOutboxItem, isOfflineError} from '../sync/outbox';
@@ -72,7 +74,8 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
       // vehicle. Car data is extra: a failure here must never stop the drive itself being saved.
       try {
         if (drive.vehicle) {
-          finalizeObd(db, drive);
+          const fuel = useVehicleStore.getState().vehicles.find((v) => v.id === drive.vehicle?.id)?.fuel_type;
+          finalizeObd(db, drive, fuel === 'diesel' ? HIGH_RPM.diesel : HIGH_RPM.petrol);
         } else {
           clearObdSamples(db, drive.startedAt);
         }

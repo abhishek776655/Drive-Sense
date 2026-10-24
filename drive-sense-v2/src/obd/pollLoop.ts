@@ -1,3 +1,4 @@
+import {parseVoltage} from './battery';
 import {ELM_INIT, isNoAnswer, parseReply, parseVin, pidRequest, PROMPT} from './elm327';
 import {decodeStatus, keyForCode, PIDS, type PidKey} from './pids';
 import {decodeSupported, SupportTracker} from './supported';
@@ -33,6 +34,10 @@ const GARBAGE_LIMIT = 3;
 /** No engine for this long → slow poll. */
 const ENGINE_OFF_MS = 30_000;
 const ENGINE_OFF_POLL_MS = 10_000;
+/** Engine off but the ignition on: RPM and battery voltage this often, to catch the start dip. */
+const ENGINE_STOPPED_POLL_MS = 250;
+/** Keep reading voltage every round this long after the engine catches (the dip's tail). */
+const AFTER_START_MS = 3000;
 const SUPPORTED_BASES = ['00', '20', '40', '60'];
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -165,10 +170,21 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       handlers.onVin(vin);
     }
 
+    /** The adapter's own supply voltage (`ATRV`): quick, and answered even with the engine off. */
+    const readVoltage = async () => {
+      const v = parseVoltage(await ask('ATRV'));
+      if (v != null) {
+        handlers.onValue('voltage', v, now());
+      }
+    };
+
     let cycle = 0;
     let slowIndex = 0;
     let lastEngineAt = now();
     let engineOn = true;
+    let lastRpm: number | null = null;
+    let lastAnswered = true;
+    let caughtAt: number | null = null;
     handlers.onEngine(true);
     while (running) {
       cycle += 1;
@@ -189,7 +205,13 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
 
       let rpm: number | null = null;
       let answered = false;
-      const ask = engineOn ? plan : (['rpm', 'status'] as PidKey[]).filter(has);
+      // Three paces: the full plan while the engine runs; RPM and voltage several times a second with
+      // the engine stopped but the ignition on (to catch the start dip); a slow check while silent.
+      const stopped = lastRpm === 0 && lastAnswered;
+      const ask = stopped ? (['rpm'] as PidKey[]).filter(has) : engineOn ? plan : (['rpm', 'status'] as PidKey[]).filter(has);
+      if (stopped || (caughtAt != null && now() - caughtAt < AFTER_START_MS)) {
+        await readVoltage();
+      }
       if (ask.length === 0) {
         // Nothing left to ask: wait rather than spin (a loop with no replies to await never yields).
         await sleep(ENGINE_OFF_POLL_MS);
@@ -213,6 +235,13 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       }
 
       settle(answered);
+      if (rpm != null) {
+        if (rpm > 0 && lastRpm === 0) {
+          caughtAt = now();
+        }
+        lastRpm = rpm;
+      }
+      lastAnswered = answered;
       const engine = answered && (rpm == null ? !has('rpm') : rpm > 0);
       if (engine) {
         lastEngineAt = now();
@@ -224,7 +253,9 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
         engineOn = false;
         handlers.onEngine(false);
       }
-      if (!engineOn) {
+      if (lastRpm === 0 && lastAnswered) {
+        await sleep(ENGINE_STOPPED_POLL_MS);
+      } else if (!engineOn) {
         await sleep(ENGINE_OFF_POLL_MS);
       }
     }

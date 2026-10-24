@@ -45,6 +45,18 @@ describe('car totals', () => {
     expect(carTotals([drive()])?.idleFuelL).toBeNull();
   });
 
+  it('weighs coasting by moving time and averages cold-start warm-ups', () => {
+    const t = carTotals([
+      drive({stats: stats({coastShare: 0.1, movingS: 300, highRpmS: 20, warmupS: 0})}),
+      drive({stats: stats({coastShare: 0.3, movingS: 100, highRpmS: 5, warmupS: 200})}),
+      drive({stats: stats({warmupS: 400})}),
+    ]);
+    expect(t?.coastShare).toBe(0.15);
+    expect(t?.highRpmS).toBe(25);
+    expect(t?.avgWarmupS).toBe(300);
+    expect(carTotals([drive()])).toMatchObject({coastShare: null, highRpmS: null, avgWarmupS: null});
+  });
+
   it('leaves out fuel for cars that never reported it', () => {
     const t = carTotals([drive({stats: stats({fuelUsedL: null, avgL100km: null})})]);
     expect(t?.fuelL).toBeNull();

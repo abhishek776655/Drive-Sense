@@ -61,6 +61,8 @@ export interface AdapterState {
   fuelLevel: number | null;
   voltage: number | null;
   readAt: string;
+  /** Battery health from the last engine start (absent until one is seen). */
+  battery?: {restingV: number | null; startDipV: number; at: string};
 }
 
 export interface ObdAdapter {

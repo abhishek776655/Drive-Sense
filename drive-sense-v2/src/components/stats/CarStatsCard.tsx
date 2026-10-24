@@ -48,6 +48,15 @@ export function CarStatsCard({totals, tripCount}: {totals: CarTotals; tripCount?
   if (totals.idleFuelL != null) {
     tiles.push({label: 'Fuel idling', ...fuelVolume(totals.idleFuelL, u.units), icon: 'hourglass', color: c.amber});
   }
+  if (totals.coastShare != null) {
+    tiles.push({label: 'Coasting', value: String(Math.round(totals.coastShare * 100)), unit: '%', icon: 'leaf', color: c.mint});
+  }
+  if (totals.highRpmS != null) {
+    tiles.push({label: 'High revs', value: formatSpan(totals.highRpmS), icon: 'flame', color: c.red});
+  }
+  if (totals.avgWarmupS != null) {
+    tiles.push({label: 'Avg warm-up', value: formatSpan(totals.avgWarmupS), icon: 'thermometer', color: c.blue});
+  }
   // With one drive the best is just the average.
   if (totals.bestL100km != null && totals.drives > 1) {
     tiles.push({label: 'Best drive', ...economy(totals.bestL100km, u.units, mileage), icon: 'ribbon', color: c.mint});

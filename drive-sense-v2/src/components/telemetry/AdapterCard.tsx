@@ -5,6 +5,7 @@ import {getDb} from '../../db';
 import {deleteAdapter} from '../../db/obdRepos';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
+import {DIP_LOW_V, RESTING_LOW_V} from '../../obd/battery';
 import {L_PER_US_GAL} from '../../obd/fuel';
 import {economy, economyLabel} from '../../obd/tiles';
 import {useObdStore, type ObdLink} from '../../stores/obdStore';
@@ -126,6 +127,21 @@ export function AdapterCard({vehicleId, onPair}: {vehicleId: string; onPair: () 
           </AppText>
           <AppText size={14} weight="extrabold">
             {economy(range.economy, u.units, mileage).value} {economy(range.economy, u.units, mileage).unit}
+          </AppText>
+        </View>
+      ) : null}
+      {adapter && state?.battery ? (
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+          <Ionicons
+            name="battery-half"
+            size={18}
+            color={(state.battery.restingV != null && state.battery.restingV < RESTING_LOW_V) || state.battery.startDipV < DIP_LOW_V ? c.amber : c.green}
+          />
+          <AppText size={14} weight="bold" tone="secondary" style={{flex: 1}}>
+            Battery{state.battery.restingV != null ? ` ${state.battery.restingV.toFixed(1)} V resting ·` : ''} {state.battery.startDipV.toFixed(1)} V at start
+          </AppText>
+          <AppText size={13} weight="extrabold" color={(state.battery.restingV != null && state.battery.restingV < RESTING_LOW_V) || state.battery.startDipV < DIP_LOW_V ? c.amber : c.green}>
+            {(state.battery.restingV != null && state.battery.restingV < RESTING_LOW_V) || state.battery.startDipV < DIP_LOW_V ? 'Check' : 'Healthy'}
           </AppText>
         </View>
       ) : null}

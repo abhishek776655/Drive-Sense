@@ -33,6 +33,12 @@ describe('simulated car', () => {
     expect(read('coolant', 300)).toBeGreaterThan(85);
   });
 
+  it('dips the battery when the engine restarts after the lights, and answers ATRV', () => {
+    expect(simReply('ATRV', simCar(30))).toBe('14.2V');
+    expect(simReply('ATRV', simCar(START_STOP[1] + 0.2))).toBe('10.3V');
+    expect(read('voltage', START_STOP[1] + 0.2)).toBeCloseTo(10.3, 1);
+  });
+
   it('round-trips through the real decoders', () => {
     expect(read('voltage', 10)).toBeCloseTo(14.2, 1);
     expect(read('baro', 10)).toBe(100);

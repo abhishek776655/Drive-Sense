@@ -25,6 +25,12 @@ export interface CarTotals {
   bestL100km: number | null;
   /** Fuel burned idling, over the drives that measured it. */
   idleFuelL: number | null;
+  /** Coasting share of moving time, over the drives that measured it. */
+  coastShare: number | null;
+  /** Total seconds above the high-RPM line. */
+  highRpmS: number | null;
+  /** Average warm-up of the cold starts (drives starting below 70 °C). */
+  avgWarmupS: number | null;
 }
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places;
@@ -48,7 +54,21 @@ export const carTotals = (drives: CarDrive[]): CarTotals | null => {
   let idle = 0;
   let best: number | null = null;
   let idleFuel: number | null = null;
+  let coastMoving = 0;
+  let coastTime = 0;
+  let highRpm: number | null = null;
+  const warmups: number[] = [];
   for (const {stats, durationS} of drives) {
+    if (stats.coastShare != null && stats.movingS) {
+      coastMoving += stats.movingS;
+      coastTime += stats.coastShare * stats.movingS;
+    }
+    if (stats.highRpmS != null) {
+      highRpm = (highRpm ?? 0) + stats.highRpmS;
+    }
+    if (stats.warmupS != null && stats.warmupS > 0) {
+      warmups.push(stats.warmupS);
+    }
     if (stats.idleFuelL != null) {
       idleFuel = (idleFuel ?? 0) + stats.idleFuelL;
     }
@@ -84,6 +104,9 @@ export const carTotals = (drives: CarDrive[]): CarTotals | null => {
     idleS: idle,
     bestL100km: best,
     idleFuelL: idleFuel == null ? null : round(idleFuel, 2),
+    coastShare: coastMoving > 0 ? round(coastTime / coastMoving, 3) : null,
+    highRpmS: highRpm,
+    avgWarmupS: warmups.length > 0 ? Math.round(warmups.reduce((a, b) => a + b, 0) / warmups.length) : null,
   };
 };
 

@@ -1,4 +1,4 @@
-import {downsample, summarize, type ObdRow, type ObdSampleRow} from '../../obd/series';
+import {downsample, ecoStats, summarize, type ObdRow, type ObdSampleRow} from '../../obd/series';
 import {memoryDb} from '../../testUtils/memoryDb';
 import {
   appendObdSamples,
@@ -125,3 +125,28 @@ describe('OBD series', () => {
     expect(downsample([], T0).t).toEqual([]);
   });
 });
+
+describe('eco driving', () => {
+  const at = (i: number, row: ObdRow) => ({ts: T0 + i * 1000, row});
+
+  it('counts coasting against the drive\'s own closed-throttle reading', () => {
+    // Closed throttle reads 14 %; 60 s cruising at 25 %, then 20 s rolling with it closed.
+    const r = [...Array.from({length: 60}, (_, i) => at(i, {rpm: 2000, speed: 60, throttle: 25})), ...Array.from({length: 20}, (_, i) => at(60 + i, {rpm: 1400, speed: 45, throttle: 14}))];
+    expect(ecoStats(r).coastShare).toBeCloseTo(0.25, 3);
+    expect(ecoStats(r).movingS).toBe(80);
+  });
+
+  it('times high revs against the right line for the fuel', () => {
+    const r = Array.from({length: 10}, (_, i) => at(i, {rpm: 2800, speed: 50}));
+    expect(ecoStats(r).highRpmS).toBe(0);
+    expect(ecoStats(r, 2500).highRpmS).toBe(10);
+  });
+
+  it('times the warm-up from engine start to 70 °C, and calls a warm engine a warm start', () => {
+    const cold = [at(0, {rpm: 0, coolant: 20}), at(1, {rpm: 900, coolant: 21}), at(2, {rpm: 900, coolant: 45}), at(241, {rpm: 900, coolant: 71})];
+    expect(ecoStats(cold).warmupS).toBe(240);
+    expect(ecoStats([at(0, {rpm: 900, coolant: 88})]).warmupS).toBe(0);
+    expect(ecoStats([at(0, {rpm: 900, coolant: 40}), at(5, {rpm: 900, coolant: 50})]).warmupS).toBeNull();
+  });
+});
+

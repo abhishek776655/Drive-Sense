@@ -104,6 +104,9 @@ export function CarSection({startTime}: {startTime: string}) {
     stats.maxCoolantC != null ? {label: 'Hottest coolant', ...temperature(stats.maxCoolantC, temperatureUnit), icon: 'thermometer' as const, color: c.amber} : null,
     {label: 'Engine idling', value: formatSpan(stats.idleS), unit: '', icon: 'pause-circle' as const, color: c.textSecondary},
     stats.idleFuelL != null ? {label: 'Fuel idling', ...fuelVolume(stats.idleFuelL, u.units), icon: 'hourglass' as const, color: c.amber} : null,
+    stats.coastShare != null ? {label: 'Coasting', value: String(Math.round(stats.coastShare * 100)), unit: '%', icon: 'leaf' as const, color: c.mint} : null,
+    stats.highRpmS != null ? {label: 'High revs', value: formatSpan(stats.highRpmS), unit: '', icon: 'flame' as const, color: stats.highRpmS > 60 ? c.red : c.textSecondary} : null,
+    stats.warmupS != null ? {label: 'Warm-up', value: stats.warmupS === 0 ? 'Warm start' : formatSpan(stats.warmupS), unit: '', icon: 'thermometer' as const, color: c.blue} : null,
   ].filter((t): t is NonNullable<typeof t> => t != null);
 
   return (

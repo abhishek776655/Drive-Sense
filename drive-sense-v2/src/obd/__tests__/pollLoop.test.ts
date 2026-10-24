@@ -111,16 +111,48 @@ describe('poll loop', () => {
     expect(sent.filter((c) => c === 'ATZ').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('slows down once the engine has been off for 30 s', async () => {
+  it('with the engine stopped but the ignition on, reads RPM and voltage several times a second', async () => {
     let t = 0;
-    const {transport} = fakeAdapter({...CAR, '010C': '41 0C 00 00'});
+    const {transport, sent} = fakeAdapter({...CAR, '010C': '41 0C 00 00', ATRV: '12.5V'});
     const h = handlers();
-    let slept = 0;
+    const pauses: number[] = [];
     const loop = createPollLoop(transport, h, {
       now: () => (t += 1000),
-      sleep: (ms) => (ms === 10_000 ? (++slept >= 2 && loop.stop(), Promise.resolve()) : never()),
+      sleep: (ms) => {
+        if (ms !== 250 && ms !== 10_000) {
+          return never(); // reply timeouts: the fake adapter always answers
+        }
+        pauses.push(ms);
+        if (pauses.length >= 40) {
+          loop.stop();
+        }
+        return Promise.resolve();
+      },
     });
     await loop.start();
+    expect(pauses.every((ms) => ms === 250)).toBe(true);
+    expect(h.values).toContainEqual(['voltage', 12.5]);
+    expect(sent.filter((c) => c === 'ATRV').length).toBeGreaterThan(30);
+    expect(h.onEngine).toHaveBeenLastCalledWith(false);
+  });
+
+  it('slows to a 10 s check once the car stops answering (ignition off)', async () => {
+    let t = 0;
+    let awake = true;
+    const answers: Record<string, string | (() => string)> = {};
+    for (const [cmd, reply] of Object.entries(CAR)) {
+      answers[cmd] = cmd.startsWith('01') && !['0100', '0120'].includes(cmd) ? () => (awake ? reply : 'NO DATA') : reply;
+    }
+    const {transport} = fakeAdapter(answers);
+    const h = handlers();
+    let slow = 0;
+    let reads = 0;
+    const loop = createPollLoop(transport, {...h, onValue: (k) => k === 'rpm' && ++reads === 2 && (awake = false)}, {
+      now: () => (t += 5000),
+      sleep: (ms) => (ms === 10_000 ? (++slow >= 2 && loop.stop(), Promise.resolve()) : never()),
+    });
+    await loop.start();
+    expect(slow).toBe(2);
     expect(h.onEngine).toHaveBeenLastCalledWith(false);
   });
 

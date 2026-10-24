@@ -1,12 +1,13 @@
 import {useEffect} from 'react';
 import {getDb} from '../db';
-import {getAdapter, putAdapter, type ObdAdapter} from '../db/obdRepos';
+import {getAdapter, putAdapter, type AdapterState, type ObdAdapter} from '../db/obdRepos';
 import {useObdStore, type ObdLink} from '../stores/obdStore';
 import {usePreferencesStore} from '../stores/preferencesStore';
 import {useRecordingStore} from '../stores/recordingStore';
 import {useActiveVehicle} from '../stores/vehicleStore';
 import type {FuelType} from '../services/vehicleService';
 import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink, type BleStatus} from './bleTransport';
+import {BatteryWatch} from './battery';
 import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
 import {createPollLoop} from './pollLoop';
 import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
@@ -32,12 +33,14 @@ const waitForBluetooth = () =>
   });
 
 /** Saves what the car last said to the paired adapter row, for the "last seen" card. */
-const saveLastState = (adapter: ObdAdapter) => {
+const saveLastState = (paired: ObdAdapter, battery?: AdapterState['battery']) => {
   const db = getDb();
   const s = useObdStore.getState();
   if (!db) {
     return;
   }
+  // The store's copy is newer than the one the session started with (it holds earlier saves).
+  const adapter = s.adapter?.deviceId === paired.deviceId ? s.adapter : paired;
   const values = s.values;
   const next: ObdAdapter = {
     ...adapter,
@@ -50,6 +53,8 @@ const saveLastState = (adapter: ObdAdapter) => {
       fuelLevel: values.fuelLevel?.v ?? adapter.lastState?.fuelLevel ?? null,
       voltage: values.voltage?.v ?? adapter.lastState?.voltage ?? null,
       readAt: new Date().toISOString(),
+      // A quick restart (auto start-stop) has no resting figure: keep the last real one.
+      battery: battery ? {...battery, restingV: battery.restingV ?? adapter.lastState?.battery?.restingV ?? null} : adapter.lastState?.battery,
     },
   };
   putAdapter(db, next);
@@ -68,6 +73,10 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
   let link: AdapterLink | null = null;
   let stopLoop: (() => void) | null = null;
   const gear = new GearEstimator();
+  // Resting voltage and the dip at each engine start, kept with the paired adapter (battery health).
+  const battery = new BatteryWatch((r) =>
+    saveLastState(adapter, {restingV: r.restingV, startDipV: r.startDipV, at: new Date(r.at).toISOString()}),
+  );
 
   const derive = () => {
     const v = store().values;
@@ -104,6 +113,11 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
     const loop = createPollLoop(link, {
       onValue: (key, value, at) => {
         store().putValue(key, value, at);
+        if (key === 'voltage') {
+          battery.voltage(value, at);
+        } else if (key === 'rpm') {
+          battery.rpm(value, at);
+        }
         if (key === 'speed' || key === 'maf' || key === 'fuelRate') {
           derive();
         }

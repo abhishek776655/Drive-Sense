@@ -40,11 +40,18 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 export const START_STOP = [56, 59] as const;
 
 /** Dev control: switch the pretend engine off (a parked car with the ignition on) and back on. */
-export const simControls = {engineOn: true, ignitionOn: true, silentUntil: 0};
+export const simControls = {engineOn: true, ignitionOn: true, silentUntil: 0, startedAt: 0};
 
 export const setSimEngine = (on: boolean) => {
+  if (on && !simControls.engineOn) {
+    simControls.startedAt = Date.now();
+  }
   simControls.engineOn = on;
 };
+
+/** The starter pulls the battery down to about this for a moment when the engine starts. */
+const START_DIP_V = 10.3;
+const START_DIP_S = 0.8;
 
 /** Ignition off: the car's computer goes quiet and every request comes back empty (the adapter stays awake). */
 export const setSimIgnition = (on: boolean) => {
@@ -95,7 +102,11 @@ export const simCar = (elapsedS: number): SimCar => {
     ambient: 29,
     runTime: Math.round(elapsedS),
   };
-  return t >= START_STOP[0] && t < START_STOP[1] ? engineOff(car) : car;
+  if (t >= START_STOP[0] && t < START_STOP[1]) {
+    return engineOff(car);
+  }
+  // Restarting after the stop at the lights: the starter's dip.
+  return t >= START_STOP[1] && t < START_STOP[1] + START_DIP_S ? {...car, voltage: START_DIP_V} : car;
 };
 
 const hex = (n: number) => clamp(Math.round(n), 0, 255).toString(16).toUpperCase().padStart(2, '0');
@@ -148,6 +159,9 @@ export const simReply = (command: string, car: SimCar): string => {
   if (cmd === 'ATZ') {
     return 'ELM327 v1.5';
   }
+  if (cmd === 'ATRV') {
+    return `${car.voltage.toFixed(1)}V`;
+  }
   if (cmd.startsWith('AT')) {
     return 'OK';
   }
@@ -183,7 +197,9 @@ export function createSimAdapter(now: () => number = Date.now): AdapterLink {
       const car = simCar((now() - startedAt) / 1000);
       const command = text.trim().toUpperCase();
       const asleep = !simControls.ignitionOn && (command.startsWith('01') || command.startsWith('09'));
-      const reply = asleep ? 'NO DATA' : simReply(text, simControls.engineOn ? car : engineOff(car));
+      const justStarted = simControls.engineOn && now() - simControls.startedAt < START_DIP_S * 1000;
+      const shown = !simControls.engineOn ? engineOff(car) : justStarted ? {...car, voltage: START_DIP_V} : car;
+      const reply = asleep ? 'NO DATA' : simReply(text, shown);
       // A real adapter takes a few tens of ms per answer; this keeps the loop at a realistic pace.
       setTimeout(() => listeners.forEach((l) => l(`${reply}\r\r${PROMPT}`)), 40);
     },

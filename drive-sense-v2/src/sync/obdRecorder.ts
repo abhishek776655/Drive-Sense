@@ -105,12 +105,12 @@ export function startObdRecorder(): () => void {
 }
 
 /** At the drive's end: its seconds become a summary and chart series, and the seconds go. */
-export const finalizeObd = (db: SqlDb, drive: Pick<FinishedDrive, 'startedAt' | 'durationSeconds'>): ObdStats | null => {
+export const finalizeObd = (db: SqlDb, drive: Pick<FinishedDrive, 'startedAt' | 'durationSeconds'>, highRpm?: number): ObdStats | null => {
   const rows = obdSamples(db, drive.startedAt);
   if (rows.length === 0) {
     return null;
   }
-  const stats = summarize(rows, drive.durationSeconds);
+  const stats = summarize(rows, drive.durationSeconds, highRpm);
   // Saved before the seconds go, so a failure leaves them for another try rather than losing both.
   putTripObd(db, drive.startedAt, {stats, series: downsample(rows, drive.startedAt)});
   clearObdSamples(db, drive.startedAt);
