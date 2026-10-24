@@ -15,11 +15,13 @@ import {RecordsCard} from '../components/stats/RecordsCard';
 import {SpeedDistributionCard} from '../components/stats/SpeedDistributionCard';
 import {StatsChips} from '../components/stats/StatsChips';
 import {StatsHeroCard} from '../components/stats/StatsHeroCard';
+import {CarStatsCard} from '../components/stats/CarStatsCard';
 import {StatsTiles} from '../components/stats/StatsTiles';
 import {StreaksCard} from '../components/stats/StreaksCard';
 import {TimeAtSpeedDonutCard} from '../components/stats/TimeAtSpeedDonutCard';
 import {TrendCard} from '../components/stats/TrendCard';
 import {StickyHeaderScroll} from '../components/StickyHeaderScroll';
+import {useCarStats} from '../hooks/useCarStats';
 import {useStatsStore} from '../stores/statsStore';
 import {useVehicleStore} from '../stores/vehicleStore';
 import {useAppTheme} from '../theme/ThemeProvider';
@@ -59,6 +61,7 @@ export default function AllStatsScreen() {
   const c = theme.colors;
   const insets = useSafeAreaInsets();
   const {period, vehicleId, range, data, status, error, load, setFilters} = useStatsStore();
+  const car = useCarStats({period, range, vehicleId});
   const vehicles = useVehicleStore((s) => s.vehicles);
   const loadVehicles = useVehicleStore((s) => s.load);
   const [vehicleSheet, setVehicleSheet] = useState(false);
@@ -132,6 +135,12 @@ export default function AllStatsScreen() {
               <>
                 <SectionLabel>DRIVING EVENTS</SectionLabel>
                 <DrivingEventsCard events={data.events} />
+              </>
+            ) : null}
+            {car ? (
+              <>
+                <SectionLabel>CAR</SectionLabel>
+                <CarStatsCard totals={car} tripCount={data.summary.trip_count} />
               </>
             ) : null}
             <SectionLabel>SPEED</SectionLabel>

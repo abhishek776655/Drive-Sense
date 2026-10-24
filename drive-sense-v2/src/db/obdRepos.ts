@@ -1,5 +1,6 @@
 import type {PidKey} from '../obd/pids';
 import type {ObdRow, ObdSampleRow, ObdSeries, ObdStats} from '../obd/series';
+import type {CarDrive} from '../stats/carStats';
 import type {SqlDb} from './sql';
 
 /** A trip's start time on the server can differ from the phone's by a moment; this much still matches. */
@@ -113,3 +114,21 @@ export const putAdapter = (db: SqlDb, a: ObdAdapter) => {
 export const deleteAdapter = (db: SqlDb, vehicleId: string) => {
   db.run('DELETE FROM obd_adapters WHERE vehicle_id = ?', [vehicleId]);
 };
+
+// ── stats ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Every kept drive that has OBD data, with its vehicle and length from the trip it belongs to
+ * (matched on start time; `strftime('%s')` drops the milliseconds, hence the lopsided window).
+ */
+export const carDrives = (db: SqlDb): CarDrive[] =>
+  db
+    .all<{started_at: number; vehicle_id: string; duration_seconds: number; stats: string}>(
+      `SELECT o.started_at, t.vehicle_id, t.duration_seconds, o.stats
+         FROM trip_obd o
+         JOIN trips t ON o.started_at BETWEEN CAST(strftime('%s', t.start_time) AS INTEGER) * 1000 - ?
+                                          AND CAST(strftime('%s', t.start_time) AS INTEGER) * 1000 + 1000 + ?
+        GROUP BY o.started_at`,
+      [START_MATCH_MS, START_MATCH_MS],
+    )
+    .map((r) => ({startMs: r.started_at, vehicleId: r.vehicle_id, durationS: r.duration_seconds, stats: JSON.parse(r.stats) as ObdStats}));

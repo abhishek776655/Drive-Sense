@@ -11,10 +11,12 @@ import {LastTripCard} from '../../components/LastTripCard';
 import {StickyHeaderScroll} from '../../components/StickyHeaderScroll';
 import {AltitudeCard, EventsCard, SectionLabel, TurnsCard} from '../../components/HomeDetailCards';
 import {Card} from '../../components/Card';
+import {CarStatsCard} from '../../components/stats/CarStatsCard';
 import {useTabBarInset} from '../../components/tabBarLayout';
 import {TrendChart} from '../../components/TrendChart';
 import {WeatherCard} from '../../components/WeatherCard';
 import {WeatherSkeleton} from '../../components/WeatherSkeleton';
+import {useCarStats} from '../../hooks/useCarStats';
 import {useUnits} from '../../hooks/useUnits';
 import {useHomeStore} from '../../stores/homeStore';
 import {useRecordingStore} from '../../stores/recordingStore';
@@ -34,6 +36,8 @@ export default function HomeScreen() {
   const live = useRecordingStore((s) => s.status !== 'ready');
   const bottomInset = useTabBarInset(live);
   const {stats, lastTrip, trend, loading, error, load} = useHomeStore();
+  // All-time car (OBD-II) numbers; hidden until a drive has some.
+  const car = useCarStats({period: 'all'});
   const weather = useWeatherStore((s) => s.weather);
   const weatherStatus = useWeatherStore((s) => s.status);
   const loadWeather = useWeatherStore((s) => s.load);
@@ -181,6 +185,13 @@ export default function HomeScreen() {
       <View style={{marginTop: gap}}>
         <AltitudeCard highest={stats?.altitude?.highest_m ?? null} lowest={stats?.altitude?.lowest_m ?? null} />
       </View>
+
+      {car ? (
+        <>
+          <SectionLabel>CAR</SectionLabel>
+          <CarStatsCard totals={car} tripCount={stats?.trip_count ?? undefined} />
+        </>
+      ) : null}
 
       {trend.length > 0 ? (
         <>
