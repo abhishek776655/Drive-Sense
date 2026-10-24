@@ -40,7 +40,16 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 export const START_STOP = [56, 59] as const;
 
 /** Dev control: switch the pretend engine off (a parked car with the ignition on) and back on. */
-export const simControls = {engineOn: true};
+export const simControls = {engineOn: true, silentUntil: 0};
+
+export const setSimEngine = (on: boolean) => {
+  simControls.engineOn = on;
+};
+
+/** Dev control: the adapter stops answering for a while, like a flaky Bluetooth link. */
+export const simulateDropout = (seconds: number, now = Date.now()) => {
+  simControls.silentUntil = now + seconds * 1000;
+};
 
 const engineOff = (car: SimCar): SimCar => ({...car, speed: 0, rpm: 0, throttle: 0, load: 0, maf: 0, map: car.baro, voltage: 12.4});
 
@@ -159,6 +168,9 @@ export function createSimAdapter(now: () => number = Date.now): AdapterLink {
     write: async (text) => {
       if (!open) {
         throw new Error('Simulator adapter disconnected');
+      }
+      if (now() < simControls.silentUntil) {
+        return; // dropped out: no reply, the poll loop times out and starts the adapter over
       }
       const car = simCar((now() - startedAt) / 1000);
       const reply = simReply(text, simControls.engineOn ? car : engineOff(car));

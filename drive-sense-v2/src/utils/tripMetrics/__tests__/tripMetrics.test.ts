@@ -132,3 +132,37 @@ describe('detectSharpTurns (the server tests for detect_sharp_turns)', () => {
     expect(scoreFor([turn, turn, turn])).toBe(97);
   });
 });
+
+describe('adapter cross-check in the final events', () => {
+  const at = (s: number, speedMps: number, speedSource?: 'gps' | 'obd'): Sample => ({
+    latitude: 28.6,
+    longitude: 77.2 + s / 10000,
+    speedMps,
+    altitudeM: null,
+    headingDeg: 90,
+    accuracyM: 5,
+    timestamp: 1_000_000 + s * 1000,
+    ...(speedSource ? {speedSource} : {}),
+  });
+  const brakes = (points: Sample[], adapter?: {t: number; kmh: number}[]) => detectEvents(points, undefined, {adapter}).filter((e) => e.event_type === 'harsh_brake').length;
+  const steady = Array.from({length: 8}, (_, i) => ({t: 1_000_000 + (i - 2) * 1000, kmh: 72}));
+
+  it('drops a GPS brake the adapter never saw', () => {
+    expect(brakes([at(0, 20), at(1, 13)])).toBe(1);
+    expect(brakes([at(0, 20), at(1, 13)], steady)).toBe(0);
+  });
+
+  it('keeps a GPS brake the adapter confirms', () => {
+    const stopping = [72, 72, 70, 50, 46, 45].map((kmh, i) => ({t: 1_000_000 + (i - 2) * 1000, kmh}));
+    expect(brakes([at(0, 20), at(1, 13)], stopping)).toBe(1);
+  });
+
+  it('never counts a switch between GPS and adapter speed', () => {
+    expect(brakes([at(0, 22, 'obd'), at(1, 15, 'gps')])).toBe(0);
+  });
+
+  it('keeps adapter-to-adapter events as they are', () => {
+    expect(brakes([at(0, 22, 'obd'), at(1, 15, 'obd')], steady)).toBe(1);
+  });
+});
+

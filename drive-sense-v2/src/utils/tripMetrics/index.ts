@@ -1,3 +1,4 @@
+import {adapterConfirms, type AdapterTrace} from '../../obd/eventCheck';
 import type {Sample} from '../../stores/recordingStore';
 import {GRAVITY_MPS2, HARSH_BRAKE_MPS2, RAPID_ACCELERATION_MPS2} from '../drivingThresholds';
 import {ACCELERATION_PENALTY_WEIGHT, BRAKING_PENALTY_WEIGHT, OVERSPEED_PENALTY_WEIGHT, SHARP_TURN_PENALTY_WEIGHT} from '../liveScore';
@@ -24,9 +25,32 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const intensityOf = (raw: number) => Math.max(0, round3(raw));
 
 /** `driving_event_detection_service.detect_driving_events`. */
+/** Options for the phone's event rules: the drive's OBD-II adapter speeds, when it had an adapter. */
+export interface EventOptions {
+  adapter?: AdapterTrace;
+}
+
+/**
+ * Whether a braking/acceleration reading between two fixes is one to trust (spec 2026-10-25,
+ * telemetry sources): never across a switch between GPS and adapter speed; adapter-to-adapter
+ * always; GPS-to-GPS unless the adapter's wheel speed shows it didn't happen.
+ */
+export const trustSpeedChange = (a: Sample, b: Sample, adapter: AdapterTrace | undefined): boolean => {
+  const sa = a.speedSource ?? 'gps';
+  const sb = b.speedSource ?? 'gps';
+  if (sa !== sb) {
+    return false;
+  }
+  if (sa === 'obd' || !adapter) {
+    return true;
+  }
+  return adapterConfirms(a, b, adapter) !== false;
+};
+
 export function detectEvents(
   points: Sample[],
   thresholds = {harshBrakingMps2: HARSH_BRAKE_MPS2, rapidAccelerationMps2: RAPID_ACCELERATION_MPS2, overspeedMps: OVERSPEED_MPS},
+  {adapter}: EventOptions = {},
 ): PhoneEvent[] {
   const ordered = [...points].sort((a, b) => a.timestamp - b.timestamp);
   const events: PhoneEvent[] = [];
@@ -57,7 +81,12 @@ export function detectEvents(
       continue;
     }
     const accel = (point.speedMps - previous.speedMps) / dt;
-    if (accel <= thresholds.harshBrakingMps2) {
+    const braking = accel <= thresholds.harshBrakingMps2;
+    if ((braking || accel >= thresholds.rapidAccelerationMps2) && !trustSpeedChange(previous, point, adapter)) {
+      previous = point;
+      continue;
+    }
+    if (braking) {
       events.push(at(point, 'harsh_brake', intensityOf(Math.abs(accel) / Math.abs(thresholds.harshBrakingMps2))));
     } else if (accel >= thresholds.rapidAccelerationMps2) {
       events.push(at(point, 'rapid_acceleration', intensityOf(accel / thresholds.rapidAccelerationMps2)));
@@ -266,9 +295,9 @@ export interface TripMetrics {
   idleSeconds: number;
 }
 
-export function tripMetrics(points: Sample[]): TripMetrics {
+export function tripMetrics(points: Sample[], options: EventOptions = {}): TripMetrics {
   const ordered = [...points].sort((a, b) => a.timestamp - b.timestamp);
-  const events = detectEvents(ordered);
+  const events = detectEvents(ordered, undefined, options);
   const turns = detectTurns(ordered);
   const g = maxGFor(ordered);
   return {

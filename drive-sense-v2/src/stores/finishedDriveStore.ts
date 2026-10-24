@@ -4,7 +4,7 @@ import {tripDetailApi, tripUploadApi, type TripDetail} from '../services/tripSer
 import {progressFor, uploadDrive, type UploadProgress} from '../services/tripUpload';
 import {getDb} from '../db';
 import {clearDrivePoints, drivePoints, getDetail, outboxId, outboxPut, putLocalTrip} from '../db/repos';
-import {clearObdSamples, deleteTripObd} from '../db/obdRepos';
+import {clearObdSamples, deleteTripObd, obdSamples} from '../db/obdRepos';
 import {finalizeObd} from '../sync/obdRecorder';
 import {isPhoneOnly, lookUpAddresses} from '../sync/driveBackup';
 import {tripMetrics, type TripMetrics} from '../utils/tripMetrics';
@@ -61,7 +61,12 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
     const db = getDb();
     // Scored on the phone from every fix it kept (part 2b), with the server's own rules.
     const points = db ? drivePoints(db, drive.startedAt) : [];
-    const metrics = points.length > 1 ? tripMetrics(points) : null;
+    // The adapter's wheel speeds (if the drive had an adapter) vet GPS braking and acceleration
+    // events; read before the OBD summary below clears them.
+    const adapter = db
+      ? obdSamples(db, drive.startedAt).flatMap(({ts, row}) => (row.speed != null ? [{t: ts, kmh: row.speed}] : []))
+      : [];
+    const metrics = points.length > 1 ? tripMetrics(points, adapter.length > 0 ? {adapter} : {}) : null;
     if (db) {
       // The drive's OBD-II seconds become its summary and chart series (telemetry); kept only with a
       // vehicle. Car data is extra: a failure here must never stop the drive itself being saved.

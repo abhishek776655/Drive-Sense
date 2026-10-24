@@ -12,7 +12,7 @@ import {PairSheet} from '../../components/telemetry/PairSheet';
 import {RpmDial} from '../../components/telemetry/RpmDial';
 import {Sparkline} from '../../components/telemetry/Sparkline';
 import {useUnits} from '../../hooks/useUnits';
-import {simControls, SIM_DEVICE_ID} from '../../obd/simAdapter';
+import {setSimEngine, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
 import {fuelFlow, gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -53,23 +53,29 @@ function Banner({icon, color, text}: {icon: keyof typeof Ionicons.glyphMap; colo
   );
 }
 
-/** Development builds with the simulated adapter: switch the pretend engine off and on. */
+/** Development builds with the simulated adapter: engine off and on, and a Bluetooth dropout. */
 function SimEngineSwitch() {
   const c = useAppTheme().colors;
   const [on, setOn] = useState(simControls.engineOn);
   const toggle = () => {
-    simControls.engineOn = !on;
+    setSimEngine(!on);
     setOn(!on);
   };
-  return (
-    <Pressable accessibilityRole="button" onPress={toggle} style={({pressed}) => ({alignSelf: 'center', opacity: pressed ? 0.6 : 1})}>
+  const chip = (icon: keyof typeof Ionicons.glyphMap, color: string, label: string, onPress: () => void) => (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({pressed}) => ({opacity: pressed ? 0.6 : 1})}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: c.control}}>
-        <Ionicons name={on ? 'power' : 'flash'} size={16} color={on ? c.red : c.green} />
+        <Ionicons name={icon} size={16} color={color} />
         <AppText size={13} weight="extrabold" tone="secondary">
-          Simulator: {on ? 'switch engine off' : 'start engine'}
+          {label}
         </AppText>
       </View>
     </Pressable>
+  );
+  return (
+    <View style={{alignItems: 'center', gap: 8}}>
+      {chip(on ? 'power' : 'flash', on ? c.red : c.green, `Simulator: ${on ? 'switch engine off' : 'start engine'}`, toggle)}
+      {chip('bluetooth', c.blue, 'Simulator: adapter dropout 6 s', () => simulateDropout(6))}
+    </View>
   );
 }
 
