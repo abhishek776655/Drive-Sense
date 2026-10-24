@@ -123,4 +123,50 @@ describe('poll loop', () => {
     await loop.start();
     expect(h.onEngine).toHaveBeenLastCalledWith(false);
   });
+
+  it('keeps every PID through an ignition-off spell (all replies empty)', async () => {
+    let ignition = true;
+    const answers: Record<string, string | (() => string)> = {};
+    for (const [cmd, reply] of Object.entries(CAR)) {
+      answers[cmd] = cmd.startsWith('01') && !['0100', '0120'].includes(cmd) ? () => (ignition ? reply : 'NO DATA') : reply;
+    }
+    const {transport, sent} = fakeAdapter(answers);
+    let rpmReads = 0;
+    let slowPolls = 0;
+    let t = 0;
+    const loop = createPollLoop(
+      transport,
+      handlers({
+        onValue: (k) => {
+          if (k !== 'rpm') {
+            return;
+          }
+          rpmReads += 1;
+          if (rpmReads === 3) {
+            ignition = false; // key out
+          } else if (rpmReads > 3) {
+            loop.stop(); // read again once the ignition came back on
+          }
+        },
+      }),
+      {
+        now: () => (t += 5000), // each request moves the clock 5 s, so the 30 s engine-off wait passes
+        sleep: (ms) => {
+          if (ms !== 10_000) {
+            return never();
+          }
+          if (++slowPolls === 3) {
+            ignition = true; // key back in after a few slow polls
+          }
+          return Promise.resolve();
+        },
+      },
+    );
+    await loop.start();
+    expect(slowPolls).toBeGreaterThanOrEqual(3);
+    expect(rpmReads).toBe(4);
+    // RPM was still being asked for after a long run of empty replies.
+    const lastRpm = sent.lastIndexOf('010C');
+    expect(lastRpm).toBeGreaterThan(sent.indexOf('010C') + 20);
+  });
 });

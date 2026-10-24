@@ -8,7 +8,7 @@ import type {PidKey} from './pids';
 
 /** An adapter reading older than this is not used for a fix. */
 export const ADAPTER_FRESH_MS = 2000;
-/** A drive ends this long after the engine stops (auto start-stop at lights is shorter). */
+/** A drive ends this long after the car's computer stops answering (ignition off). */
 export const ENGINE_OFF_END_S = 60;
 /** GPS saying the car moved this recently means the adapter dropped out, not that the engine stopped. */
 export const RECENT_MOVEMENT_S = 30;
@@ -58,32 +58,64 @@ export const applyAdapter = (sample: Sample, reading: AdapterReading | null): Sa
 export const fillGap = (gpsStepM: number, gapS: number, adapterStepM: number | null): {meters: number; fromAdapter: boolean} =>
   gapS > GPS_GAP_FILL_S && adapterStepM != null && adapterStepM > gpsStepM ? {meters: adapterStepM, fromAdapter: true} : {meters: gpsStepM, fromAdapter: false};
 
+/** Time of the adapter's most recent answer of any kind (the car's computer is awake). */
+export const lastAnswerAt = (values: Values): number | null => {
+  let latest: number | null = null;
+  for (const v of Object.values(values)) {
+    if (v && (latest == null || v.at > latest)) {
+      latest = v.at;
+    }
+  }
+  return latest;
+};
+
 /**
- * When a drive should end because the engine stopped: the time it stopped, or null. Needs the
- * engine seen running during this drive, no running reading for `ENGINE_OFF_END_S`, and GPS not
- * showing the car moving lately.
+ * When a drive should end because the ignition went off: the time the engine stopped, or null.
+ *
+ * The engine stopping is not enough: at a long red light the engine may be off (switched off, or
+ * auto start-stop) with the ignition on, and the car's computer keeps answering with RPM 0. That
+ * case is left to the GPS parked rule. Only when the computer stops answering altogether for
+ * `ENGINE_OFF_END_S` (key out) and GPS isn't showing the car moving does the drive end here.
  */
 export const engineEndAt = ({
   engineOnAt,
+  answeredAt,
   startedAt,
   now,
   lastMovementAt,
-  engineRunningNow,
 }: {
   engineOnAt: number | null;
+  answeredAt: number | null;
   startedAt: number;
   now: number;
   lastMovementAt: number | null;
-  engineRunningNow: boolean;
 }): number | null => {
-  if (engineRunningNow || engineOnAt == null || engineOnAt < startedAt) {
+  if (engineOnAt == null || engineOnAt < startedAt || answeredAt == null) {
     return null;
   }
-  if (now - engineOnAt < ENGINE_OFF_END_S * 1000) {
-    return null;
+  if (now - answeredAt < ENGINE_OFF_END_S * 1000) {
+    return null; // still answering: ignition on, whatever the engine is doing
   }
   if (lastMovementAt != null && lastMovementAt > engineOnAt && now - lastMovementAt < RECENT_MOVEMENT_S * 1000) {
-    return null;
+    return null; // GPS says it's moving: the adapter dropped out, the car didn't stop
   }
   return engineOnAt;
+};
+
+/** Readings older than this mean the car's computer has gone quiet (the slow engine-off poll is 10 s). */
+export const QUIET_MS = 15_000;
+
+export type CarState = 'running' | 'engineOff' | 'parked';
+
+/**
+ * What the car is doing, for the Telemetry indicator: engine running; engine off with the ignition
+ * on (a long red light, auto start-stop); or parked, the computer asleep (ignition off).
+ */
+export const carState = (values: Values, now: number): CarState => {
+  const answered = lastAnswerAt(values);
+  if (answered == null || now - answered > QUIET_MS) {
+    return 'parked';
+  }
+  const rpm = values.rpm;
+  return rpm && now - rpm.at <= QUIET_MS && rpm.v > 0 ? 'running' : 'engineOff';
 };

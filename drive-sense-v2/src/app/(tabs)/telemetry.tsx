@@ -8,12 +8,13 @@ import {ActionButton} from '../../components/ActionButton';
 import {StickyHeaderScroll} from '../../components/StickyHeaderScroll';
 import {useTabBarInset} from '../../components/tabBarLayout';
 import {AdapterCard, LINK_TEXT} from '../../components/telemetry/AdapterCard';
+import {CarStateChip} from '../../components/telemetry/CarStateChip';
 import {PairSheet} from '../../components/telemetry/PairSheet';
 import {RpmDial} from '../../components/telemetry/RpmDial';
 import {Sparkline} from '../../components/telemetry/Sparkline';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
-import {setSimEngine, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
+import {setSimEngine, setSimIgnition, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
 import {fuelFlow, gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -54,13 +55,19 @@ function Banner({icon, color, text}: {icon: keyof typeof Ionicons.glyphMap; colo
   );
 }
 
-/** Development builds with the simulated adapter: engine off and on, and a Bluetooth dropout. */
+/** Development builds with the simulated adapter: engine, ignition, and a Bluetooth dropout. */
 function SimEngineSwitch() {
   const c = useAppTheme().colors;
   const [on, setOn] = useState(simControls.engineOn);
+  const [ignition, setIgnition] = useState(simControls.ignitionOn);
   const toggle = () => {
     setSimEngine(!on);
     setOn(!on);
+  };
+  const toggleIgnition = () => {
+    setSimIgnition(!ignition);
+    setIgnition(!ignition);
+    setOn(simControls.engineOn);
   };
   const chip = (icon: keyof typeof Ionicons.glyphMap, color: string, label: string, onPress: () => void) => (
     <Pressable accessibilityRole="button" onPress={onPress} style={({pressed}) => ({opacity: pressed ? 0.6 : 1})}>
@@ -74,7 +81,8 @@ function SimEngineSwitch() {
   );
   return (
     <View style={{alignItems: 'center', gap: 8}}>
-      {chip(on ? 'power' : 'flash', on ? c.red : c.green, `Simulator: ${on ? 'switch engine off' : 'start engine'}`, toggle)}
+      {ignition ? chip(on ? 'power' : 'flash', on ? c.red : c.green, `Simulator: ${on ? 'engine off (ignition on)' : 'start engine'}`, toggle) : null}
+      {chip('key', ignition ? c.amber : c.green, `Simulator: ${ignition ? 'ignition off (park)' : 'ignition on'}`, toggleIgnition)}
       {chip('bluetooth', c.blue, 'Simulator: adapter dropout 6 s', () => simulateDropout(6))}
     </View>
   );
@@ -89,9 +97,9 @@ export default function TelemetryScreen() {
   const c = theme.colors;
   const u = useUnits();
   const temperatureUnit = usePreferencesStore((s) => s.temperature);
+  const mileage = usePreferencesStore((s) => s.mileageUnit);
   const vehicle = useActiveVehicle();
   const live = useRecordingStore((s) => s.status !== 'ready');
-  const recording = useRecordingStore((s) => s.status === 'recording');
   const bottomInset = useTabBarInset(live);
   const {link, adapter, values, derived, history, mil, vin} = useObdStore();
   const [pairing, setPairing] = useState(false);
@@ -100,8 +108,8 @@ export default function TelemetryScreen() {
   const tones: Record<TileTone, string> = {normal: c.textSecondary, warn: c.amber, alert: c.red};
   const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);
   const tiles = useMemo(
-    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km}),
-    [values, derived, u.units, temperatureUnit, link, range.km],
+    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km, mileage}),
+    [values, derived, u.units, temperatureUnit, link, range.km, mileage],
   );
   const spark = (pick: (p: (typeof history)[number]) => number | null) =>
     history.flatMap((p) => {
@@ -146,14 +154,7 @@ export default function TelemetryScreen() {
       <>
         {otherCar ? <Banner icon="swap-horizontal" color={c.amber} text="This adapter is in a different car than the one it was paired with." /> : null}
         {mil?.on ? <Banner icon="warning" color={c.amber} text={`Check engine light on · ${mil.codes} ${mil.codes === 1 ? 'code' : 'codes'}`} /> : null}
-        {recording ? (
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'center'}}>
-            <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: c.red}} />
-            <AppText size={13} weight="extrabold" tone="secondary">
-              Saving to this drive
-            </AppText>
-          </View>
-        ) : null}
+        <CarStateChip />
         <RpmDial
           rpm={values.rpm?.v ?? null}
           speed={speedKmh == null ? '—' : String(kmhInUnits(speedKmh, u.units))}

@@ -10,7 +10,7 @@ import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink,
 import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
 import {createPollLoop} from './pollLoop';
 import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
-import {ADAPTER_FRESH_MS, engineEndAt} from './sourceRules';
+import {engineEndAt, lastAnswerAt} from './sourceRules';
 
 /** Waits before trying the adapter again after a drop or failure, in ms. */
 const BACKOFF_MS = [2_000, 5_000, 10_000, 30_000];
@@ -181,7 +181,7 @@ export function useObdLink() {
     return runSession(adapter, fuel);
   }, [deviceId, fuel]);
 
-  // Drive end (spec 2026-10-25, telemetry sources): 60 s after the engine stops. Driven by adapter
+  // Drive end (spec 2026-10-25, telemetry sources): 60 s after the ignition goes off. Driven by adapter
   // and recording updates, which keep coming in the background; the tick is a foreground backup.
   useEffect(() => {
     const check = () => {
@@ -190,14 +190,12 @@ export function useObdLink() {
         return;
       }
       const obd = useObdStore.getState();
-      const now = Date.now();
-      const rpm = obd.values.rpm;
       const endAt = engineEndAt({
         engineOnAt: obd.engineOnAt,
+        answeredAt: lastAnswerAt(obd.values),
         startedAt: rec.startedAt,
-        now,
+        now: Date.now(),
         lastMovementAt: rec.lastMovementAt,
-        engineRunningNow: rpm != null && rpm.v > 0 && now - rpm.at <= ADAPTER_FRESH_MS,
       });
       if (endAt != null) {
         rec.end(endAt, true);

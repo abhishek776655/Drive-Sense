@@ -33,8 +33,18 @@ export const temperature = (c: number, unit: TemperatureUnit) => ({value: String
 export const fuelFlow = (lph: number, units: UnitSystem) =>
   units === 'imperial' ? {value: fixed(lph / L_PER_US_GAL, 2), unit: 'gal/h'} : {value: fixed(lph, 1), unit: 'L/h'};
 
-export const economy = (l100: number, units: UnitSystem) =>
-  units === 'imperial' ? {value: fixed(MPG_US_FROM_L100 / l100, 1), unit: 'mpg'} : {value: fixed(l100, 1), unit: 'L/100 km'};
+export type MileageUnit = 'kmpl' | 'l100';
+
+/** Fuel economy in the chosen unit: km/L ("mileage") or L/100 km in metric, mpg in imperial. */
+export const economy = (l100: number, units: UnitSystem, mileage: MileageUnit = 'l100') => {
+  if (units === 'imperial') {
+    return {value: fixed(MPG_US_FROM_L100 / l100, 1), unit: 'mpg'};
+  }
+  return mileage === 'kmpl' ? {value: fixed(100 / l100, 1), unit: 'km/L'} : {value: fixed(l100, 1), unit: 'L/100 km'};
+};
+
+/** "Mileage" where it's read as distance per fuel (km/L, mpg); "Economy" for L/100 km. */
+export const economyLabel = (units: UnitSystem, mileage: MileageUnit) => (units === 'metric' && mileage === 'l100' ? 'Economy' : 'Mileage');
 
 /** Under a litre (or a tenth of a gallon) the small unit reads better: "6 mL", not "0.01 L". */
 export const fuelVolume = (litres: number, units: UnitSystem) => {
@@ -57,7 +67,7 @@ export const gearLabel = (gear: number | null): string | null => (gear == null ?
 export const obdTiles = (
   values: Partial<Record<PidKey, {v: number}>>,
   derived: ObdDerived,
-  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean; rangeKm?: number | null},
+  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean; rangeKm?: number | null; mileage?: MileageUnit},
 ): ObdTile[] => {
   const tiles: ObdTile[] = [];
   const v = (k: PidKey) => values[k]?.v;
@@ -83,7 +93,7 @@ export const obdTiles = (
     tiles.push({id: 'fuelFlow', label: 'Fuel flow', ...fuelFlow(derived.fuelFlow, opts.units), icon: 'water', tone: 'normal'});
   }
   if (derived.economy != null) {
-    tiles.push({id: 'economy', label: 'Economy now', ...economy(derived.economy, opts.units), icon: 'leaf', tone: 'normal'});
+    tiles.push({id: 'economy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} now`, ...economy(derived.economy, opts.units, opts.mileage), icon: 'leaf', tone: 'normal'});
   }
   const voltage = v('voltage');
   if (voltage != null) {

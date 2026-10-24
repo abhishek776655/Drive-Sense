@@ -105,8 +105,20 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
     return codes.map(keyForCode).filter((k): k is PidKey => k != null);
   };
 
-  /** Reads one PID; returns the value, or null with the strike recorded. */
+  /** Reads one PID; returns the value, or null (its empty reply held until the round settles). */
   let garbage = 0;
+  let empties: string[] = [];
+  /**
+   * An empty reply only counts against a PID when the car's computer answered something else in the
+   * same round. With the ignition off every PID comes back empty, and dropping them all would leave
+   * nothing to ask once the car starts again.
+   */
+  const settle = (answered: boolean) => {
+    if (answered) {
+      empties.forEach((code) => tracker.recordEmpty(code));
+    }
+    empties = [];
+  };
   const read = async (key: PidKey): Promise<number | null> => {
     const def = PIDS[key];
     const raw = await ask(pidRequest(def.code));
@@ -124,7 +136,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
     }
     if (isNoAnswer(raw)) {
       garbage = 0;
-      tracker.recordEmpty(def.code);
+      empties.push(def.code);
     } else {
       garbage += 1;
     }
@@ -141,11 +153,13 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       running = false;
       return;
     }
+    let answeredOnce = false;
     for (const key of ['baro', 'runTime', 'distSinceClear', 'status'] as PidKey[]) {
       if (running && has(key)) {
-        await read(key);
+        answeredOnce = (await read(key)) != null || answeredOnce;
       }
     }
+    settle(answeredOnce);
     const vin = running ? parseVin(await ask('0902')) : null;
     if (vin) {
       handlers.onVin(vin);
@@ -175,7 +189,13 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
 
       let rpm: number | null = null;
       let answered = false;
-      for (const key of engineOn ? plan : (['rpm', 'status'] as PidKey[]).filter(has)) {
+      const ask = engineOn ? plan : (['rpm', 'status'] as PidKey[]).filter(has);
+      if (ask.length === 0) {
+        // Nothing left to ask: wait rather than spin (a loop with no replies to await never yields).
+        await sleep(ENGINE_OFF_POLL_MS);
+        continue;
+      }
+      for (const key of ask) {
         if (!running) {
           return;
         }
@@ -192,6 +212,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
         }
       }
 
+      settle(answered);
       const engine = answered && (rpm == null ? !has('rpm') : rpm > 0);
       if (engine) {
         lastEngineAt = now();

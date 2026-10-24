@@ -1,7 +1,7 @@
 import {View} from 'react-native';
 import {useUnits} from '../../hooks/useUnits';
 import {formatMoney, fuelCost} from '../../obd/fuel';
-import {economy, fuelVolume, temperature} from '../../obd/tiles';
+import {economy, economyLabel, fuelVolume, temperature} from '../../obd/tiles';
 import type {CarTotals} from '../../stats/carStats';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
@@ -21,6 +21,7 @@ export function CarStatsCard({totals, tripCount}: {totals: CarTotals; tripCount?
   const u = useUnits();
   const temperatureUnit = usePreferencesStore((s) => s.temperature);
   const price = usePreferencesStore((s) => s.fuelPrice);
+  const mileage = usePreferencesStore((s) => s.mileageUnit);
   const currency = usePreferencesStore((s) => s.currency);
   const gap = theme.space.cardGap;
   const tiles: Tile[] = [];
@@ -32,7 +33,7 @@ export function CarStatsCard({totals, tripCount}: {totals: CarTotals; tripCount?
     tiles.push({label: 'Fuel cost', value: formatMoney(cost, currency), icon: 'pricetag', color: c.green});
   }
   if (totals.avgL100km != null) {
-    tiles.push({label: 'Avg economy', ...economy(totals.avgL100km, u.units), icon: 'leaf', color: c.green});
+    tiles.push({label: `Avg ${economyLabel(u.units, mileage).toLowerCase()}`, ...economy(totals.avgL100km, u.units, mileage), icon: 'leaf', color: c.green});
   }
   if (totals.avgRpm != null) {
     tiles.push({label: 'Avg RPM', value: String(totals.avgRpm), unit: 'rpm', icon: 'speedometer', color: c.accent});
@@ -49,7 +50,7 @@ export function CarStatsCard({totals, tripCount}: {totals: CarTotals; tripCount?
   }
   // With one drive the best is just the average.
   if (totals.bestL100km != null && totals.drives > 1) {
-    tiles.push({label: 'Best drive', ...economy(totals.bestL100km, u.units), icon: 'ribbon', color: c.mint});
+    tiles.push({label: 'Best drive', ...economy(totals.bestL100km, u.units, mileage), icon: 'ribbon', color: c.mint});
   }
 
   const rows: Tile[][] = [];

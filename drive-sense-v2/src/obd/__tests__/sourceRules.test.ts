@@ -1,5 +1,5 @@
 import type {Sample} from '../../stores/recordingStore';
-import {adapterReading, applyAdapter, engineEndAt, fillGap} from '../sourceRules';
+import {adapterReading, applyAdapter, carState, engineEndAt, fillGap, lastAnswerAt} from '../sourceRules';
 
 const NOW = 1_000_000;
 const fix: Sample = {latitude: 28.6, longitude: 77.2, speedMps: 10, altitudeM: null, headingDeg: null, accuracyM: 5, timestamp: NOW};
@@ -36,16 +36,19 @@ describe('GPS gap fill', () => {
   });
 });
 
-describe('engine-off drive end', () => {
-  const base = {engineOnAt: NOW, startedAt: NOW - 600_000, lastMovementAt: NOW - 5_000, engineRunningNow: false};
+describe('ignition-off drive end', () => {
+  const base = {engineOnAt: NOW, answeredAt: NOW, startedAt: NOW - 600_000, lastMovementAt: NOW - 5_000};
 
-  it('ends 60 s after the engine stops, at the moment it stopped', () => {
+  it('ends 60 s after the car stops answering, at the moment the engine stopped', () => {
     expect(engineEndAt({...base, now: NOW + 59_000})).toBeNull();
     expect(engineEndAt({...base, now: NOW + 60_000})).toBe(NOW);
   });
 
-  it('does not end while the engine runs (auto start-stop restarted it)', () => {
-    expect(engineEndAt({...base, now: NOW + 90_000, engineRunningNow: true})).toBeNull();
+  it('does not end at a 150 s red light with the engine off but the ignition on', () => {
+    // The computer keeps answering (RPM 0) every few seconds; the engine last ran at NOW.
+    for (let t = 10_000; t <= 150_000; t += 10_000) {
+      expect(engineEndAt({...base, answeredAt: NOW + t, now: NOW + t + 2_000})).toBeNull();
+    }
   });
 
   it('does not end when GPS shows the car still moving (adapter dropped out)', () => {
@@ -58,3 +61,22 @@ describe('engine-off drive end', () => {
     expect(engineEndAt({...base, now: NOW + 90_000, startedAt: NOW + 1_000})).toBeNull();
   });
 });
+
+describe('last answer', () => {
+  it('is the newest reading of any kind', () => {
+    expect(lastAnswerAt({rpm: {v: 0, at: 5}, coolant: {v: 80, at: 9}, speed: {v: 0, at: 7}})).toBe(9);
+    expect(lastAnswerAt({})).toBeNull();
+  });
+});
+
+describe('car state', () => {
+  it('tells running, engine off and parked apart', () => {
+    expect(carState({rpm: {v: 850, at: NOW - 1000}}, NOW)).toBe('running');
+    // Engine off at a light: the computer still answers, RPM 0.
+    expect(carState({rpm: {v: 0, at: NOW - 8000}, voltage: {v: 12.4, at: NOW - 8000}}, NOW)).toBe('engineOff');
+    // Nothing for 20 s: ignition off.
+    expect(carState({rpm: {v: 850, at: NOW - 20_000}}, NOW)).toBe('parked');
+    expect(carState({}, NOW)).toBe('parked');
+  });
+});
+

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import {CURRENCIES, type Currency} from '../obd/fuel';
+import type {MileageUnit} from '../obd/tiles';
 import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
 export type MapStyle = 'standard' | 'muted' | 'satellite' | 'hybrid';
@@ -33,6 +34,8 @@ export interface Preferences {
   currency: Currency;
   /** Fuel tank size in litres, by vehicle id, for range left. */
   tankLitres: Record<string, number>;
+  /** Metric economy as km/L ("mileage") or L/100 km; imperial is always mpg. */
+  mileageUnit: MileageUnit;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -61,6 +64,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   fuelPrice: null,
   currency: '₹',
   tankLitres: {},
+  mileageUnit: 'kmpl',
 };
 
 export const MAX_FUEL_PRICE = 10_000;
@@ -108,6 +112,7 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     fuelPrice: typeof r.fuelPrice === 'number' && r.fuelPrice > 0 && r.fuelPrice <= MAX_FUEL_PRICE ? r.fuelPrice : null,
     currency: oneOf(r.currency, CURRENCIES, d.currency),
     tankLitres: tanks(r.tankLitres),
+    mileageUnit: oneOf(r.mileageUnit, ['kmpl', 'l100'] as const, d.mileageUnit),
   };
 };
 

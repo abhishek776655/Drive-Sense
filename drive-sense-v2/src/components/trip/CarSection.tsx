@@ -5,7 +5,7 @@ import {getDb} from '../../db';
 import {tripObd} from '../../db/obdRepos';
 import {useUnits} from '../../hooks/useUnits';
 import {formatMoney, fuelCost} from '../../obd/fuel';
-import {economy, fuelFlow, fuelVolume, temperature} from '../../obd/tiles';
+import {economy, economyLabel, fuelFlow, fuelVolume, temperature} from '../../obd/tiles';
 import type {ObdSeries} from '../../obd/series';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
@@ -83,6 +83,7 @@ export function CarSection({startTime}: {startTime: string}) {
   const u = useUnits();
   const temperatureUnit = usePreferencesStore((s) => s.temperature);
   const price = usePreferencesStore((s) => s.fuelPrice);
+  const mileage = usePreferencesStore((s) => s.mileageUnit);
   const currency = usePreferencesStore((s) => s.currency);
   const data = useMemo(() => {
     const db = getDb();
@@ -97,7 +98,7 @@ export function CarSection({startTime}: {startTime: string}) {
   const tiles = [
     stats.fuelUsedL != null ? {label: 'Fuel used', ...fuelVolume(stats.fuelUsedL, u.units), icon: 'water' as const, color: c.cyan} : null,
     fuelCost(stats.fuelUsedL, price) != null ? {label: 'Fuel cost', value: formatMoney(fuelCost(stats.fuelUsedL, price) as number, currency), unit: '', icon: 'pricetag' as const, color: c.green} : null,
-    stats.avgL100km != null ? {label: 'Economy', ...economy(stats.avgL100km, u.units), icon: 'leaf' as const, color: c.green} : null,
+    stats.avgL100km != null ? {label: economyLabel(u.units, mileage), ...economy(stats.avgL100km, u.units, mileage), icon: 'leaf' as const, color: c.green} : null,
     stats.avgRpm != null ? {label: 'Average RPM', value: String(stats.avgRpm), unit: 'rpm', icon: 'speedometer' as const, color: c.accent} : null,
     stats.maxRpm != null ? {label: 'Highest RPM', value: String(Math.round(stats.maxRpm)), unit: 'rpm', icon: 'trending-up' as const, color: c.red} : null,
     stats.maxCoolantC != null ? {label: 'Hottest coolant', ...temperature(stats.maxCoolantC, temperatureUnit), icon: 'thermometer' as const, color: c.amber} : null,

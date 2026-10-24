@@ -6,6 +6,7 @@ import {deleteAdapter} from '../../db/obdRepos';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
 import {L_PER_US_GAL} from '../../obd/fuel';
+import {economy, economyLabel} from '../../obd/tiles';
 import {useObdStore, type ObdLink} from '../../stores/obdStore';
 import {TANK_LITRES_RANGE, usePreferencesStore} from '../../stores/preferencesStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
@@ -57,6 +58,7 @@ export function AdapterCard({vehicleId, onPair}: {vehicleId: string; onPair: () 
   const fuelLevel = connected ? liveFuel : (state?.fuelLevel ?? null);
   const range = useRange(vehicleId, fuelLevel);
   const imperial = u.units === 'imperial';
+  const mileage = usePreferencesStore((st) => st.mileageUnit);
   const tankShown = range.tankLitres == null ? null : imperial ? range.tankLitres / L_PER_US_GAL : range.tankLitres;
   const saveTank = (value: number | null) => {
     const tanks = {...usePreferencesStore.getState().tankLitres};
@@ -115,6 +117,17 @@ export function AdapterCard({vehicleId, onPair}: {vehicleId: string; onPair: () 
             )}
           </View>
         </Pressable>
+      ) : null}
+      {adapter && range.economy != null ? (
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+          <Ionicons name="leaf" size={18} color={c.green} />
+          <AppText size={14} weight="bold" tone="secondary" style={{flex: 1}}>
+            Avg {economyLabel(u.units, mileage).toLowerCase()} · recent drives
+          </AppText>
+          <AppText size={14} weight="extrabold">
+            {economy(range.economy, u.units, mileage).value} {economy(range.economy, u.units, mileage).unit}
+          </AppText>
+        </View>
       ) : null}
       {tankSheet ? (
         <NumberSheet

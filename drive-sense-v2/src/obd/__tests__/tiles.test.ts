@@ -1,4 +1,4 @@
-import {economy, fuelFlow, fuelVolume, gearLabel, obdTiles} from '../tiles';
+import {economy, economyLabel, fuelFlow, fuelVolume, gearLabel, obdTiles} from '../tiles';
 
 const NONE = {fuelFlow: null, economy: null, boost: null, gear: null};
 const metric = {units: 'metric' as const, temperature: 'c' as const, engineRunning: true};
@@ -33,6 +33,14 @@ describe('OBD tiles', () => {
     expect(tiles[1]).toMatchObject({value: '≈312', unit: 'km', tone: 'normal'});
     expect(obdTiles({}, NONE, {...metric, rangeKm: 40})[0].tone).toBe('warn');
     expect(obdTiles({}, NONE, {...metric, units: 'imperial', rangeKm: 160.9344})[0]).toMatchObject({value: '≈100', unit: 'mi'});
+  });
+
+  it('shows mileage in km/L when chosen', () => {
+    expect(economy(7.1, 'metric', 'kmpl')).toEqual({value: '14.1', unit: 'km/L'});
+    expect(economy(7.1, 'imperial', 'kmpl').unit).toBe('mpg');
+    expect(economyLabel('metric', 'kmpl')).toBe('Mileage');
+    expect(economyLabel('metric', 'l100')).toBe('Economy');
+    expect(obdTiles({}, {...NONE, economy: 5}, {...metric, mileage: 'kmpl'})[0]).toMatchObject({label: 'Mileage now', value: '20.0', unit: 'km/L'});
   });
 
   it('shows small fuel amounts in the small unit', () => {

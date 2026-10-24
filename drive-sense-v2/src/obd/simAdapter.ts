@@ -40,10 +40,18 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 export const START_STOP = [56, 59] as const;
 
 /** Dev control: switch the pretend engine off (a parked car with the ignition on) and back on. */
-export const simControls = {engineOn: true, silentUntil: 0};
+export const simControls = {engineOn: true, ignitionOn: true, silentUntil: 0};
 
 export const setSimEngine = (on: boolean) => {
   simControls.engineOn = on;
+};
+
+/** Ignition off: the car's computer goes quiet and every request comes back empty (the adapter stays awake). */
+export const setSimIgnition = (on: boolean) => {
+  simControls.ignitionOn = on;
+  if (!on) {
+    simControls.engineOn = false;
+  }
 };
 
 /** Dev control: the adapter stops answering for a while, like a flaky Bluetooth link. */
@@ -173,7 +181,9 @@ export function createSimAdapter(now: () => number = Date.now): AdapterLink {
         return; // dropped out: no reply, the poll loop times out and starts the adapter over
       }
       const car = simCar((now() - startedAt) / 1000);
-      const reply = simReply(text, simControls.engineOn ? car : engineOff(car));
+      const command = text.trim().toUpperCase();
+      const asleep = !simControls.ignitionOn && (command.startsWith('01') || command.startsWith('09'));
+      const reply = asleep ? 'NO DATA' : simReply(text, simControls.engineOn ? car : engineOff(car));
       // A real adapter takes a few tens of ms per answer; this keeps the loop at a realistic pace.
       setTimeout(() => listeners.forEach((l) => l(`${reply}\r\r${PROMPT}`)), 40);
     },

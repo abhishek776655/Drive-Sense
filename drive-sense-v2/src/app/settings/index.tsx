@@ -236,6 +236,23 @@ export default function SettingsScreen() {
               </AppText>
             }
           />
+          {prefs.units === 'metric' ? (
+            <SettingsRow
+              icon="leaf"
+              iconColor={c.green}
+              title="Mileage"
+              right={
+                <PillChoice
+                  options={[
+                    {value: 'kmpl', label: 'km/L'},
+                    {value: 'l100', label: 'L/100'},
+                  ]}
+                  value={prefs.mileageUnit}
+                  onChange={(mileageUnit) => void setPrefs({mileageUnit})}
+                />
+              }
+            />
+          ) : null}
           <SettingsRow
             icon="cash"
             iconColor={c.teal}

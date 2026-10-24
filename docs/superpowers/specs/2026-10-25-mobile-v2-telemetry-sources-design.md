@@ -17,7 +17,7 @@ the measurements only one of them can make. Without an adapter everything works 
 | **Distance** | GPS stays primary (it matches the route on the map). Where GPS has a gap > 10 s and the adapter has speed, the gap's distance is filled from adapter speed × time. |
 | **Idle time** | Adapter: engine running (RPM > 0) and speed 0. GPS rule only without adapter data. |
 | **Drive start** | Adapter going live starts a drive when "Start with car adapter" is on (already built). GPS rule unchanged. |
-| **Drive end** | With an adapter: the drive ends 60 s after the engine stops (RPM 0 / no answers) or the adapter disconnects. Engine restarting within 60 s (auto start-stop at lights) cancels it. Without an adapter: the 3-minute GPS rule. |
+| **Drive end** | With an adapter: the drive ends 60 s after the car's computer stops answering altogether (ignition off), timed at the moment the engine stopped, unless GPS shows the car moving in the last 30 s. RPM 0 with the computer still answering (engine off at a long red light, auto start-stop) never ends it; that waits for the GPS parked rule. Without an adapter: the 3-minute GPS rule. The Telemetry tab shows the state (Engine running / Engine off · ignition on / Parked · ignition off, with a countdown while recording). |
 | **Harsh braking / rapid acceleration** | Phone detects (accelerometer + GPS) as today. With adapter speed in that moment, an event is kept only if adapter speed changed by ≥ 60 % of what the event implies within ±2 s; otherwise it is dropped (phone picked up or dropped). |
 | **Speeding** | Uses the speed rule above. |
 | **Elevation** | Phone barometer (relative altitude) for climb and descent; GPS altitude for absolute height. Adapter pressure is not used for elevation. |
