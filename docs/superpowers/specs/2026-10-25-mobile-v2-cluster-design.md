@@ -18,7 +18,7 @@ first layout, inspired by Mercedes-Benz's twin-dial digital cluster.
   typefaces or artwork, and is named "Twin" in the app.
 - **Layouts are switchable.** One cluster screen, any number of layouts behind one interface;
   later layouts (centre-map style, sport style) are separate specs.
-- **Centre panel: swipeable pages** — Trip, Car, Map.
+- **Centre panel: swipeable pages** — Trip, Engine (animated engine load), Car, Map.
 - **Works without an adapter** ("phone-only"): GPS speed, and a G-force dial instead of RPM.
 - **Always dark**, with an accent the driver picks (orange, blue, teal, red, purple); default is
   the Drive tab's speedometer accent.
@@ -56,6 +56,7 @@ One hook, `useClusterData()`, gives every layout the same plain object, refreshe
 | `coolantC`, `fuelPct`, `rangeKm`, `voltage`, `boostKpa`, `intakeC`, `oilC` | adapter + range hook |
 | `driveS`, `distanceM`, `driveL100km`, `fuelUsedL`, `cost` | recording store, drive mileage hook, fuel price |
 | `route` | the recording drive's route (map page) |
+| `loadPct`, `throttlePct`, `coasting` | adapter (PIDs 04, 11); coasting = moving with the throttle closed (eco rule from telemetry sources step 4) |
 | `carState` | running / engineOff / parked (telemetry sources) |
 | `alerts` | check-engine, low battery, coolant hot, low fuel |
 | `mode` | `adapter` or `phoneOnly` |
@@ -108,9 +109,23 @@ All motion runs on the UI thread (Reanimated shared values feeding Skia).
 ## 5. Centre pager
 
 - **Pages:** Trip (drive time, distance, mileage this drive, fuel used, cost; "Not recording"
-  with mileage now when no drive is on), Car (coolant, battery, boost, intake, oil, fuel and range,
+  with mileage now when no drive is on), Engine (below), Car (coolant, battery, boost, intake, oil, fuel and range,
   as a two-column list), Map (dark map following the car, route in the accent colour; native maps
   in a clipped rounded view).
+- **Engine page (animated engine load):**
+  - A wide **power meter**: a 180° arc showing engine load 0–100 % with the same core, glow and
+    bloom as the dials; a thin inner arc shows throttle position, so the gap between "asked for"
+    and "delivered" is visible as you press the pedal.
+  - **Energy flow:** a stream of small light particles runs along the arc from its base toward the
+    lit end; their speed and density follow load (a trickle at cruise, a rush under hard
+    acceleration). Load above 80 % warms the stream from the accent toward amber.
+  - **Coasting:** with the throttle closed while moving, the arc drains to zero, the particles
+    reverse and slow, and the arc turns green with "Coasting · fuel cut" — engine braking made
+    visible.
+  - **Load trace:** under the meter, the last 30 s of load as a scrolling filled line, newest on the
+    right, fading toward the left.
+  - The large number in the middle is load %, with throttle % and boost (turbo cars) beneath.
+  - Hidden in phone-only mode (load needs the adapter).
 - **Swipe:** the page follows the finger 1:1; on release it springs to the nearest page
   (velocity-aware). Pages away from centre scale to 94 %, fade to 40 % and blur up to 8 px with
   distance, so the current page sits forward. The active dot stretches into a pill while moving.
@@ -127,6 +142,7 @@ All motion runs on the UI thread (Reanimated shared values feeding Skia).
 | `src/cluster/parts/ArcDial.tsx` | Skia dial: ticks, arc, glow, trail, redline, number. Reused by later layouts. |
 | `src/cluster/parts/GDial.tsx` | Skia G-force dial. |
 | `src/cluster/parts/CentrePager.tsx` | Gesture pager with depth effects (section 5). |
+| `src/cluster/parts/LoadMeter.tsx` | Skia engine-load page: power arc, throttle arc, particle flow, coasting state, load trace. |
 | `src/cluster/parts/BarGauge.tsx`, `RollingNumber` | Small gauges and digits. |
 | `src/cluster/motion.ts` | Pure maths: value→angle, tick lit state, trail decay, redline intensity, spring settings. |
 
@@ -144,7 +160,7 @@ Dials take smoothed shared values, not React state, so a reading never re-render
 
 ## 8. Testing
 
-- **Unit (Jest):** `motion.ts` (angles, tick lighting, trail decay, redline intensity), the data
+- **Unit (Jest):** `motion.ts` (angles, tick lighting, trail decay, redline intensity, particle speed from load, coasting state), the data
   hook's mapping (adapter vs phone-only, hidden fields), layout registry.
 - **Manual:** simulator with the simulated adapter: start-up sweep, revving with the glow trail,
   redline pulse, page swipe, phone-only switch on adapter dropout, rotation back to portrait on
