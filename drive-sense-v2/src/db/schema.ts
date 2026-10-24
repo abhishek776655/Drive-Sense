@@ -75,9 +75,33 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE trips ADD COLUMN in_cloud INTEGER NOT NULL DEFAULT 1;
   UPDATE trips SET in_cloud = 0 WHERE id LIKE 'local:%';
   `,
+  // v6 (telemetry): OBD-II seconds of the drive in progress, each finished drive's OBD summary and
+  // chart series (keyed by start time: a trip's id changes when it uploads), and paired adapters.
+  `
+  CREATE TABLE drive_obd_samples (
+    drive_started_at INTEGER NOT NULL,
+    ts INTEGER NOT NULL,
+    json TEXT NOT NULL,
+    PRIMARY KEY (drive_started_at, ts)
+  );
+  CREATE TABLE trip_obd (
+    started_at INTEGER PRIMARY KEY,
+    stats TEXT NOT NULL,
+    series TEXT NOT NULL
+  );
+  CREATE TABLE obd_adapters (
+    vehicle_id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    device_name TEXT NOT NULL,
+    vin TEXT,
+    supported TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    last_state TEXT
+  );
+  `,
 ];
 
-export const TABLES = ['vehicles', 'trips', 'trip_details', 'api_cache', 'sync_meta', 'outbox', 'drive_points'];
+export const TABLES = ['vehicles', 'trips', 'trip_details', 'api_cache', 'sync_meta', 'outbox', 'drive_points', 'drive_obd_samples', 'trip_obd', 'obd_adapters'];
 
 export const schemaVersion = (db: SqlDb): number => db.get<{user_version: number}>('PRAGMA user_version')?.user_version ?? 0;
 
