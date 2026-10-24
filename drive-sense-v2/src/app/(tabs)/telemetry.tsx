@@ -12,6 +12,7 @@ import {CarStateChip} from '../../components/telemetry/CarStateChip';
 import {PairSheet} from '../../components/telemetry/PairSheet';
 import {RpmDial} from '../../components/telemetry/RpmDial';
 import {Sparkline} from '../../components/telemetry/Sparkline';
+import {useDriveMileage} from '../../hooks/useDriveMileage';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
 import {setSimEngine, setSimIgnition, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
@@ -107,9 +108,10 @@ export default function TelemetryScreen() {
   const connected = link === 'live' || link === 'engineOff';
   const tones: Record<TileTone, string> = {normal: c.textSecondary, warn: c.amber, alert: c.red};
   const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);
+  const driveL100km = useDriveMileage();
   const tiles = useMemo(
-    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km, mileage}),
-    [values, derived, u.units, temperatureUnit, link, range.km, mileage],
+    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km, mileage, driveL100km}),
+    [values, derived, u.units, temperatureUnit, link, range.km, mileage, driveL100km],
   );
   const spark = (pick: (p: (typeof history)[number]) => number | null) =>
     history.flatMap((p) => {

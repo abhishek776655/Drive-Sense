@@ -67,7 +67,7 @@ export const gearLabel = (gear: number | null): string | null => (gear == null ?
 export const obdTiles = (
   values: Partial<Record<PidKey, {v: number}>>,
   derived: ObdDerived,
-  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean; rangeKm?: number | null; mileage?: MileageUnit},
+  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean; rangeKm?: number | null; mileage?: MileageUnit; driveL100km?: number | null},
 ): ObdTile[] => {
   const tiles: ObdTile[] = [];
   const v = (k: PidKey) => values[k]?.v;
@@ -94,6 +94,9 @@ export const obdTiles = (
   }
   if (derived.economy != null) {
     tiles.push({id: 'economy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} now`, ...economy(derived.economy, opts.units, opts.mileage), icon: 'leaf', tone: 'normal'});
+  }
+  if (opts.driveL100km != null) {
+    tiles.push({id: 'driveEconomy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} this drive`, ...economy(opts.driveL100km, opts.units, opts.mileage), icon: 'speedometer', tone: 'normal'});
   }
   const voltage = v('voltage');
   if (voltage != null) {

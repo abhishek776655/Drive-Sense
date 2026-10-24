@@ -43,6 +43,14 @@ describe('OBD tiles', () => {
     expect(obdTiles({}, {...NONE, economy: 5}, {...metric, mileage: 'kmpl'})[0]).toMatchObject({label: 'Mileage now', value: '20.0', unit: 'km/L'});
   });
 
+  it('shows this drive\'s mileage next to the instant one', () => {
+    const tiles = obdTiles({}, {...NONE, economy: 5}, {...metric, mileage: 'kmpl', driveL100km: 6.9});
+    expect(tiles.map((t) => [t.label, t.value])).toEqual([
+      ['Mileage now', '20.0'],
+      ['Mileage this drive', '14.5'],
+    ]);
+  });
+
   it('shows small fuel amounts in the small unit', () => {
     expect(fuelVolume(0.006, 'metric')).toEqual({value: '6', unit: 'mL'});
     expect(fuelVolume(2.345, 'metric')).toEqual({value: '2.35', unit: 'L'});

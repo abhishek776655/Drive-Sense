@@ -123,7 +123,7 @@ export function AdapterCard({vehicleId, onPair}: {vehicleId: string; onPair: () 
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
           <Ionicons name="leaf" size={18} color={c.green} />
           <AppText size={14} weight="bold" tone="secondary" style={{flex: 1}}>
-            Avg {economyLabel(u.units, mileage).toLowerCase()} · recent drives
+            Avg {economyLabel(u.units, mileage).toLowerCase()} · {range.economyWindow === 'last30' ? 'last 30 days' : 'all drives'}
           </AppText>
           <AppText size={14} weight="extrabold">
             {economy(range.economy, u.units, mileage).value} {economy(range.economy, u.units, mileage).unit}

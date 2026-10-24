@@ -41,8 +41,8 @@ describe('range', () => {
 
   it('uses the last 30 days of this vehicle, else all its drives', () => {
     const drives = [drive('v1', 3, 6), drive('v1', 60, 12), drive('v2', 1, 20)];
-    expect(rangeEconomy(drives, 'v1', NOW)).toBe(6);
-    expect(rangeEconomy([drive('v1', 60, 12)], 'v1', NOW)).toBe(12);
+    expect(rangeEconomy(drives, 'v1', NOW)).toEqual({l100km: 6, window: 'last30'});
+    expect(rangeEconomy([drive('v1', 60, 12)], 'v1', NOW)).toEqual({l100km: 12, window: 'all'});
     expect(rangeEconomy(drives, 'v3', NOW)).toBeNull();
   });
 });

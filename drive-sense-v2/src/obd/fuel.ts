@@ -39,9 +39,16 @@ export const rangeKm = (fuelLevelPct: number | null | undefined, tankLitres: num
   return ((fuelLevelPct / 100) * tankLitres) / (l100km / 100);
 };
 
-/** Economy to work range out with: this vehicle's last 30 days with car data, else all its drives. */
-export const rangeEconomy = (drives: CarDrive[], vehicleId: string, now = Date.now()): number | null => {
+/**
+ * Economy to work range out with: this vehicle's last 30 days with car data, else all its drives.
+ * Says which, so the card can label it honestly.
+ */
+export const rangeEconomy = (drives: CarDrive[], vehicleId: string, now = Date.now()): {l100km: number; window: 'last30' | 'all'} | null => {
   const mine = drives.filter((d) => d.vehicleId === vehicleId);
-  const recent = mine.filter((d) => now - d.startMs <= RANGE_ECONOMY_DAYS * 86_400_000);
-  return carTotals(recent)?.avgL100km ?? carTotals(mine)?.avgL100km ?? null;
+  const recent = carTotals(mine.filter((d) => now - d.startMs <= RANGE_ECONOMY_DAYS * 86_400_000))?.avgL100km;
+  if (recent != null) {
+    return {l100km: recent, window: 'last30'};
+  }
+  const all = carTotals(mine)?.avgL100km;
+  return all != null ? {l100km: all, window: 'all'} : null;
 };
