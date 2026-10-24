@@ -25,6 +25,8 @@ export interface Preferences {
   /** Drive-saved and forgotten-drive notifications (they still need the system permission). */
   notifications: boolean;
   driveBackup: DriveBackup;
+  /** Start a drive when the paired OBD-II adapter connects (the car has been switched on). */
+  obdAutoStart: boolean;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -49,6 +51,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   powerMode: 'balanced',
   notifications: true,
   driveBackup: 'cloud',
+  obdAutoStart: false,
 };
 
 const KEY = 'preferences_v1';
@@ -76,6 +79,7 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     powerMode: oneOf(r.powerMode, ['maximum', 'balanced', 'efficient'] as const, d.powerMode),
     notifications: bool(r.notifications, d.notifications),
     driveBackup: oneOf(r.driveBackup, ['cloud', 'phone'] as const, d.driveBackup),
+    obdAutoStart: bool(r.obdAutoStart, d.obdAutoStart),
   };
 };
 

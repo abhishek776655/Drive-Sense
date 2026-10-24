@@ -4,6 +4,8 @@ import {tripDetailApi, tripUploadApi, type TripDetail} from '../services/tripSer
 import {progressFor, uploadDrive, type UploadProgress} from '../services/tripUpload';
 import {getDb} from '../db';
 import {clearDrivePoints, drivePoints, getDetail, outboxId, outboxPut, putLocalTrip} from '../db/repos';
+import {clearObdSamples, deleteTripObd} from '../db/obdRepos';
+import {finalizeObd} from '../sync/obdRecorder';
 import {isPhoneOnly, lookUpAddresses} from '../sync/driveBackup';
 import {tripMetrics, type TripMetrics} from '../utils/tripMetrics';
 import {finishOutboxItem, isOfflineError} from '../sync/outbox';
@@ -60,6 +62,14 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
     // Scored on the phone from every fix it kept (part 2b), with the server's own rules.
     const points = db ? drivePoints(db, drive.startedAt) : [];
     const metrics = points.length > 1 ? tripMetrics(points) : null;
+    if (db) {
+      // The drive's OBD-II seconds become its summary and chart series (telemetry); kept only with a vehicle.
+      if (drive.vehicle) {
+        finalizeObd(db, drive);
+      } else {
+        clearObdSamples(db, drive.startedAt);
+      }
+    }
     set({drive, metrics, samples: drive.unsentSamples, progress: progressFor(drive), saveStatus: drive.vehicle ? 'saving' : 'local', error: null, detail: null, detailDone: false});
     if (drive.vehicle && db && isPhoneOnly()) {
       // "This phone only" (part 3): stored here for good, nothing uploads. The phone looks up the
@@ -105,6 +115,7 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
       const db = getDb();
       const drive = get().drive;
       if (db && drive) {
+        deleteTripObd(db, drive.startedAt);
         finishOutboxItem(db, outboxId(drive));
         useSyncStore.setState((s) => ({version: s.version + 1}));
       }

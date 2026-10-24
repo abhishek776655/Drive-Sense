@@ -3,6 +3,7 @@ import {create} from 'zustand';
 import {getApiErrorMessage} from '../services/apiClient';
 import {getDb} from '../db';
 import {deleteTrips, getDetail, isInCloud, isLocalTripId, putDetail, setTripVehicle} from '../db/repos';
+import {deleteTripObd} from '../db/obdRepos';
 import {isPhoneOnly} from '../sync/driveBackup';
 import {useVehicleStore} from './vehicleStore';
 import {finishOutboxItem} from '../sync/outbox';
@@ -75,8 +76,17 @@ export const useTripDetailStore = create<TripDetailState>((set, get) => {
     remove: async (id) => {
       set({busy: true, actionError: null});
       const local = getDb();
+      // OBD data is keyed by start time, not id (telemetry): forget it with the trip.
+      const forgetObd = () => {
+        const start = get().trips[id]?.detail?.start_time;
+        const db = getDb();
+        if (db && start) {
+          deleteTripObd(db, Date.parse(start));
+        }
+      };
       // Not on the server (waiting to upload, or phone only): deleting it is forgetting it here.
       if (local && !isInCloud(local, id)) {
+        forgetObd();
         finishOutboxItem(local, id);
         useSyncStore.setState((s) => ({version: s.version + 1}));
         set((s) => {
@@ -90,6 +100,7 @@ export const useTripDetailStore = create<TripDetailState>((set, get) => {
         await tripUploadApi.remove(id);
         const db = getDb();
         if (db) {
+          forgetObd();
           deleteTrips(db, [id]);
         }
         set((s) => {
