@@ -94,6 +94,8 @@ describe('OBD summary', () => {
     expect(s.maxCoolantC).toBe(96);
     expect(s.maxRpm).toBe(2000);
     expect(s.coverage).toBeCloseTo(0.943, 3);
+    // 60 s idling at 0.8 L/h.
+    expect(s.idleFuelL).toBeCloseTo(0.013, 3);
   });
 
   it('leaves out what was never read', () => {

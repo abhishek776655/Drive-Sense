@@ -15,6 +15,8 @@ export interface ObdStats {
   idleS: number;
   /** Share of the drive (0–1) with OBD data. */
   coverage: number;
+  /** Fuel burned with the engine running at a standstill; absent on drives recorded before it existed. */
+  idleFuelL?: number | null;
 }
 
 export const SERIES_KEYS = ['rpm', 'speed', 'coolant', 'fuelFlow', 'throttle', 'load'] as const;
@@ -43,6 +45,8 @@ export const summarize = (rows: ObdSampleRow[], driveSeconds: number): ObdStats 
   let hasFuel = false;
   let km = 0;
   let idle = 0;
+  let idleFuel = 0;
+  let hasIdleFuel = false;
   rows.forEach(({ts, row}, i) => {
     const step = i === 0 ? 1 : Math.min(MAX_STEP_S, Math.max(0, (ts - rows[i - 1].ts) / 1000));
     if (row.rpm != null) {
@@ -64,6 +68,10 @@ export const summarize = (rows: ObdSampleRow[], driveSeconds: number): ObdStats 
     }
     if ((row.rpm ?? 0) > 0 && row.speed === 0) {
       idle += step;
+      if (row.fuelFlow != null) {
+        idleFuel += (row.fuelFlow / 3600) * step;
+        hasIdleFuel = true;
+      }
     }
   });
   return {
@@ -74,6 +82,7 @@ export const summarize = (rows: ObdSampleRow[], driveSeconds: number): ObdStats 
     avgL100km: hasFuel && km >= MIN_ECONOMY_KM ? round((fuel / km) * 100, 1) : null,
     idleS: Math.round(idle),
     coverage: driveSeconds > 0 ? Math.min(1, round(rows.length / driveSeconds, 3)) : 0,
+    idleFuelL: hasIdleFuel ? round(idleFuel, 3) : hasFuel ? 0 : null,
   };
 };
 

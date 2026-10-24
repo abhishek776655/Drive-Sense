@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
+import {CURRENCIES, type Currency} from '../obd/fuel';
 import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
 export type MapStyle = 'standard' | 'muted' | 'satellite' | 'hybrid';
@@ -27,6 +28,11 @@ export interface Preferences {
   driveBackup: DriveBackup;
   /** Start a drive when the paired OBD-II adapter connects (the car has been switched on). */
   obdAutoStart: boolean;
+  /** Fuel price per litre (shown per gallon in imperial); null until set. Prices every drive's cost. */
+  fuelPrice: number | null;
+  currency: Currency;
+  /** Fuel tank size in litres, by vehicle id, for range left. */
+  tankLitres: Record<string, number>;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -52,12 +58,31 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notifications: true,
   driveBackup: 'cloud',
   obdAutoStart: false,
+  fuelPrice: null,
+  currency: '₹',
+  tankLitres: {},
 };
+
+export const MAX_FUEL_PRICE = 10_000;
+export const TANK_LITRES_RANGE = [5, 200] as const;
 
 const KEY = 'preferences_v1';
 
 const oneOf = <T>(value: unknown, options: readonly T[], fallback: T): T => (options.includes(value as T) ? (value as T) : fallback);
 const bool = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback);
+
+/** Only plausible tank sizes survive (a typo shouldn't make range nonsense). */
+const tanks = (value: unknown): Record<string, number> => {
+  const out: Record<string, number> = {};
+  if (value && typeof value === 'object') {
+    for (const [id, litres] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof litres === 'number' && litres >= TANK_LITRES_RANGE[0] && litres <= TANK_LITRES_RANGE[1]) {
+        out[id] = litres;
+      }
+    }
+  }
+  return out;
+};
 
 /** Whatever was stored, as valid preferences: unknown or missing values take their default. */
 export const sanitizePreferences = (raw: unknown): Preferences => {
@@ -80,6 +105,9 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     notifications: bool(r.notifications, d.notifications),
     driveBackup: oneOf(r.driveBackup, ['cloud', 'phone'] as const, d.driveBackup),
     obdAutoStart: bool(r.obdAutoStart, d.obdAutoStart),
+    fuelPrice: typeof r.fuelPrice === 'number' && r.fuelPrice > 0 && r.fuelPrice <= MAX_FUEL_PRICE ? r.fuelPrice : null,
+    currency: oneOf(r.currency, CURRENCIES, d.currency),
+    tankLitres: tanks(r.tankLitres),
   };
 };
 

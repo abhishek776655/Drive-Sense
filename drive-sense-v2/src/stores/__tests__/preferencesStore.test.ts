@@ -32,4 +32,10 @@ describe('mapTypeFor', () => {
     expect(mapTypeFor('muted', 'android')).toBe('standard');
     expect(mapTypeFor('satellite', 'ios')).toBe('satellite');
   });
+
+  it('keeps a sane fuel price, currency and tank sizes', () => {
+    const p = sanitizePreferences({fuelPrice: 105.5, currency: '€', tankLitres: {v1: 45, v2: 2, v3: 'big', v4: 900}});
+    expect(p).toMatchObject({fuelPrice: 105.5, currency: '€', tankLitres: {v1: 45}});
+    expect(sanitizePreferences({fuelPrice: -3, currency: 'DM'})).toMatchObject({fuelPrice: null, currency: '₹', tankLitres: {}});
+  });
 });

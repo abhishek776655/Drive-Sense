@@ -39,6 +39,12 @@ describe('car totals', () => {
     expect(t?.drives).toBe(2);
   });
 
+  it('adds up idle fuel from the drives that measured it', () => {
+    const t = carTotals([drive({stats: stats({idleFuelL: 0.05})}), drive({stats: stats({idleFuelL: 0.1})}), drive()]);
+    expect(t?.idleFuelL).toBe(0.15);
+    expect(carTotals([drive()])?.idleFuelL).toBeNull();
+  });
+
   it('leaves out fuel for cars that never reported it', () => {
     const t = carTotals([drive({stats: stats({fuelUsedL: null, avgL100km: null})})]);
     expect(t?.fuelL).toBeNull();

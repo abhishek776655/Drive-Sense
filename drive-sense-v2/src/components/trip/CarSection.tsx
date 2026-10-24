@@ -4,6 +4,7 @@ import Svg, {Path} from 'react-native-svg';
 import {getDb} from '../../db';
 import {tripObd} from '../../db/obdRepos';
 import {useUnits} from '../../hooks/useUnits';
+import {formatMoney, fuelCost} from '../../obd/fuel';
 import {economy, fuelFlow, fuelVolume, temperature} from '../../obd/tiles';
 import type {ObdSeries} from '../../obd/series';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -81,6 +82,8 @@ export function CarSection({startTime}: {startTime: string}) {
   const c = theme.colors;
   const u = useUnits();
   const temperatureUnit = usePreferencesStore((s) => s.temperature);
+  const price = usePreferencesStore((s) => s.fuelPrice);
+  const currency = usePreferencesStore((s) => s.currency);
   const data = useMemo(() => {
     const db = getDb();
     return db ? tripObd(db, Date.parse(startTime)) : null;
@@ -93,11 +96,13 @@ export function CarSection({startTime}: {startTime: string}) {
   const peakFlow = flows.length > 0 ? Math.max(...flows) : null;
   const tiles = [
     stats.fuelUsedL != null ? {label: 'Fuel used', ...fuelVolume(stats.fuelUsedL, u.units), icon: 'water' as const, color: c.cyan} : null,
+    fuelCost(stats.fuelUsedL, price) != null ? {label: 'Fuel cost', value: formatMoney(fuelCost(stats.fuelUsedL, price) as number, currency), unit: '', icon: 'pricetag' as const, color: c.green} : null,
     stats.avgL100km != null ? {label: 'Economy', ...economy(stats.avgL100km, u.units), icon: 'leaf' as const, color: c.green} : null,
     stats.avgRpm != null ? {label: 'Average RPM', value: String(stats.avgRpm), unit: 'rpm', icon: 'speedometer' as const, color: c.accent} : null,
     stats.maxRpm != null ? {label: 'Highest RPM', value: String(Math.round(stats.maxRpm)), unit: 'rpm', icon: 'trending-up' as const, color: c.red} : null,
     stats.maxCoolantC != null ? {label: 'Hottest coolant', ...temperature(stats.maxCoolantC, temperatureUnit), icon: 'thermometer' as const, color: c.amber} : null,
     {label: 'Engine idling', value: formatSpan(stats.idleS), unit: '', icon: 'pause-circle' as const, color: c.textSecondary},
+    stats.idleFuelL != null ? {label: 'Fuel idling', ...fuelVolume(stats.idleFuelL, u.units), icon: 'hourglass' as const, color: c.amber} : null,
   ].filter((t): t is NonNullable<typeof t> => t != null);
 
   return (

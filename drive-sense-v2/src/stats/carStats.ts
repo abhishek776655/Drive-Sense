@@ -23,6 +23,8 @@ export interface CarTotals {
   idleS: number;
   /** Best (lowest) single-drive L/100 km. */
   bestL100km: number | null;
+  /** Fuel burned idling, over the drives that measured it. */
+  idleFuelL: number | null;
 }
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places;
@@ -45,7 +47,11 @@ export const carTotals = (drives: CarDrive[]): CarTotals | null => {
   let maxCoolant: number | null = null;
   let idle = 0;
   let best: number | null = null;
+  let idleFuel: number | null = null;
   for (const {stats, durationS} of drives) {
+    if (stats.idleFuelL != null) {
+      idleFuel = (idleFuel ?? 0) + stats.idleFuelL;
+    }
     if (stats.fuelUsedL != null) {
       fuel += stats.fuelUsedL;
       hasFuel = true;
@@ -77,6 +83,7 @@ export const carTotals = (drives: CarDrive[]): CarTotals | null => {
     maxCoolantC: maxCoolant,
     idleS: idle,
     bestL100km: best,
+    idleFuelL: idleFuel == null ? null : round(idleFuel, 2),
   };
 };
 

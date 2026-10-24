@@ -1,5 +1,6 @@
 import {View} from 'react-native';
 import {useUnits} from '../../hooks/useUnits';
+import {formatMoney, fuelCost} from '../../obd/fuel';
 import {economy, fuelVolume, temperature} from '../../obd/tiles';
 import type {CarTotals} from '../../stats/carStats';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -19,10 +20,16 @@ export function CarStatsCard({totals, tripCount}: {totals: CarTotals; tripCount?
   const c = theme.colors;
   const u = useUnits();
   const temperatureUnit = usePreferencesStore((s) => s.temperature);
+  const price = usePreferencesStore((s) => s.fuelPrice);
+  const currency = usePreferencesStore((s) => s.currency);
   const gap = theme.space.cardGap;
   const tiles: Tile[] = [];
   if (totals.fuelL != null) {
     tiles.push({label: 'Fuel used', ...fuelVolume(totals.fuelL, u.units), icon: 'water', color: c.cyan});
+  }
+  const cost = fuelCost(totals.fuelL, price);
+  if (cost != null) {
+    tiles.push({label: 'Fuel cost', value: formatMoney(cost, currency), icon: 'pricetag', color: c.green});
   }
   if (totals.avgL100km != null) {
     tiles.push({label: 'Avg economy', ...economy(totals.avgL100km, u.units), icon: 'leaf', color: c.green});
@@ -37,6 +44,9 @@ export function CarStatsCard({totals, tripCount}: {totals: CarTotals; tripCount?
     tiles.push({label: 'Hottest coolant', ...temperature(totals.maxCoolantC, temperatureUnit), icon: 'thermometer', color: c.amber});
   }
   tiles.push({label: 'Engine idling', value: formatSpan(totals.idleS), icon: 'pause-circle', color: c.textSecondary});
+  if (totals.idleFuelL != null) {
+    tiles.push({label: 'Fuel idling', ...fuelVolume(totals.idleFuelL, u.units), icon: 'hourglass', color: c.amber});
+  }
   // With one drive the best is just the average.
   if (totals.bestL100km != null && totals.drives > 1) {
     tiles.push({label: 'Best drive', ...economy(totals.bestL100km, u.units), icon: 'ribbon', color: c.mint});

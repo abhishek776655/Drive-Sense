@@ -36,8 +36,14 @@ export const fuelFlow = (lph: number, units: UnitSystem) =>
 export const economy = (l100: number, units: UnitSystem) =>
   units === 'imperial' ? {value: fixed(MPG_US_FROM_L100 / l100, 1), unit: 'mpg'} : {value: fixed(l100, 1), unit: 'L/100 km'};
 
-export const fuelVolume = (litres: number, units: UnitSystem) =>
-  units === 'imperial' ? {value: fixed(litres / L_PER_US_GAL, 2), unit: 'gal'} : {value: fixed(litres, litres < 10 ? 2 : 1), unit: 'L'};
+/** Under a litre (or a tenth of a gallon) the small unit reads better: "6 mL", not "0.01 L". */
+export const fuelVolume = (litres: number, units: UnitSystem) => {
+  if (units === 'imperial') {
+    const gallons = litres / L_PER_US_GAL;
+    return gallons < 0.1 ? {value: fixed(gallons * 128, 1), unit: 'fl oz'} : {value: fixed(gallons, 2), unit: 'gal'};
+  }
+  return litres < 1 ? {value: String(Math.round(litres * 1000)), unit: 'mL'} : {value: fixed(litres, litres < 10 ? 2 : 1), unit: 'L'};
+};
 
 /** Boost in kPa (metric) or psi. */
 export const pressure = (kpa: number, units: UnitSystem) => (units === 'imperial' ? {value: fixed(kpa * 0.145038, 1), unit: 'psi'} : {value: String(Math.round(kpa)), unit: 'kPa'});
@@ -51,7 +57,7 @@ export const gearLabel = (gear: number | null): string | null => (gear == null ?
 export const obdTiles = (
   values: Partial<Record<PidKey, {v: number}>>,
   derived: ObdDerived,
-  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean},
+  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean; rangeKm?: number | null},
 ): ObdTile[] => {
   const tiles: ObdTile[] = [];
   const v = (k: PidKey) => values[k]?.v;
@@ -87,6 +93,10 @@ export const obdTiles = (
   const fuelLevel = v('fuelLevel');
   if (fuelLevel != null) {
     tiles.push({id: 'fuelLevel', label: 'Fuel level', value: String(Math.round(fuelLevel)), unit: '%', icon: 'color-fill', tone: fuelLevel < 10 ? 'warn' : 'normal'});
+  }
+  if (opts.rangeKm != null) {
+    const miles = opts.units === 'imperial';
+    tiles.push({id: 'range', label: 'Range', value: `≈${Math.round(miles ? opts.rangeKm / 1.609344 : opts.rangeKm)}`, unit: miles ? 'mi' : 'km', icon: 'navigate', tone: opts.rangeKm < 50 ? 'warn' : 'normal'});
   }
   const intake = v('intakeTemp');
   if (intake != null) {

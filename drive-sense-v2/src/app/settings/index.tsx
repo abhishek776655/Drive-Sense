@@ -11,10 +11,12 @@ import {AppText} from '../../components/AppText';
 import {Card} from '../../components/Card';
 import {DeleteAccountSheet} from '../../components/settings/DeleteAccountSheet';
 import {DriveBackupSection} from '../../components/settings/DriveBackupSection';
+import {NumberSheet} from '../../components/settings/NumberSheet';
 import {ReliabilityTile} from '../../components/settings/ReliabilityTile';
 import {SelectMenu} from '../../components/settings/SelectMenu';
 import {PillChoice, SettingsGroup, SettingsLabel, SettingsRow, SettingsSwitch} from '../../components/settings/SettingsRows';
 import {requestNotificationPermission} from '../../notifications/driveNotifications';
+import {CURRENCIES, priceInUnits, pricePerLitreFrom, priceUnit} from '../../obd/fuel';
 import {MapButton} from '../../components/trip/MapButton';
 import {PRIVACY_POLICY_URL, SUPPORT_EMAIL} from '../../config/links';
 import {LevelCard} from '../../components/achievements/LevelCard';
@@ -27,6 +29,7 @@ import {useProfileStore} from '../../stores/profileStore';
 import {
   AUTO_PAUSE_SECONDS,
   AUTO_STOP_MINUTES,
+  MAX_FUEL_PRICE,
   SPEED_ALERT_MAX_KMH,
   SPEED_ALERT_MIN_KMH,
   SPEED_ALERT_STEP_KMH,
@@ -96,7 +99,7 @@ export default function SettingsScreen() {
   const achievements = useAchievementsStore((s) => s.data);
   const loadAchievements = useAchievementsStore((s) => s.load);
   const [permissions, setPermissions] = useState<Permissions>(null);
-  const [sheet, setSheet] = useState<'delete' | null>(null);
+  const [sheet, setSheet] = useState<'delete' | 'fuelPrice' | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
@@ -216,6 +219,28 @@ export default function SettingsScreen() {
             iconColor={c.amber}
             title="Map style"
             right={<SelectMenu accessibilityLabel="Map style" options={MAP_STYLES} value={prefs.mapStyle} onChange={(mapStyle) => void setPrefs({mapStyle})} />}
+          />
+        </SettingsGroup>
+
+        <SettingsLabel>FUEL</SettingsLabel>
+        <SettingsGroup>
+          <SettingsRow
+            icon="pricetag"
+            iconColor={c.green}
+            title="Fuel price"
+            subtitle="Prices the fuel your car adapter measures. Changing it reprices past drives too."
+            onPress={() => setSheet('fuelPrice')}
+            right={
+              <AppText size={15} weight="extrabold" tone={prefs.fuelPrice != null ? 'primary' : 'accent'}>
+                {prefs.fuelPrice != null ? `${prefs.currency}${priceInUnits(prefs.fuelPrice, prefs.units).toFixed(2)} / ${priceUnit(prefs.units)}` : 'Set'}
+              </AppText>
+            }
+          />
+          <SettingsRow
+            icon="cash"
+            iconColor={c.teal}
+            title="Currency"
+            below={<PillChoice stretch options={CURRENCIES.map((value) => ({value, label: value}))} value={prefs.currency} onChange={(currency) => void setPrefs({currency})} />}
           />
         </SettingsGroup>
 
@@ -412,6 +437,21 @@ export default function SettingsScreen() {
       </View>
 
       {sheet === 'delete' ? <DeleteAccountSheet visible onConfirm={deleteAccount} onClose={() => setSheet(null)} /> : null}
+      {sheet === 'fuelPrice' ? (
+        <NumberSheet
+          title="Fuel price"
+          hint={`What a ${prefs.units === 'imperial' ? 'gallon' : 'litre'} of fuel costs you.`}
+          prefix={prefs.currency}
+          unit={`/ ${priceUnit(prefs.units)}`}
+          initial={prefs.fuelPrice != null ? priceInUnits(prefs.fuelPrice, prefs.units) : null}
+          valid={(v) => v > 0 && pricePerLitreFrom(v, prefs.units) <= MAX_FUEL_PRICE}
+          onSave={(v) => {
+            void setPrefs({fuelPrice: v == null ? null : pricePerLitreFrom(v, prefs.units)});
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
     </View>
   );
 }

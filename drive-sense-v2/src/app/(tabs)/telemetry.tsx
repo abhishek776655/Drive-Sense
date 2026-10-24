@@ -11,6 +11,7 @@ import {AdapterCard, LINK_TEXT} from '../../components/telemetry/AdapterCard';
 import {PairSheet} from '../../components/telemetry/PairSheet';
 import {RpmDial} from '../../components/telemetry/RpmDial';
 import {Sparkline} from '../../components/telemetry/Sparkline';
+import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
 import {setSimEngine, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
 import {fuelFlow, gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
@@ -97,9 +98,10 @@ export default function TelemetryScreen() {
 
   const connected = link === 'live' || link === 'engineOff';
   const tones: Record<TileTone, string> = {normal: c.textSecondary, warn: c.amber, alert: c.red};
+  const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);
   const tiles = useMemo(
-    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live'}),
-    [values, derived, u.units, temperatureUnit, link],
+    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km}),
+    [values, derived, u.units, temperatureUnit, link, range.km],
   );
   const spark = (pick: (p: (typeof history)[number]) => number | null) =>
     history.flatMap((p) => {

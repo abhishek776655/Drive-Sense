@@ -1,12 +1,18 @@
 import {Ionicons} from '@expo/vector-icons';
+import {useState} from 'react';
 import {Alert, Pressable, View} from 'react-native';
 import {getDb} from '../../db';
 import {deleteAdapter} from '../../db/obdRepos';
+import {useRange} from '../../hooks/useRange';
+import {useUnits} from '../../hooks/useUnits';
+import {L_PER_US_GAL} from '../../obd/fuel';
 import {useObdStore, type ObdLink} from '../../stores/obdStore';
+import {TANK_LITRES_RANGE, usePreferencesStore} from '../../stores/preferencesStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
 import {sinceLabel} from '../settings/DriveBackupSection';
+import {NumberSheet} from '../settings/NumberSheet';
 
 export const LINK_TEXT: Record<ObdLink, string> = {
   none: 'No adapter paired',
@@ -45,6 +51,23 @@ export function AdapterCard({vehicleId, onPair}: {vehicleId: string; onPair: () 
     ]);
 
   const state = adapter?.lastState;
+  const u = useUnits();
+  const [tankSheet, setTankSheet] = useState(false);
+  const liveFuel = useObdStore((st) => st.values.fuelLevel?.v ?? null);
+  const fuelLevel = connected ? liveFuel : (state?.fuelLevel ?? null);
+  const range = useRange(vehicleId, fuelLevel);
+  const imperial = u.units === 'imperial';
+  const tankShown = range.tankLitres == null ? null : imperial ? range.tankLitres / L_PER_US_GAL : range.tankLitres;
+  const saveTank = (value: number | null) => {
+    const tanks = {...usePreferencesStore.getState().tankLitres};
+    if (value == null) {
+      delete tanks[vehicleId];
+    } else {
+      tanks[vehicleId] = imperial ? value * L_PER_US_GAL : value;
+    }
+    void usePreferencesStore.getState().set({tankLitres: tanks});
+    setTankSheet(false);
+  };
   return (
     <Card style={{padding: 16, gap: 12}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
@@ -75,6 +98,37 @@ export function AdapterCard({vehicleId, onPair}: {vehicleId: string; onPair: () 
           {state.voltage != null ? ` · battery ${state.voltage.toFixed(1)} V` : ''}
           {state.mil ? ' · check engine light on' : ''}
         </AppText>
+      ) : null}
+      {adapter ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Tank size" onPress={() => setTankSheet(true)} style={({pressed}) => ({opacity: pressed ? 0.6 : 1})}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: c.separator, paddingTop: 12}}>
+            <Ionicons name="color-fill" size={18} color={c.cyan} />
+            <AppText size={14} weight="bold" tone="secondary" style={{flex: 1}}>
+              {tankShown != null ? `Tank ${Math.round(tankShown)} ${imperial ? 'gal' : 'L'}` : 'Set tank size for range'}
+            </AppText>
+            {range.km != null ? (
+              <AppText size={14} weight="extrabold">
+                ≈{Math.round(u.distanceValue(range.km * 1000) ?? 0)} {u.distanceUnit} left
+              </AppText>
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={c.textTertiary} />
+            )}
+          </View>
+        </Pressable>
+      ) : null}
+      {tankSheet ? (
+        <NumberSheet
+          title="Tank size"
+          hint="How much fuel a full tank holds. With the fuel level from your adapter it gives the range left."
+          unit={imperial ? 'gal' : 'L'}
+          initial={tankShown}
+          valid={(v) => {
+            const litres = imperial ? v * L_PER_US_GAL : v;
+            return litres >= TANK_LITRES_RANGE[0] && litres <= TANK_LITRES_RANGE[1];
+          }}
+          onSave={saveTank}
+          onClose={() => setTankSheet(false)}
+        />
       ) : null}
     </Card>
   );
