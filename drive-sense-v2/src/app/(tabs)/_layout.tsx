@@ -27,8 +27,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{title: 'Home'}} />
       <Tabs.Screen name="logbook" options={{title: 'Logbook'}} />
       <Tabs.Screen name="drive" options={{title: 'Drive'}} />
-      <Tabs.Screen name="garage" options={{title: 'Garage'}} />
       <Tabs.Screen name="telemetry" options={{title: 'Telemetry'}} />
+      <Tabs.Screen name="garage" options={{title: 'Garage'}} />
     </Tabs>
   );
 }
