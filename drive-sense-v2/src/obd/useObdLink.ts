@@ -9,6 +9,7 @@ import type {FuelType} from '../services/vehicleService';
 import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink, type BleStatus} from './bleTransport';
 import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
 import {createPollLoop} from './pollLoop';
+import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
 
 /** Waits before trying the adapter again after a drop or failure, in ms. */
 const BACKOFF_MS = [2_000, 5_000, 10_000, 30_000];
@@ -78,8 +79,11 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
     });
   };
 
+  // Development builds: the pretend adapter needs no Bluetooth (spec 2026-10-25, simulator).
+  const simulated = __DEV__ && adapter.deviceId === SIM_DEVICE_ID;
+
   const loopOnce = async () => {
-    const status = await bleStatus();
+    const status = simulated ? 'on' : await bleStatus();
     if (status !== 'on') {
       store().setLink(linkFor(status));
       await waitForBluetooth();
@@ -88,7 +92,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
     if (store().link !== 'live' && store().link !== 'engineOff') {
       store().setLink('waiting');
     }
-    link = await connectAdapter(adapter.deviceId);
+    link = simulated ? createSimAdapter() : await connectAdapter(adapter.deviceId);
     if (!alive) {
       await link.disconnect();
       return;
@@ -151,7 +155,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
   return () => {
     alive = false;
     stopLoop?.();
-    void (link ? link.disconnect() : cancelConnect(adapter.deviceId));
+    void (link ? link.disconnect() : simulated ? undefined : cancelConnect(adapter.deviceId));
   };
 }
 

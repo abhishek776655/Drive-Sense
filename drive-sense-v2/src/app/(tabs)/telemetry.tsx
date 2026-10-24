@@ -143,7 +143,8 @@ export default function TelemetryScreen() {
           />
         </View>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
-          {tiles.map((t) => (
+          {/* Fuel flow already has its sparkline above. */}
+          {tiles.filter((t) => t.id !== 'fuelFlow').map((t) => (
             <BentoTile
               key={t.id}
               label={t.label}

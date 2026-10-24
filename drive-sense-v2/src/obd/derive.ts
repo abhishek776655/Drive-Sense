@@ -42,7 +42,18 @@ export const boostKpa = (map: number | null | undefined, baro: number | null | u
 /** Ratios this close (as a fraction) count as the same gear. */
 const SAME_GEAR = 0.08;
 /** Readings a gear needs before it is trusted. */
-const MIN_SAMPLES = 20;
+const MIN_SAMPLES = 8;
+/**
+ * …and its share of the busiest gear's readings. Mid-shift readings (clutch in, RPM read a moment
+ * before speed) recur at the same shift points every time, so a fixed count alone lets them pile up
+ * into gears that don't exist.
+ */
+const MIN_SHARE = 0.15;
+/**
+ * Gears are numbered by rank, so the numbers mean nothing until most of the box has been seen: a
+ * motorway run learns only top gear first, and would call it 1st.
+ */
+const MIN_GEARS = 4;
 /** Same answer this many times running before it is shown. */
 const STABLE = 3;
 const MIN_KMH = 8;
@@ -50,7 +61,7 @@ const MIN_KMH = 8;
 /**
  * Guesses the gear from RPM ÷ speed. Each gear has its own ratio, so readings bunch into clusters
  * over a drive; the cluster with the highest ratio is 1st gear. Learns as it goes and returns null
- * until a guess has held for a few readings.
+ * until it has seen enough gears and a guess has held for a few readings.
  */
 export class GearEstimator {
   private clusters: {ratio: number; n: number}[] = [];
@@ -72,11 +83,17 @@ export class GearEstimator {
       cluster = {ratio, n: 1};
       this.clusters.push(cluster);
     }
-    if (cluster.n < MIN_SAMPLES) {
+    const busiest = Math.max(...this.clusters.map((c) => c.n));
+    const trusted = (c: {n: number}) => c.n >= Math.max(MIN_SAMPLES, busiest * MIN_SHARE);
+    if (!trusted(cluster)) {
       this.streak = 0;
       return null;
     }
-    const gears = this.clusters.filter((c) => c.n >= MIN_SAMPLES).sort((a, b) => b.ratio - a.ratio);
+    const gears = this.clusters.filter(trusted).sort((a, b) => b.ratio - a.ratio);
+    if (gears.length < MIN_GEARS) {
+      this.streak = 0;
+      return null;
+    }
     const gear = gears.indexOf(cluster) + 1;
     this.streak = gear === this.last ? this.streak + 1 : 1;
     this.last = gear;

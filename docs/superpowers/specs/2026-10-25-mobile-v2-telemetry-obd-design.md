@@ -23,8 +23,8 @@ it on a new Telemetry tab, and keep a summary and chart series of it with every 
 - **Library:** `react-native-ble-plx` for scan/connect/notify; the ELM327 protocol, PID decoding and
   polling are our own TypeScript. Needs a development build; does not run in Expo Go.
 - **Storage:** raw 1 Hz samples only while a drive records (a working table, like `drive_points`);
-  when the drive ends they become a summary and downsampled chart series on `trip_details`, and the
-  raw rows are deleted.
+  when the drive ends they become a summary and downsampled chart series in `trip_obd`, keyed by the
+  drive's start time, and the raw rows are deleted.
 - **No server sync in v1.** OBD data stays on the phone. The summary and series are small JSON so
   they can ride along with a trip upload later without changing format.
 - **Not for EVs / most hybrids:** they do not answer standard Mode 01 PIDs; the tab says so.
@@ -132,7 +132,7 @@ New folder `src/obd/`, every file one job:
 | `series.ts` | Downsampling to ≤ 600 buckets; RPM and coolant keep the bucket max, others the mean. Pure. |
 
 **Data flow:** adapter → `bleTransport` → `elm327` → `pollLoop` → decoded value → `obdStore`
-(live) and `obdRecorder` (when recording) → `trip_details` at drive end → Trip Detail.
+(live) and `obdRecorder` (when recording) → `trip_obd` at drive end → Trip Detail.
 
 **Background:**
 - iOS: add `bluetooth-central` to `UIBackgroundModes` (now `location`, `bluetooth-central`), plus
@@ -159,8 +159,11 @@ CREATE TABLE drive_obd_samples (
   json TEXT NOT NULL,
   PRIMARY KEY (drive_started_at, ts)
 );
-ALTER TABLE trip_details ADD COLUMN obd_stats TEXT;
-ALTER TABLE trip_details ADD COLUMN obd_series TEXT;
+CREATE TABLE trip_obd (
+  started_at INTEGER PRIMARY KEY,
+  stats TEXT NOT NULL,
+  series TEXT NOT NULL
+);
 CREATE TABLE obd_adapters (
   vehicle_id TEXT PRIMARY KEY,
   device_id TEXT NOT NULL,
@@ -172,16 +175,21 @@ CREATE TABLE obd_adapters (
 );
 ```
 
-`TABLES` gains `drive_obd_samples` and `obd_adapters`.
+`TABLES` gains `drive_obd_samples`, `trip_obd` and `obd_adapters`.
+
+**Why `trip_obd` and not columns on `trip_details`:** a drive's trip id changes from
+`local:<startedAt>` to the server's id when it uploads, and the local row is deleted. The start time
+stays, so OBD data is keyed by it (matched within ±2 s) and deleted only when the user deletes or
+discards the drive.
 
 - **`drive_obd_samples.json`:** one second: `{speed, rpm, throttle, load, coolant, maf, fuelRate,
   fuelLevel, voltage, intakeTemp, map}`; unsupported or missing → absent. Deleted when the drive
   is saved or discarded. A crash mid-drive leaves the rows for the recovered drive, like
   `drive_points`.
-- **`trip_details.obd_stats`:** `{avgRpm, maxRpm, maxCoolantC, fuelUsedL, avgL100km, idleS,
+- **`trip_obd.stats`:** `{avgRpm, maxRpm, maxCoolantC, fuelUsedL, avgL100km, idleS,
   coverage}`. `coverage` = seconds with OBD data ÷ drive seconds (0–1). NULL when the drive had no
   OBD data.
-- **`trip_details.obd_series`:** column-wise, `{t: number[], rpm: number[], speed: number[],
+- **`trip_obd.series`:** column-wise, `{t: number[], rpm: number[], speed: number[],
   coolant: number[], fuelFlow: number[], throttle: number[], load: number[]}`, ≤ 600 entries each;
   `t` is seconds from drive start; missing seconds → `null` so charts show gaps. About 20–30 KB.
 - **`obd_adapters`:** per vehicle on this phone (pairing is device-local, so it is not in the
@@ -189,14 +197,13 @@ CREATE TABLE obd_adapters (
   `{mil, codeCount, fuelLevel, voltage, readAt}`.
 - **Not stored:** the 4–5 Hz stream (memory only); DTC details (later spec).
 
-Deleting a trip deletes its `trip_details` row as today, which removes its OBD data.
+Deleting or discarding a drive deletes its `trip_obd` row.
 
 ## 5. Trip Detail
 
-A **Car** section, shown only when `obd_stats` is not NULL:
+A **Car** section, shown only when the drive has a `trip_obd` row:
 - Summary tiles: fuel used, average L/100 km, average/max RPM, max coolant, idle time.
-- Charts (reuse `TrendChart` styling) from `obd_series`: RPM, coolant, fuel flow; gaps drawn as
-  breaks.
+- Charts from the series: RPM, coolant, fuel flow; gaps drawn as breaks.
 - When `coverage < 0.9`: a note "Car data for 72% of this drive".
 
 ## 6. Errors and edge cases

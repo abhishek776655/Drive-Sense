@@ -16,8 +16,10 @@ import {SectionTitle} from './SectionTitle';
 
 const H = 96;
 const PAD = 4;
+/** Missing readings shorter than this are bridged: slow PIDs (coolant) are only read every few seconds. */
+const GAP_S = 15;
 
-/** Line paths for one series; a null breaks the line, so a stretch without car data shows as a gap. */
+/** Line paths for one series; a stretch without car data longer than `GAP_S` shows as a gap. */
 export const gappedPath = (t: number[], ys: (number | null)[], width: number, height: number): string => {
   const values = ys.filter((y): y is number => y != null);
   if (values.length < 2 || t.length < 2) {
@@ -29,16 +31,15 @@ export const gappedPath = (t: number[], ys: (number | null)[], width: number, he
   const sx = x1 > x0 ? (width - PAD * 2) / (x1 - x0) : 0;
   const sy = (height - PAD * 2) / top;
   let d = '';
-  let pen = false;
+  let lastT: number | null = null;
   ys.forEach((y, i) => {
     if (y == null) {
-      pen = false;
       return;
     }
     const x = Math.round((PAD + (t[i] - x0) * sx) * 10) / 10;
     const yy = Math.round((height - PAD - y * sy) * 10) / 10;
-    d += `${pen ? 'L' : 'M'}${x} ${yy}`;
-    pen = true;
+    d += `${lastT != null && t[i] - lastT <= GAP_S ? 'L' : 'M'}${x} ${yy}`;
+    lastT = t[i];
   });
   return d;
 };
@@ -88,6 +89,8 @@ export function CarSection({startTime}: {startTime: string}) {
     return null;
   }
   const {stats, series} = data;
+  const flows = series.fuelFlow.filter((v): v is number => v != null);
+  const peakFlow = flows.length > 0 ? Math.max(...flows) : null;
   const tiles = [
     stats.fuelUsedL != null ? {label: 'Fuel used', ...fuelVolume(stats.fuelUsedL, u.units), icon: 'water' as const, color: c.cyan} : null,
     stats.avgL100km != null ? {label: 'Economy', ...economy(stats.avgL100km, u.units), icon: 'leaf' as const, color: c.green} : null,
@@ -113,7 +116,7 @@ export function CarSection({startTime}: {startTime: string}) {
         color={c.amber}
         peak={stats.maxCoolantC != null ? `Peak ${temperature(stats.maxCoolantC, temperatureUnit).value}${temperature(0, temperatureUnit).unit}` : ''}
       />
-      <ObdChart title="Fuel flow" series={series} pick={(s) => s.fuelFlow} color={c.cyan} peak={fuelFlow(0, u.units).unit} />
+      <ObdChart title="Fuel flow" series={series} pick={(s) => s.fuelFlow} color={c.cyan} peak={peakFlow != null ? `Peak ${fuelFlow(peakFlow, u.units).value} ${fuelFlow(peakFlow, u.units).unit}` : ''} />
       {stats.coverage < 0.9 ? (
         <AppText size={13} weight="semibold" tone="tertiary" style={{textAlign: 'center'}}>
           Car data for {Math.round(stats.coverage * 100)}% of this drive

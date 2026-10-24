@@ -89,16 +89,42 @@ describe('derived values', () => {
     expect(boostKpa(null, 100)).toBeNull();
   });
 
-  it('learns gears from rpm/speed clusters', () => {
+  it('learns gears from rpm/speed clusters, but only names them once it has seen four', () => {
     const g = new GearEstimator();
-    // 3rd-ish gear at ~50 rpm per km/h, then 4th at ~38.
+    // Top gear first (a motorway start): no number yet, it would wrongly be "1st".
     let last: number | null = null;
-    for (let i = 0; i < 25; i++) last = g.add(2500, 50);
-    for (let i = 0; i < 25; i++) last = g.add(2280, 60);
-    expect(last).toBe(2);
-    expect(g.add(2500, 50)).toBeNull(); // the switch back has to hold first
-    g.add(2500, 50);
-    expect(g.add(2500, 50)).toBe(1);
+    for (let i = 0; i < 10; i++) last = g.add(2900, 100);
+    expect(last).toBeNull();
+    // Then 1st, 2nd and 3rd at ~118, ~68 and ~47 rpm per km/h.
+    for (const [rpm, kmh] of [
+      [2360, 20],
+      [2720, 40],
+      [2820, 60],
+    ]) {
+      for (let i = 0; i < 10; i++) last = g.add(rpm, kmh);
+    }
+    expect(last).toBe(3);
+    g.add(2900, 100);
+    g.add(2900, 100);
+    expect(g.add(2900, 100)).toBe(4); // top gear now ranks 4th of 4
     expect(g.add(800, 0)).toBeNull();
+  });
+
+  it('ignores mid-shift readings that keep recurring', () => {
+    const g = new GearEstimator();
+    const gears: [number, number][] = [
+      [2360, 20],
+      [2720, 40],
+      [2820, 60],
+      [2880, 80],
+    ];
+    for (let loop = 0; loop < 6; loop++) {
+      for (const [rpm, kmh] of gears) {
+        for (let i = 0; i < 20; i++) g.add(rpm, kmh);
+        g.add(rpm * 0.7, kmh); // a mid-shift reading, at the same spot every loop
+      }
+    }
+    for (let i = 0; i < 3; i++) g.add(2880, 80);
+    expect(g.add(2880, 80)).toBe(4);
   });
 });

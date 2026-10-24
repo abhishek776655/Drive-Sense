@@ -61,6 +61,14 @@ describe('OBD storage', () => {
     expect(tripObd(db, T0)).toBeNull();
   });
 
+  it('takes a start time with fractional milliseconds (iOS GPS timestamps)', () => {
+    const db = memoryDb();
+    migrate(db);
+    const r = rows(3);
+    putTripObd(db, T0 + 0.375, {stats: summarize(r, 3), series: downsample(r, T0)});
+    expect(tripObd(db, T0 + 0.375)?.stats.maxRpm).toBe(2002);
+  });
+
   it('pairs one adapter to one vehicle', () => {
     const db = memoryDb();
     migrate(db);

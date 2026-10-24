@@ -63,11 +63,16 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
     const points = db ? drivePoints(db, drive.startedAt) : [];
     const metrics = points.length > 1 ? tripMetrics(points) : null;
     if (db) {
-      // The drive's OBD-II seconds become its summary and chart series (telemetry); kept only with a vehicle.
-      if (drive.vehicle) {
-        finalizeObd(db, drive);
-      } else {
-        clearObdSamples(db, drive.startedAt);
+      // The drive's OBD-II seconds become its summary and chart series (telemetry); kept only with a
+      // vehicle. Car data is extra: a failure here must never stop the drive itself being saved.
+      try {
+        if (drive.vehicle) {
+          finalizeObd(db, drive);
+        } else {
+          clearObdSamples(db, drive.startedAt);
+        }
+      } catch (error) {
+        console.warn('Could not save the drive\'s OBD data', error);
       }
     }
     set({drive, metrics, samples: drive.unsentSamples, progress: progressFor(drive), saveStatus: drive.vehicle ? 'saving' : 'local', error: null, detail: null, detailDone: false});
