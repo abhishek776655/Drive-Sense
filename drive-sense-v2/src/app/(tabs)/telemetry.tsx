@@ -1,6 +1,6 @@
 import {Ionicons} from '@expo/vector-icons';
 import {useMemo, useState} from 'react';
-import {View} from 'react-native';
+import {Pressable, View} from 'react-native';
 import {AppText} from '../../components/AppText';
 import {BentoTile} from '../../components/BentoTile';
 import {Card} from '../../components/Card';
@@ -12,6 +12,7 @@ import {PairSheet} from '../../components/telemetry/PairSheet';
 import {RpmDial} from '../../components/telemetry/RpmDial';
 import {Sparkline} from '../../components/telemetry/Sparkline';
 import {useUnits} from '../../hooks/useUnits';
+import {simControls, SIM_DEVICE_ID} from '../../obd/simAdapter';
 import {fuelFlow, gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -49,6 +50,26 @@ function Banner({icon, color, text}: {icon: keyof typeof Ionicons.glyphMap; colo
         {text}
       </AppText>
     </Card>
+  );
+}
+
+/** Development builds with the simulated adapter: switch the pretend engine off and on. */
+function SimEngineSwitch() {
+  const c = useAppTheme().colors;
+  const [on, setOn] = useState(simControls.engineOn);
+  const toggle = () => {
+    simControls.engineOn = !on;
+    setOn(!on);
+  };
+  return (
+    <Pressable accessibilityRole="button" onPress={toggle} style={({pressed}) => ({alignSelf: 'center', opacity: pressed ? 0.6 : 1})}>
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: c.control}}>
+        <Ionicons name={on ? 'power' : 'flash'} size={16} color={on ? c.red : c.green} />
+        <AppText size={13} weight="extrabold" tone="secondary">
+          Simulator: {on ? 'switch engine off' : 'start engine'}
+        </AppText>
+      </View>
+    </Pressable>
   );
 }
 
@@ -158,6 +179,7 @@ export default function TelemetryScreen() {
           ))}
         </View>
         <AdapterCard vehicleId={vehicle.id} onPair={() => setPairing(true)} />
+        {__DEV__ && adapter.deviceId === SIM_DEVICE_ID ? <SimEngineSwitch /> : null}
       </>
     );
   };

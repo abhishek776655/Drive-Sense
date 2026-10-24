@@ -36,6 +36,14 @@ export interface SimCar {
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
+/** Seconds into each loop when the engine stops at the lights (auto start-stop), and restarts. */
+export const START_STOP = [56, 59] as const;
+
+/** Dev control: switch the pretend engine off (a parked car with the ignition on) and back on. */
+export const simControls = {engineOn: true};
+
+const engineOff = (car: SimCar): SimCar => ({...car, speed: 0, rpm: 0, throttle: 0, load: 0, maf: 0, map: car.baro, voltage: 12.4});
+
 /** The car `elapsedS` seconds after the engine started. Pure, so tests can check any moment. */
 export const simCar = (elapsedS: number): SimCar => {
   const t = elapsedS % CYCLE_S;
@@ -55,7 +63,7 @@ export const simCar = (elapsedS: number): SimCar => {
   const rpm = gear < 0 ? IDLE_RPM + 20 * Math.sin(t) : Math.max(IDLE_RPM + 200, speed * GEAR_RATIOS[gear]);
   const load = clamp(throttle * 0.9 + 18, 0, 100);
   const warm = 1 - Math.exp(-elapsedS / 40);
-  return {
+  const car: SimCar = {
     speed: Math.round(speed),
     rpm: Math.round(rpm),
     throttle: clamp(throttle, 0, 100),
@@ -70,6 +78,7 @@ export const simCar = (elapsedS: number): SimCar => {
     ambient: 29,
     runTime: Math.round(elapsedS),
   };
+  return t >= START_STOP[0] && t < START_STOP[1] ? engineOff(car) : car;
 };
 
 const hex = (n: number) => clamp(Math.round(n), 0, 255).toString(16).toUpperCase().padStart(2, '0');
@@ -151,7 +160,8 @@ export function createSimAdapter(now: () => number = Date.now): AdapterLink {
       if (!open) {
         throw new Error('Simulator adapter disconnected');
       }
-      const reply = simReply(text, simCar((now() - startedAt) / 1000));
+      const car = simCar((now() - startedAt) / 1000);
+      const reply = simReply(text, simControls.engineOn ? car : engineOff(car));
       // A real adapter takes a few tens of ms per answer; this keeps the loop at a realistic pace.
       setTimeout(() => listeners.forEach((l) => l(`${reply}\r\r${PROMPT}`)), 40);
     },

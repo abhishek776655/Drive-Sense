@@ -49,4 +49,20 @@ describe('obdStore', () => {
     useObdStore.getState().setStatus({mil: true, codeCount: 3});
     expect(useObdStore.getState().mil).toEqual({on: true, codes: 3});
   });
+
+  it('remembers when the engine last ran', () => {
+    const s = useObdStore.getState();
+    s.putValue('rpm', 900, 1000);
+    s.putValue('rpm', 0, 2000);
+    expect(useObdStore.getState().engineOnAt).toBe(1000);
+  });
+
+  it('adds up adapter distance and skips gaps', () => {
+    const s = useObdStore.getState();
+    s.putValue('speed', 36, 0); // 10 m/s
+    s.putValue('speed', 36, 1000);
+    s.putValue('speed', 72, 2000); // averages 15 m/s over this second
+    s.putValue('speed', 72, 20_000); // 18 s gap: not counted
+    expect(useObdStore.getState().distanceM).toBeCloseTo(25, 5);
+  });
 });

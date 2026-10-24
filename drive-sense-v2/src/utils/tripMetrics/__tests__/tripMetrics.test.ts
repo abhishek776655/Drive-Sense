@@ -83,6 +83,8 @@ describe('G-force and idle (test_home_stats.py)', () => {
   });
   it('adds up standing still, but not gaps without signal', () => {
     expect(idleSeconds([fix(0), fix(10, {speedMps: 0}), fix(20, {speedMps: 0.4}), fix(200, {speedMps: 0})])).toBe(20);
+    // Engine off (adapter says so): standing, but not idling.
+    expect(idleSeconds([fix(0), fix(10, {speedMps: 0, engineOn: true}), fix(20, {speedMps: 0, engineOn: false})])).toBe(10);
   });
   it('puts it all together', () => {
     expect(tripMetrics([fix(2, {speedMps: 0}), fix(0, {speedMps: 12})])).toMatchObject({score: 98, events: [{event_type: 'harsh_brake'}], idleSeconds: 2});

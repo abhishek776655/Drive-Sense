@@ -10,6 +10,7 @@ import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink,
 import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
 import {createPollLoop} from './pollLoop';
 import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
+import {ADAPTER_FRESH_MS, engineEndAt} from './sourceRules';
 
 /** Waits before trying the adapter again after a drop or failure, in ms. */
 const BACKOFF_MS = [2_000, 5_000, 10_000, 30_000];
@@ -179,6 +180,38 @@ export function useObdLink() {
     }
     return runSession(adapter, fuel);
   }, [deviceId, fuel]);
+
+  // Drive end (spec 2026-10-25, telemetry sources): 60 s after the engine stops. Driven by adapter
+  // and recording updates, which keep coming in the background; the tick is a foreground backup.
+  useEffect(() => {
+    const check = () => {
+      const rec = useRecordingStore.getState();
+      if (rec.status !== 'recording' || rec.startedAt == null || !usePreferencesStore.getState().autoStop) {
+        return;
+      }
+      const obd = useObdStore.getState();
+      const now = Date.now();
+      const rpm = obd.values.rpm;
+      const endAt = engineEndAt({
+        engineOnAt: obd.engineOnAt,
+        startedAt: rec.startedAt,
+        now,
+        lastMovementAt: rec.lastMovementAt,
+        engineRunningNow: rpm != null && rpm.v > 0 && now - rpm.at <= ADAPTER_FRESH_MS,
+      });
+      if (endAt != null) {
+        rec.end(endAt, true);
+      }
+    };
+    const stopObd = useObdStore.subscribe(check);
+    const stopRec = useRecordingStore.subscribe(check);
+    const tick = setInterval(check, 5000);
+    return () => {
+      stopObd();
+      stopRec();
+      clearInterval(tick);
+    };
+  }, []);
 
   // Auto-start (Settings): the adapter going live means the car has been switched on.
   useEffect(

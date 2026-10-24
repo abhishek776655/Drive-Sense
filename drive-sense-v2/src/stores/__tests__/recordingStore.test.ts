@@ -1,3 +1,4 @@
+import {useObdStore} from '../obdStore';
 import {DEFAULT_PREFERENCES, usePreferencesStore} from '../preferencesStore';
 import {avgSpeedMps, elapsedSeconds, EMPTY_STATS, useRecordingStore, type Sample} from '../recordingStore';
 
@@ -320,4 +321,73 @@ describe('recordingStore', () => {
     expect(avgSpeedMps(0, 100)).toBeNull();
     expect(avgSpeedMps(1000, 0)).toBeNull();
   });
+
+  describe('with an OBD-II adapter', () => {
+    afterEach(() => {
+      useObdStore.getState().reset();
+      jest.restoreAllMocks();
+    });
+
+    it('records the adapter speed and engine state on live fixes', () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(0);
+      const store = useRecordingStore.getState();
+      store.start({id: 'v1', name: 'Citigo'}, 0);
+      now.mockReturnValue(1000);
+      useObdStore.getState().putValue('speed', 54, 900);
+      useObdStore.getState().putValue('rpm', 2100, 950);
+      // GPS spikes to 40 m/s; the adapter says 54 km/h (15 m/s).
+      store.ingest(sample({timestamp: 1000, speedMps: 40}));
+      const state = useRecordingStore.getState();
+      expect(state.stats.speedMps).toBeCloseTo(15, 5);
+      expect(state.stats.topSpeedMps).toBeCloseTo(15, 5);
+      expect(state.pending[0]).toMatchObject({speedSource: 'obd', engineOn: true});
+    });
+
+    it('keeps GPS when the adapter reading is stale', () => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(10_000);
+      useRecordingStore.getState().start({id: 'v1', name: 'Citigo'}, 0);
+      useObdStore.getState().putValue('speed', 54, 1000);
+      useRecordingStore.getState().ingest(sample({timestamp: 10_000, speedMps: 12}));
+      expect(useRecordingStore.getState().pending[0]).toMatchObject({speedMps: 12, speedSource: 'gps'});
+      now.mockRestore();
+    });
+
+    it('does not count a switch between GPS and adapter speed as braking', () => {
+      const now = jest.spyOn(Date, 'now');
+      const store = useRecordingStore.getState();
+      now.mockReturnValue(0);
+      store.start({id: 'v1', name: 'Citigo'}, 0);
+      useObdStore.getState().putValue('speed', 80, 1000);
+      now.mockReturnValue(1000);
+      store.ingest(sample({timestamp: 1000, speedMps: 16}));
+      // The adapter goes quiet; GPS says 58 km/h a second later: a 6 m/s² "brake" that never happened.
+      now.mockReturnValue(4000);
+      store.ingest(sample({timestamp: 2000, speedMps: 16.1, latitude: 28.6002}));
+      expect(useRecordingStore.getState().stats.brakeCount).toBe(0);
+      now.mockRestore();
+    });
+
+    it('fills a tunnel gap with adapter distance', () => {
+      const now = jest.spyOn(Date, 'now');
+      const obd = useObdStore.getState();
+      const store = useRecordingStore.getState();
+      now.mockReturnValue(0);
+      store.start({id: 'v1', name: 'Citigo'}, 0);
+      // 30 s at 72 km/h through a tunnel: 600 m by the adapter, 300 m straight line by GPS.
+      const drive = (from: number, to: number) => {
+        for (let t = from; t <= to; t += 1000) {
+          obd.putValue('speed', 72, t);
+        }
+      };
+      drive(0, 1000);
+      now.mockReturnValue(1000);
+      store.ingest(sample({timestamp: 1000, speedMps: 20}));
+      drive(2000, 31_000);
+      now.mockReturnValue(31_000);
+      store.ingest(sample({timestamp: 31_000, speedMps: 20, latitude: 28.6 + 300 / 111_320}));
+      expect(useRecordingStore.getState().stats.distanceM).toBeCloseTo(600, 0);
+      now.mockRestore();
+    });
+  });
 });
+

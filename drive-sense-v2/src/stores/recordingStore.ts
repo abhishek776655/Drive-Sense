@@ -1,3 +1,5 @@
+import {adapterReading, applyAdapter, fillGap} from '../obd/sourceRules';
+import {useObdStore} from './obdStore';
 import {create} from 'zustand';
 import {usePreferencesStore} from './preferencesStore';
 import {AUTO_RESUME_FIXES, isUsableFix, nextSpeedAlert, shouldAutoEnd, shouldAutoPause, shouldAutoStart, type SpeedAlertState} from '../utils/autoTrip';
@@ -48,6 +50,10 @@ export interface Sample {
   timestamp: number;
   /** Peak motion-sensor G since the previous recorded fix; null when no sensor reading came in. */
   peakG?: number | null;
+  /** Where `speedMps` came from: the OBD-II adapter when it had a fresh reading, else GPS. */
+  speedSource?: 'gps' | 'obd';
+  /** Engine running per the adapter (RPM > 0); absent without adapter data. */
+  engineOn?: boolean;
 }
 
 export interface LiveStats {
@@ -157,6 +163,8 @@ export interface RecordingState {
   justFinished: FinishedDrive | null;
   /** Speed alert (Settings): whether the drive is over the limit and when it last fired. */
   speedAlert: SpeedAlertState;
+  /** Adapter distance at the last recorded fix, for filling GPS gaps; null without adapter data. */
+  obdDistAt: number | null;
   setPermission: (permission: LocationPermission) => void;
   setDefaultVehicle: (vehicle: DriveVehicle | null) => void;
   setBackgroundActive: (active: boolean) => void;
@@ -210,6 +218,7 @@ const SESSION_RESET = {
   motionPeakG: null,
   lastEvent: null,
   speedAlert: {over: false, lastAlertAt: null} as SpeedAlertState,
+  obdDistAt: null as number | null,
 };
 
 /**
@@ -292,12 +301,17 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     }
     return finished;
   },
-  ingest: (sample) => {
+  ingest: (raw) => {
     const state = get();
     const prevFix = state.position;
-    if (!isUsableFix(sample.accuracyM, prevFix != null)) {
+    if (!isUsableFix(raw.accuracyM, prevFix != null)) {
       return;
     }
+    const fresh = Date.now() - raw.timestamp <= FRESH_FIX_MS;
+    // A live fix takes the adapter's speed and engine state when it has fresh ones (spec 2026-10-25,
+    // telemetry sources): no GPS spikes or tunnel dropouts, and idle means the engine is running.
+    const reading = fresh ? adapterReading(useObdStore.getState(), Date.now()) : null;
+    const sample = applyAdapter(raw, reading);
     const speed = Math.max(0, sample.speedMps ?? 0);
     const headingDeg = resolveHeading({
       previousHeading: state.stats.headingDeg,
@@ -314,13 +328,12 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       accuracyM: sample.accuracyM,
       altitudeM: sample.altitudeM ?? state.stats.altitudeM,
     };
-    const fresh = Date.now() - sample.timestamp <= FRESH_FIX_MS;
 
     const prefs = usePreferencesStore.getState();
     if (state.status === 'ready') {
       const fast = fresh && prefs.autoStart && shouldAutoStart(sample.speedMps, state.defaultVehicle != null);
       const fastFixes = fast ? state.fastFixes + 1 : 0;
-      set({position: sample, stats: {...state.stats, ...fix, speedMps: speed}, fastFixes});
+      set({position: sample, stats: {...state.stats, ...fix, speedMps: speed}, fastFixes, obdDistAt: null});
       if (fastFixes >= AUTO_START_FIXES) {
         get().start(state.defaultVehicle, sample.timestamp);
       }
@@ -328,13 +341,13 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     }
     if (state.status === 'paused') {
       if (!state.autoPaused) {
-        set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}});
+        set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}, obdDistAt: null});
         return;
       }
       // Auto-paused: driving off resumes the drive; staying parked can still auto-stop it.
       const recentFixes = [...state.recentFixes, sample].slice(-RECENT_FIXES);
       const fastFixes = fresh && shouldAutoStart(sample.speedMps, true) ? state.fastFixes + 1 : 0;
-      set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}, recentFixes, fastFixes});
+      set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}, recentFixes, fastFixes, obdDistAt: null});
       if (fastFixes >= AUTO_RESUME_FIXES) {
         get().resume();
       } else if (fresh && prefs.autoStop && shouldAutoEnd(state.lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
@@ -350,12 +363,17 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       const step = haversineMeters(prev, sample);
       const stepSeconds = Math.max(1, (sample.timestamp - prev.timestamp) / 1000);
       const jump = step / stepSeconds > MAX_PLAUSIBLE_MPS;
-      if (step >= MIN_STEP_M && !jump) {
-        stats.distanceM += step;
+      // After a long GPS gap (tunnel) the adapter's distance beats the straight line between fixes.
+      const filled = fillGap(step, stepSeconds, reading && state.obdDistAt != null ? reading.distanceM - state.obdDistAt : null);
+      if (filled.fromAdapter || (step >= MIN_STEP_M && !jump)) {
+        stats.distanceM += filled.meters;
         route = [...route, {latitude: sample.latitude, longitude: sample.longitude}];
       }
       const dt = (sample.timestamp - prev.timestamp) / 1000;
-      if (dt > 0 && prev.speedMps != null && sample.speedMps != null) {
+      // GPS and adapter speeds differ by a few percent, and switching between them is not the car
+      // speeding up or braking: events compare like with like only.
+      const sameSource = (prev.speedSource ?? 'gps') === (sample.speedSource ?? 'gps');
+      if (dt > 0 && sameSource && prev.speedMps != null && sample.speedMps != null) {
         const accel = (sample.speedMps - prev.speedMps) / dt;
         let kind: DriveEventKind | null = null;
         if (accel >= RAPID_ACCELERATION_MPS2) {
@@ -421,6 +439,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       lastAltitudeRef,
       lastMovementAt,
       recentFixes,
+      obdDistAt: reading ? reading.distanceM : null,
     });
     if (fresh && prefs.autoStop && shouldAutoEnd(lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
       get().end(sample.timestamp, true);

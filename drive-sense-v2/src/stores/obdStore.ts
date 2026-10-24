@@ -26,6 +26,8 @@ export interface HistoryPoint {
 
 /** Sparklines show this much. */
 export const HISTORY_MS = 60_000;
+/** Speed readings further apart than this don't count toward distance (the link dropped). */
+const MAX_DISTANCE_STEP_S = 5;
 
 const EMPTY_DERIVED: ObdDerived = {fuelFlow: null, economy: null, boost: null, gear: null};
 
@@ -39,6 +41,10 @@ interface ObdState {
   mil: {on: boolean; codes: number} | null;
   vin: string | null;
   error: string | null;
+  /** Last time the engine was seen running (RPM > 0). */
+  engineOnAt: number | null;
+  /** Distance the adapter's speed covers, summed since the app started (m). Only differences matter. */
+  distanceM: number;
   setLink: (link: ObdLink, error?: string | null) => void;
   setAdapter: (adapter: ObdAdapter | null) => void;
   putValue: (key: PidKey, value: number, at: number) => void;
@@ -51,21 +57,29 @@ interface ObdState {
   reset: () => void;
 }
 
-const fresh = {link: 'none' as ObdLink, adapter: null, values: {}, derived: EMPTY_DERIVED, history: [], supported: [], mil: null, vin: null, error: null};
+const fresh = {link: 'none' as ObdLink, adapter: null, values: {}, derived: EMPTY_DERIVED, history: [], supported: [], mil: null, vin: null, error: null, engineOnAt: null, distanceM: 0};
 
 export const useObdStore = create<ObdState>((set, get) => ({
   ...fresh,
   setLink: (link, error = null) => set({link, error}),
   setAdapter: (adapter) => set(adapter?.deviceId === get().adapter?.deviceId ? {adapter} : {...fresh, adapter, link: adapter ? 'waiting' : 'none'}),
   putValue: (key, value, at) => {
-    const values = {...get().values, [key]: {v: value, at}};
+    const before = get().values;
+    const values = {...before, [key]: {v: value, at}};
+    if (key === 'rpm') {
+      set(value > 0 ? {values, engineOnAt: at} : {values});
+      return;
+    }
     // One history point per speed reading (every cycle), carrying the latest of the others.
     if (key !== 'speed') {
       set({values});
       return;
     }
+    const prev = before.speed;
+    const stepS = prev ? (at - prev.at) / 1000 : 0;
+    const distanceM = get().distanceM + (stepS > 0 && stepS <= MAX_DISTANCE_STEP_S ? (((prev?.v ?? 0) + value) / 2 / 3.6) * stepS : 0);
     const point: HistoryPoint = {at, rpm: values.rpm?.v ?? null, speed: value, fuelFlow: get().derived.fuelFlow};
-    set({values, history: [...get().history.filter((p) => at - p.at <= HISTORY_MS), point]});
+    set({values, distanceM, history: [...get().history.filter((p) => at - p.at <= HISTORY_MS), point]});
   },
   setDerived: (derived) => set({derived}),
   setSupported: (supported) => set({supported}),

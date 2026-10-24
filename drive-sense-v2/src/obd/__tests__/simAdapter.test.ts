@@ -1,7 +1,7 @@
 import {parseReply, parseVin} from '../elm327';
 import {PIDS, type PidKey} from '../pids';
 import {createPollLoop} from '../pollLoop';
-import {CYCLE_S, createSimAdapter, simCar, simReply, SIM_VIN} from '../simAdapter';
+import {CYCLE_S, createSimAdapter, simCar, simReply, SIM_VIN, START_STOP} from '../simAdapter';
 import {decodeSupported} from '../supported';
 
 const read = (key: PidKey, elapsedS: number) => {
@@ -22,6 +22,10 @@ describe('simulated car', () => {
   it('keeps rpm in a sane band and warms the engine up', () => {
     for (let t = 0; t < CYCLE_S; t++) {
       const rpm = read('rpm', t) ?? 0;
+      if (t >= START_STOP[0] && t < START_STOP[1]) {
+        expect(rpm).toBe(0); // auto start-stop at the lights
+        continue;
+      }
       expect(rpm).toBeGreaterThan(700);
       expect(rpm).toBeLessThan(3300);
     }

@@ -13,7 +13,7 @@ the measurements only one of them can make. Without an adapter everything works 
 
 | Data point | Rule |
 |---|---|
-| **Speed** (live display, speeding, top speed) | Adapter speed while connected; GPS otherwise. A drive's top speed is the adapter's highest when the drive has adapter speed for ≥ 50 % of its time, else GPS. |
+| **Speed** (live display, speeding, top speed) | Each live fix takes adapter speed when the adapter has a reading under 2 s old, else GPS (fix tagged `speedSource`). Top speed is the highest chosen speed, so adapter readings are never mixed with GPS spikes. Braking and acceleration events only compare fixes from the same source. |
 | **Distance** | GPS stays primary (it matches the route on the map). Where GPS has a gap > 10 s and the adapter has speed, the gap's distance is filled from adapter speed × time. |
 | **Idle time** | Adapter: engine running (RPM > 0) and speed 0. GPS rule only without adapter data. |
 | **Drive start** | Adapter going live starts a drive when "Start with car adapter" is on (already built). GPS rule unchanged. |

@@ -241,12 +241,15 @@ export function maxGFor(points: Sample[]): {value: number | null; source: 'senso
 /** Below this a fix counts as standing still (lights, traffic) for idle time. */
 export const IDLE_BELOW_MPS = 1;
 
-/** Seconds spent standing still between fixes (gaps over a minute are not counted: no signal). */
+/**
+ * Seconds spent standing still between fixes (gaps over a minute are not counted: no signal). With
+ * an OBD-II adapter, only with the engine running: a stop with the engine off is not idling.
+ */
 export function idleSeconds(points: Sample[]): number {
   let idle = 0;
   for (let i = 1; i < points.length; i++) {
     const dt = (points[i].timestamp - points[i - 1].timestamp) / 1000;
-    if (dt > 0 && dt <= 60 && (points[i].speedMps ?? 0) < IDLE_BELOW_MPS) {
+    if (dt > 0 && dt <= 60 && (points[i].speedMps ?? 0) < IDLE_BELOW_MPS && points[i].engineOn !== false) {
       idle += dt;
     }
   }
