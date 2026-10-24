@@ -1,0 +1,234 @@
+import {ELM_INIT, isNoAnswer, parseReply, parseVin, pidRequest, PROMPT} from './elm327';
+import {decodeStatus, keyForCode, PIDS, type PidKey} from './pids';
+import {decodeSupported, SupportTracker} from './supported';
+
+/** A text pipe to the adapter. BLE is one; tests use a scripted fake. */
+export interface Transport {
+  write: (text: string) => Promise<void>;
+  /** Raw chunks as they arrive; a reply may come in several. Returns an unsubscribe. */
+  onData: (cb: (chunk: string) => void) => () => void;
+}
+
+export interface PollHandlers {
+  onValue: (key: PidKey, value: number, at: number) => void;
+  onStatus: (status: {mil: boolean; codeCount: number}) => void;
+  /** What the car answers; empty means no Mode 01 at all (EV, some hybrids). */
+  onSupported: (keys: PidKey[]) => void;
+  onVin: (vin: string) => void;
+  onEngine: (running: boolean) => void;
+  onError: (error: Error) => void;
+}
+
+export interface PollOptions {
+  now?: () => number;
+  /** Waits used only for timeouts and the slow engine-off poll. */
+  sleep?: (ms: number) => Promise<void>;
+  replyTimeoutMs?: number;
+}
+
+/** Status (check-engine light) is re-read every this many cycles (~60 s at 4 cycles/s). */
+const STATUS_EVERY = 240;
+/** Unparseable replies in a row before the adapter is re-initialised. */
+const GARBAGE_LIMIT = 3;
+/** No engine for this long → slow poll. */
+const ENGINE_OFF_MS = 30_000;
+const ENGINE_OFF_POLL_MS = 10_000;
+const SUPPORTED_BASES = ['00', '20', '40', '60'];
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Asks the adapter for PIDs in a loop. Event-driven: each reply sends the next request, so it keeps
+ * going in the background on iOS, where JS timers pause but Bluetooth callbacks still run.
+ */
+export function createPollLoop(transport: Transport, handlers: PollHandlers, opts: PollOptions = {}) {
+  const now = opts.now ?? Date.now;
+  const sleep = opts.sleep ?? defaultSleep;
+  const timeoutMs = opts.replyTimeoutMs ?? 2500;
+  const tracker = new SupportTracker();
+  let running = false;
+  let buffer = '';
+  let waiting: ((reply: string) => void) | null = null;
+  let unsubscribe: (() => void) | null = null;
+
+  const ask = (command: string, wait = timeoutMs): Promise<string> =>
+    new Promise<string>((resolve) => {
+      buffer = '';
+      let done = false;
+      const finish = (reply: string) => {
+        if (!done) {
+          done = true;
+          waiting = null;
+          resolve(reply);
+        }
+      };
+      waiting = finish;
+      transport.write(`${command}\r`).catch((e: unknown) => {
+        handlers.onError(e instanceof Error ? e : new Error(String(e)));
+        finish('');
+      });
+      void sleep(wait).then(() => finish(''));
+    });
+
+  const onChunk = (chunk: string) => {
+    buffer += chunk;
+    const end = buffer.indexOf(PROMPT);
+    if (end >= 0 && waiting) {
+      const reply = buffer.slice(0, end);
+      buffer = buffer.slice(end + 1);
+      waiting(reply);
+    }
+  };
+
+  const init = async () => {
+    for (const command of ELM_INIT) {
+      await ask(command, command === 'ATZ' ? 4000 : timeoutMs);
+    }
+  };
+
+  const readSupported = async (): Promise<PidKey[]> => {
+    const codes: string[] = [];
+    for (const base of SUPPORTED_BASES) {
+      const bytes = parseReply(await ask(pidRequest(base)), base, 4);
+      if (!bytes) {
+        break;
+      }
+      const listed = decodeSupported(base, bytes);
+      codes.push(...listed);
+      // The last bit of each bitmap says whether the next bitmap exists.
+      const next = (parseInt(base, 16) + 0x20).toString(16).toUpperCase().padStart(2, '0');
+      if (!listed.includes(next)) {
+        break;
+      }
+    }
+    tracker.setSupported(codes);
+    return codes.map(keyForCode).filter((k): k is PidKey => k != null);
+  };
+
+  /** Reads one PID; returns the value, or null with the strike recorded. */
+  let garbage = 0;
+  const read = async (key: PidKey): Promise<number | null> => {
+    const def = PIDS[key];
+    const raw = await ask(pidRequest(def.code));
+    const bytes = parseReply(raw, def.code, def.bytes);
+    if (bytes) {
+      garbage = 0;
+      tracker.recordOk(def.code);
+      const value = def.decode(bytes);
+      if (key === 'status') {
+        handlers.onStatus(decodeStatus(value));
+      } else {
+        handlers.onValue(key, value, now());
+      }
+      return value;
+    }
+    if (isNoAnswer(raw)) {
+      garbage = 0;
+      tracker.recordEmpty(def.code);
+    } else {
+      garbage += 1;
+    }
+    return null;
+  };
+
+  const has = (key: PidKey) => tracker.has(PIDS[key].code);
+
+  const run = async () => {
+    await init();
+    const keys = await readSupported();
+    handlers.onSupported(keys);
+    if (keys.length === 0) {
+      running = false;
+      return;
+    }
+    for (const key of ['baro', 'runTime', 'distSinceClear', 'status'] as PidKey[]) {
+      if (running && has(key)) {
+        await read(key);
+      }
+    }
+    const vin = running ? parseVin(await ask('0902')) : null;
+    if (vin) {
+      handlers.onVin(vin);
+    }
+
+    let cycle = 0;
+    let slowIndex = 0;
+    let lastEngineAt = now();
+    let engineOn = true;
+    handlers.onEngine(true);
+    while (running) {
+      cycle += 1;
+      const plan: PidKey[] = (['speed', 'rpm', 'throttle', 'load'] as PidKey[]).filter(has);
+      if (cycle % 2 === 0) {
+        const flow: PidKey = has('fuelRate') ? 'fuelRate' : 'maf';
+        if (has(flow)) {
+          plan.push(flow);
+        }
+      }
+      const slow = (['coolant', 'intakeTemp', 'map', 'fuelLevel', 'voltage', 'ambient', 'oilTemp'] as PidKey[]).filter(has);
+      if (slow.length > 0) {
+        plan.push(slow[slowIndex++ % slow.length]);
+      }
+      if (cycle % STATUS_EVERY === 0 && has('status')) {
+        plan.push('status');
+      }
+
+      let rpm: number | null = null;
+      let answered = false;
+      for (const key of engineOn ? plan : (['rpm', 'status'] as PidKey[]).filter(has)) {
+        if (!running) {
+          return;
+        }
+        const value = await read(key);
+        answered = answered || value != null;
+        if (key === 'rpm') {
+          rpm = value;
+        }
+        if (garbage >= GARBAGE_LIMIT) {
+          // The adapter has lost the thread (a clone mid-reply, a reset): start it over.
+          garbage = 0;
+          await init();
+          break;
+        }
+      }
+
+      const engine = answered && (rpm == null ? !has('rpm') : rpm > 0);
+      if (engine) {
+        lastEngineAt = now();
+        if (!engineOn) {
+          engineOn = true;
+          handlers.onEngine(true);
+        }
+      } else if (engineOn && now() - lastEngineAt > ENGINE_OFF_MS) {
+        engineOn = false;
+        handlers.onEngine(false);
+      }
+      if (!engineOn) {
+        await sleep(ENGINE_OFF_POLL_MS);
+      }
+    }
+  };
+
+  return {
+    start: async () => {
+      if (running) {
+        return;
+      }
+      running = true;
+      unsubscribe = transport.onData(onChunk);
+      try {
+        await run();
+      } catch (error) {
+        handlers.onError(error instanceof Error ? error : new Error(String(error)));
+      } finally {
+        running = false;
+        unsubscribe?.();
+        unsubscribe = null;
+      }
+    },
+    stop: () => {
+      running = false;
+      waiting?.('');
+    },
+  };
+}
