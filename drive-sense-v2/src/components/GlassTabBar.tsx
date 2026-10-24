@@ -12,7 +12,7 @@ import {MiniRecordingBanner} from './MiniRecordingBanner';
 import {TabIcon, type TabIconName} from './TabIcons';
 import {TAB_BAR_GAP, TAB_BAR_HEIGHT, tabBarBottom} from './tabBarLayout';
 
-const ICONS: Record<string, TabIconName> = {index: 'home', logbook: 'route', drive: 'road', garage: 'car'};
+const ICONS: Record<string, TabIconName> = {index: 'home', logbook: 'route', drive: 'road', garage: 'car', telemetry: 'gauge'};
 const BAR_PADDING = 6;
 const PILL_HEIGHT = 52;
 /** How much wider the pill gets mid-slide: the liquid "stretch" of iOS 26 tab bars. */

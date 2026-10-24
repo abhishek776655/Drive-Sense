@@ -1,5 +1,6 @@
 import {Tabs, usePathname} from 'expo-router';
 import {GlassTabBar} from '../../components/GlassTabBar';
+import {useObdLink} from '../../obd/useObdLink';
 import {useRecordingStore} from '../../stores/recordingStore';
 import {useLocationFeed} from '../../tracking/useLocationFeed';
 import {useMotionFeed} from '../../tracking/useMotionFeed';
@@ -19,6 +20,7 @@ export default function TabsLayout() {
   useTripSync();
   useDriveHandoff();
   useSpeedAlertFeedback();
+  useObdLink();
 
   return (
     <Tabs tabBar={(props) => <GlassTabBar {...props} />} screenOptions={{headerShown: false}}>
@@ -26,6 +28,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="logbook" options={{title: 'Logbook'}} />
       <Tabs.Screen name="drive" options={{title: 'Drive'}} />
       <Tabs.Screen name="garage" options={{title: 'Garage'}} />
+      <Tabs.Screen name="telemetry" options={{title: 'Telemetry'}} />
     </Tabs>
   );
 }

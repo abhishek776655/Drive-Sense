@@ -1,12 +1,12 @@
 import Svg, {Circle, G, Path} from 'react-native-svg';
 
 /** Glyphs from the v2 mockups (Rovy-style), drawn in the active colour. */
-export type TabIconName = 'home' | 'route' | 'road' | 'car';
+export type TabIconName = 'home' | 'route' | 'road' | 'car' | 'gauge';
 
 export function TabIcon({name, color, size = 26}: {name: TabIconName; color: string; size?: number}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      {/* "House", "Road" and "Car" from Lucide (lucide.dev, ISC licence). */}
+      {/* "House", "Road", "Car" and "Gauge" from Lucide (lucide.dev, ISC licence). */}
       {name === 'home' && (
         <G fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
           <Path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
@@ -34,6 +34,12 @@ export function TabIcon({name, color, size = 26}: {name: TabIconName; color: str
           <Circle cx={7} cy={17} r={2} />
           <Path d="M9 17h6" />
           <Circle cx={17} cy={17} r={2} />
+        </G>
+      )}
+      {name === 'gauge' && (
+        <G fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+          <Path d="m12 14 4-4" />
+          <Path d="M3.34 19a10 10 0 1 1 17.32 0" />
         </G>
       )}
     </Svg>

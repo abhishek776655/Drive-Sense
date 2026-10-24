@@ -1,4 +1,4 @@
-import {downsample, summarize, type ObdSampleRow} from '../../obd/series';
+import {downsample, summarize, type ObdRow, type ObdSampleRow} from '../../obd/series';
 import {memoryDb} from '../../testUtils/memoryDb';
 import {
   appendObdSamples,
@@ -17,7 +17,7 @@ import {migrate, MIGRATIONS, schemaVersion} from '../schema';
 
 const T0 = Date.UTC(2026, 9, 25, 8, 0, 0);
 
-const rows = (n: number, at = (i: number) => T0 + i * 1000, row = (i: number) => ({rpm: 2000 + i, speed: 50, coolant: 90, fuelFlow: 6})): ObdSampleRow[] =>
+const rows = (n: number, at = (i: number) => T0 + i * 1000, row = (i: number): ObdRow => ({rpm: 2000 + i, speed: 50, coolant: 90, fuelFlow: 6})): ObdSampleRow[] =>
   Array.from({length: n}, (_, i) => ({ts: at(i), row: row(i)}));
 
 const adapter = (patch: Partial<ObdAdapter> = {}): ObdAdapter => ({

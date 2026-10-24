@@ -37,7 +37,7 @@ const saveLastState = (adapter: ObdAdapter) => {
     return;
   }
   const values = s.values;
-  putAdapter(db, {
+  const next: ObdAdapter = {
     ...adapter,
     vin: adapter.vin ?? s.vin,
     supported: s.supported.length > 0 ? s.supported : adapter.supported,
@@ -49,7 +49,10 @@ const saveLastState = (adapter: ObdAdapter) => {
       voltage: values.voltage?.v ?? adapter.lastState?.voltage ?? null,
       readAt: new Date().toISOString(),
     },
-  });
+  };
+  putAdapter(db, next);
+  // Same device, so the live session carries on; the "last seen" card gets the fresh state.
+  s.setAdapter(next);
 };
 
 /**

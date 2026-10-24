@@ -26,6 +26,7 @@ import {ReplayModal} from '../../components/trip/ReplayModal';
 import {TripWeatherCard} from '../../components/trip/TripWeatherCard';
 import {GlassButton} from '../../components/GlassButton';
 import {SectionTitle} from '../../components/trip/SectionTitle';
+import {CarSection} from '../../components/trip/CarSection';
 import {SpeedChart} from '../../components/trip/SpeedChart';
 import {StopsCard} from '../../components/trip/StopsCard';
 import {TimeAtSpeedCard} from '../../components/trip/TimeAtSpeedCard';
@@ -337,6 +338,8 @@ export default function TripDetailScreen() {
             <TimeAtSpeedCard bands={analysis.bands} />
           </>
         ) : null}
+
+        <CarSection startTime={detail.start_time} />
 
         {analysis.gforce.samples.length > 1 ? (
           <>

@@ -5,6 +5,8 @@ import {AppText} from '../../components/AppText';
 import {DashedOutline} from '../../components/garage/DashedOutline';
 import {GarageStatTile} from '../../components/garage/GarageStatTile';
 import {TopSpeedCard} from '../../components/garage/TopSpeedCard';
+import {AdapterCard} from '../../components/telemetry/AdapterCard';
+import {PairSheet} from '../../components/telemetry/PairSheet';
 import {VehicleHeroCard} from '../../components/garage/VehicleHeroCard';
 import {VehicleIcon} from '../../components/garage/VehicleIcon';
 import {VehicleSheet} from '../../components/garage/VehicleSheet';
@@ -20,7 +22,7 @@ import {formatDuration, formatInt} from '../../utils/format';
 import {pickVehiclePhoto, type PhotoSource} from '../../utils/vehiclePhoto';
 import {ActionButton} from '../../components/ActionButton';
 
-type Sheet = 'add' | 'edit' | null;
+type Sheet = 'add' | 'edit' | 'pair' | null;
 
 /** My Garage (Rovy): vehicle strip, the active vehicle's card, its top speed and all-time stats. */
 export default function GarageScreen() {
@@ -111,6 +113,7 @@ export default function GarageScreen() {
               <VehicleHeroCard vehicle={vehicle} uploading={uploading} onPhoto={() => onPhoto(vehicle.id, vehicle.photo_url != null)} />
             </View>
             <TopSpeedCard topSpeedMps={vehicleStats?.top_speed_mps} />
+            <AdapterCard vehicleId={vehicle.id} onPair={() => setSheet('pair')} />
             <View style={{flexDirection: 'row', gap}}>
               <GarageStatTile value={formatInt(vehicleStats?.trip_count)} label="Drives" icon="car-sport" />
               <GarageStatTile value={u.speed(vehicleStats?.avg_speed_mps)} label={`Ø ${u.speedUnit}`} icon="speedometer" />
@@ -160,6 +163,7 @@ export default function GarageScreen() {
           onClose={() => setSheet(null)}
         />
       ) : null}
+      {sheet === 'pair' && vehicle ? <PairSheet vehicleId={vehicle.id} vehicleName={vehicle.display_name} onClose={() => setSheet(null)} /> : null}
     </View>
   );
 }

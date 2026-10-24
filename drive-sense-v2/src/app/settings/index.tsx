@@ -229,6 +229,13 @@ export default function SettingsScreen() {
             right={<SettingsSwitch label="Auto-start" value={prefs.autoStart} onChange={(autoStart) => void setPrefs({autoStart})} />}
           />
           <SettingsRow
+            icon="hardware-chip"
+            iconColor={c.accent}
+            title="Start with car adapter"
+            subtitle="Start recording when your paired OBD-II adapter connects"
+            right={<SettingsSwitch label="Start with car adapter" value={prefs.obdAutoStart} onChange={(obdAutoStart) => void setPrefs({obdAutoStart})} />}
+          />
+          <SettingsRow
             icon="stop-circle"
             iconColor={c.red}
             title="Auto-stop"
