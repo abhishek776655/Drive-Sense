@@ -98,8 +98,9 @@ export function CarPage({d}: {d: ClusterData}) {
 
 export const pageStyles = StyleSheet.create({
   page: {flex: 1, paddingHorizontal: 20, paddingTop: 14, alignItems: 'center'},
-  title: {color: CLUSTER_INK.textFaint, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 2, marginBottom: 12},
-  hint: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 14, marginTop: 20},
+  // Full width and centred, so long text wraps inside the narrow pane instead of spilling out.
+  title: {alignSelf: 'stretch', textAlign: 'center', color: CLUSTER_INK.textFaint, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 2, marginBottom: 12},
+  hint: {alignSelf: 'stretch', textAlign: 'center', color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 13, lineHeight: 18, marginTop: 16},
   grid: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 26, rowGap: 10},
   figure: {minWidth: 110, alignItems: 'center'},
   label: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase'},
