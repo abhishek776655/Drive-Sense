@@ -79,8 +79,6 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const needle = useSharedValue(dialStyle === 'needle' ? 1 : 0);
   const segment = useSharedValue(dialStyle === 'segment' ? 1 : 0);
   const paper = useSharedValue(dialStyle === 'classic' ? 1 : 0);
-  // A lagging copy of the value for the Needle style's fading ghost needle.
-  const ghost = useSharedValue(0);
 
   // Strokes, blur and ticks scale with the dial, so it reads the same as a card or full screen.
   const k = Math.min(1, size / 300);
@@ -112,8 +110,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     progress.set(withSpring(target, {dampingRatio: 1, duration: settleMs}));
     // Coming off: the lit arc above the new value fades away instead of vanishing.
     trail.set(target < trail.value && !reduce ? withTiming(target, {duration: 300, easing: Easing.out(Easing.quad)}) : withSpring(target, {dampingRatio: 1, duration: settleMs}));
-    ghost.set(reduce ? target : withTiming(target, {duration: 750, easing: Easing.out(Easing.cubic)}));
-  }, [value, max, ready, settleMs, progress, trail, ghost, reduce]);
+  }, [value, max, ready, settleMs, progress, trail, reduce]);
 
   useEffect(() => {
     const fade = (on: boolean) => (reduce ? (on ? 1 : 0) : withTiming(on ? 1 : 0, {duration: 380, easing: Easing.inOut(Easing.quad)}));
@@ -157,14 +154,16 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   // pointing at 0° and turned to the value; the number sits in the clear middle.
   const hubR = r * 0.44;
   const blade = useMemo(() => {
-    const root = r * 0.47;
-    const tip = r - 4 * k;
-    const w = 5 * k;
+    const root = r * 0.42;
+    const tip = r - 2 * k;
+    const w = 4.2 * k;
     const p = Skia.Path.Make();
-    p.moveTo(cx + root, cy - w * 0.8);
-    p.lineTo(cx + tip, cy - 0.9 * k);
-    p.lineTo(cx + tip, cy + 0.9 * k);
-    p.lineTo(cx + root, cy + w * 0.8);
+    // Wide at the root, a long even taper, and a rounded tip.
+    p.moveTo(cx + root, cy - w);
+    p.lineTo(cx + tip - 2 * k, cy - 1.1 * k);
+    p.quadTo(cx + tip + 1 * k, cy, cx + tip - 2 * k, cy + 1.1 * k);
+    p.lineTo(cx + root, cy + w);
+    p.quadTo(cx + root - 3 * k, cy, cx + root, cy - w);
     p.close();
     return p;
   }, [cx, cy, r, k]);
@@ -181,9 +180,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     p.close();
     return p;
   }, [cx, cy, r, k]);
-  // Needle style: the ghost trails the needle and fades as it catches up; a soft shadow sits under both needles.
-  const ghostTurn = useDerivedValue(() => [{rotate: (angleAt(ghost.value) * Math.PI) / 180}]);
-  const ghostOpacity = useDerivedValue(() => needle.value * Math.min(0.5, Math.abs(ghost.value - progress.value) * 7));
+  // A soft shadow sits under the needles.
   const shadowTurn = useDerivedValue(() => [{translateX: 3 * k}, {translateY: 5 * k}, {rotate: (angleAt(progress.value) * Math.PI) / 180}]);
   const needleOnly = needle;
 
@@ -254,14 +251,15 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             <Segment key={i} i={i} cx={cx} cy={cy} r={r} k={k} progress={progress} accent={accent} redShare={redShare} />
           ))}
         </Group>
-        {/* Needle: the fading ghost behind, a soft shadow under, then the glowing blade and its spine. */}
-        <Group opacity={ghostOpacity}>
-          <Group transform={ghostTurn} origin={vec(cx, cy)}>
-            <Path path={blade} color={accent}>
-              <BlurMask blur={6 * k} style="normal" />
-            </Path>
-          </Group>
+        {/* Needle style: the edge fills with light as the value rises, a glowing bead riding its end. */}
+        <Group opacity={needleOnly}>
+          <Path path={full} start={0} end={progress} style="stroke" strokeWidth={14 * k} strokeCap="round" color={accent} opacity={0.28}>
+            <BlurMask blur={9 * k} style="normal" />
+          </Path>
+          <Path path={full} start={0} end={progress} style="stroke" strokeWidth={4 * k} strokeCap="round" color={accent} />
+          <Path path={full} start={0} end={progress} style="stroke" strokeWidth={1.2 * Math.max(0.7, k)} strokeCap="round" color="#FFFFFF" opacity={0.7} />
         </Group>
+        {/* Then a soft shadow under the needle, the blade with its glow, and a bright tip. */}
         <Group opacity={needleShown}>
           <Group transform={shadowTurn} origin={vec(cx, cy)}>
             <Path path={onPaper ? longBlade : blade} color="#000000" opacity={onPaper ? 0.25 : 0.55}>
@@ -271,11 +269,17 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         </Group>
         <Group opacity={needleOnly}>
           <Group transform={needleTurn} origin={vec(cx, cy)}>
-            <Path path={blade} color={needleColor} opacity={0.75}>
-              <BlurMask blur={10 * k} style="normal" />
+            <Path path={blade} color={needleColor} opacity={0.55}>
+              <BlurMask blur={8 * k} style="normal" />
             </Path>
-            <Path path={blade} color={needleColor} />
-            <Line p1={vec(cx + r * 0.5, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
+            {/* Darker at the root, full accent towards the tip. */}
+            <Path path={blade}>
+              <LinearGradient start={vec(cx + r * 0.42, cy)} end={vec(cx + r, cy)} colors={[CLUSTER_INK.faceEdge, needleColor, needleColor]} positions={[0, 0.45, 1]} />
+            </Path>
+            <Line p1={vec(cx + r * 0.62, cy)} p2={vec(cx + r - 5 * k, cy)} color="#FFFFFF" strokeWidth={1.1 * Math.max(0.7, k)} strokeCap="round" opacity={0.75} />
+            <Circle cx={cx + r - 3 * k} cy={cy} r={3 * k} color="#FFFFFF">
+              <BlurMask blur={2 * k} style="solid" />
+            </Circle>
           </Group>
         </Group>
         {/* Vintage: the long dark needle on a brass hub. */}
