@@ -88,6 +88,6 @@ export function CentrePager({pages, width, height, accent}: {pages: {key: string
 }
 
 const styles = StyleSheet.create({
-  dots: {flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, height: 14},
+  dots: {flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, height: 14, marginTop: 10},
   dot: {height: 6, borderRadius: 3},
 });

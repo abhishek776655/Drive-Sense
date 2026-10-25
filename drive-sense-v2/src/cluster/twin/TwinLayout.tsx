@@ -72,7 +72,9 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   // Big dials that reach into the centre; the centre sits behind them and fades out under their rims.
   const dial = Math.min(rowH * 1.06, width * 0.43);
   const overlap = dial * 0.1;
-  const panelW = Math.max(200, width - dial * 2 + overlap * 2);
+  // The centre takes a little less than the room between the dials, and the dials close in by as much.
+  const panelW = Math.max(200, (width - dial * 2 + overlap * 2) * 0.88);
+  const groupX = (width - (dial * 2 + panelW - overlap * 2)) / 2;
   const panelH = rowH * 0.78;
   const fadeW = overlap + 40;
   const imperial = u.units === 'imperial';
@@ -103,7 +105,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
           <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
         </View>
-        <View pointerEvents="none" style={[styles.dial, {left: 0, top: (rowH - dial) / 2}]}>
+        <View pointerEvents="none" style={[styles.dial, {left: groupX, top: (rowH - dial) / 2}]}>
           <ArcDial
             size={dial}
             value={speed}
@@ -122,7 +124,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
             }
           />
         </View>
-        <View pointerEvents="none" style={[styles.dial, {right: 0, top: (rowH - dial) / 2}]}>
+        <View pointerEvents="none" style={[styles.dial, {right: groupX, top: (rowH - dial) / 2}]}>
           {d.mode === 'adapter' ? (
             <ArcDial
               size={dial}
