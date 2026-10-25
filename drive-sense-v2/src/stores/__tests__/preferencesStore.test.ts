@@ -43,6 +43,7 @@ describe('mapTypeFor', () => {
     expect(sanitizePreferences({clusterSpeedDial: 'needle', clusterRevDial: 'arc', clusterGaugeStyle: 'ring'})).toMatchObject({clusterSpeedDial: 'needle', clusterRevDial: 'arc', clusterGaugeStyle: 'ring'});
     expect(sanitizePreferences({clusterSpeedDial: 'tape', clusterGaugeStyle: 'pie'})).toMatchObject({clusterSpeedDial: 'arc', clusterRevDial: 'arc', clusterGaugeStyle: 'arc'});
     expect(sanitizePreferences({clusterPhoneDial: 'compass'}).clusterPhoneDial).toBe('compass');
+    expect(sanitizePreferences({clusterRevDial: 'segment'}).clusterRevDial).toBe('segment');
     expect(sanitizePreferences({clusterPhoneDial: 'radar'}).clusterPhoneDial).toBe('g');
   });
 });

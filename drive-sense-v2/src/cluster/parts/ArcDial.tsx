@@ -44,11 +44,25 @@ function Tick({cx, cy, r, share, major, progress, needle, accent, k}: {cx: numbe
   return <Line p1={vec(outer.x, outer.y)} p2={vec(inner.x, inner.y)} color={color} strokeWidth={(major ? 2.4 : 1.2) * Math.max(0.7, k)} strokeCap="round" />;
 }
 
+/** LED style: how many bars make up the ring. */
+const SEGMENTS = 44;
+
+/** One LED bar across the arc: dark until the value reaches it, then lit (red past the redline). */
+function Segment({i, cx, cy, r, k, progress, accent, redShare}: {i: number; cx: number; cy: number; r: number; k: number; progress: SharedValue<number>; accent: string; redShare: number}) {
+  const share = (i + 0.5) / SEGMENTS;
+  const deg = angleAt(share);
+  const outer = polar(cx, cy, r + 6 * k, deg);
+  const inner = polar(cx, cy, r - 6 * k, deg);
+  const lit = share >= redShare ? CLUSTER_INK.red : accent;
+  const color = useDerivedValue(() => (progress.value >= share ? lit : CLUSTER_INK.track));
+  return <Line p1={vec(inner.x, inner.y)} p2={vec(outer.x, outer.y)} color={color} strokeWidth={Math.max(2, 4.2 * k)} strokeCap="round" />;
+}
+
 /**
  * A cluster dial drawn on the GPU (spec 2026-10-25, cluster mode, section 4): track, ticks that
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
- * Needle style is a classic gauge instead: plain white ticks on a thin ring, and a glowing needle
+ * LED style lights a ring of separate bars instead. Needle style is a classic gauge: plain white ticks on a thin ring, and a glowing needle
  * that starts out from the centre, leaving the number in the middle clear.
  */
 export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
@@ -60,6 +74,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const heat = useSharedValue(0);
   const pulse = useSharedValue(0);
   const needle = useSharedValue(dialStyle === 'needle' ? 1 : 0);
+  const segment = useSharedValue(dialStyle === 'segment' ? 1 : 0);
 
   // Strokes, blur and ticks scale with the dial, so it reads the same as a card or full screen.
   const k = Math.min(1, size / 300);
@@ -94,8 +109,10 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   }, [value, max, ready, settleMs, progress, trail, reduce]);
 
   useEffect(() => {
-    needle.set(reduce ? (dialStyle === 'needle' ? 1 : 0) : withTiming(dialStyle === 'needle' ? 1 : 0, {duration: 380, easing: Easing.inOut(Easing.quad)}));
-  }, [dialStyle, needle, reduce]);
+    const fade = (on: boolean) => (reduce ? (on ? 1 : 0) : withTiming(on ? 1 : 0, {duration: 380, easing: Easing.inOut(Easing.quad)}));
+    needle.set(fade(dialStyle === 'needle'));
+    segment.set(fade(dialStyle === 'segment'));
+  }, [dialStyle, needle, segment, reduce]);
 
   useEffect(() => {
     heat.set(withTiming(redHeat, {duration: 250}));
@@ -110,15 +127,21 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     return [color, 'transparent'];
   });
   const ambientOpacity = useDerivedValue(() => 0.18 + 0.5 * progress.value + 0.25 * pulse.value * heat.value);
-  const redOpacity = useDerivedValue(() => 0.32 + 0.6 * heat.value);
-  const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 * (1 - needle.value) : 0));
+  // In LED style the bars turn red themselves, so the band behind them steps back.
+  const redOpacity = useDerivedValue(() => (0.32 + 0.6 * heat.value) * (1 - 0.7 * segment.value));
+  // How much of the plain arc style shows (the other styles fade it out).
+  const plain = useDerivedValue(() => (1 - needle.value) * (1 - segment.value));
+  const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 * plain.value : 0));
   // Arc style lights the arc; needle style has no lit arc at all, only the needle.
-  const arcOpacity = useDerivedValue(() => 1 - needle.value);
-  const bloomOpacity = useDerivedValue(() => 0.22 * (1 - needle.value));
-  const glowOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
-  const coreOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
-  const tipOpacity = useDerivedValue(() => 1 - needle.value);
-  const tipGlowOpacity = useDerivedValue(() => 0.6 * (1 - needle.value));
+  const arcOpacity = plain;
+  const bloomOpacity = useDerivedValue(() => 0.22 * plain.value);
+  const glowOpacity = useDerivedValue(() => 0.85 * plain.value);
+  const coreOpacity = useDerivedValue(() => 0.85 * plain.value);
+  const tipOpacity = plain;
+  const tipGlowOpacity = useDerivedValue(() => 0.6 * plain.value);
+  // LED style: a soft glow under the lit segments.
+  const segmentGlow = useDerivedValue(() => 0.4 * segment.value);
+  const redShare = redline != null ? fraction(redline, max) : 2;
   // The needle: a tapered blade from a little way out from the centre to the ticks, drawn
   // pointing at 0° and turned to the value; the number sits in the clear middle.
   const hubR = r * 0.44;
@@ -181,6 +204,15 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
           <BlurMask blur={8 * k} style="normal" />
         </Circle>
         <Circle cx={tipX} cy={tipY} r={3.2 * Math.max(0.7, k)} color="#FFFFFF" opacity={tipOpacity} />
+        {/* LED style: a ring of separate bars that light one by one, red into the redline. */}
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={16 * k} color={accent} opacity={segmentGlow}>
+          <BlurMask blur={10 * k} style="normal" />
+        </Path>
+        <Group opacity={segment}>
+          {Array.from({length: SEGMENTS}, (_, i) => (
+            <Segment key={i} i={i} cx={cx} cy={cy} r={r} k={k} progress={progress} accent={accent} redShare={redShare} />
+          ))}
+        </Group>
         {/* Needle: glow, accent blade, bright spine, then the hub over its root. */}
         <Group opacity={needle}>
           <Group transform={needleTurn} origin={vec(cx, cy)}>
