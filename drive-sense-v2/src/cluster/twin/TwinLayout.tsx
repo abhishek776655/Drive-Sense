@@ -263,7 +263,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
   const fuelColor = d.alerts.lowFuel ? CLUSTER_INK.amber : accent;
   const coolantColor = d.alerts.hotCoolant ? CLUSTER_INK.red : accent;
   const dialTop = (rowH - dial) / 2;
-  const stateLabel = d.carState === 'engineOff' ? 'ENGINE OFF' : d.carState === 'parked' ? 'PARKED' : d.mode === 'phoneOnly' ? 'PHONE ONLY' : null;
+  const stateLabel = d.carState === 'engineOff' ? 'ENGINE OFF' : d.carState === 'parked' ? 'PARKED' : null;
 
   const speedGauge = (
     <ArcDial

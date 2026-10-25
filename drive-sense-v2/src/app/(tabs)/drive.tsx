@@ -18,6 +18,7 @@ import {VehiclePickerSheet} from '../../components/drive/VehiclePickerSheet';
 import {TAB_BAR_GAP, TAB_BAR_HEIGHT, tabBarBottom} from '../../components/tabBarLayout';
 import {useDriveSettingsStore} from '../../stores/driveSettingsStore';
 import {elapsedSeconds, useRecordingStore} from '../../stores/recordingStore';
+import {useCompass} from '../../tracking/useCompass';
 import {useActiveVehicle, useVehicleStore} from '../../stores/vehicleStore';
 import {useNow} from '../../hooks/useNow';
 import {useUnits} from '../../hooks/useUnits';
@@ -40,11 +41,17 @@ export default function DriveScreen() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [vehiclesOpen, setVehiclesOpen] = useState(false);
 
+  const [focused, setFocused] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       void loadVehicles();
+      setFocused(true);
+      return () => setFocused(false);
     }, [loadVehicles]),
   );
+  // The phone's compass turns with the phone, standing still too; GPS course is the fallback.
+  const compassDeg = useCompass(focused && settings.showCompass);
 
   const live = recording.status !== 'ready';
   const now = useNow(1000, live);
@@ -108,7 +115,7 @@ export default function DriveScreen() {
       {settings.showCompass ? (
         // Under the tune button. Speedometer mode keeps it to the compass (no elevation).
         <View pointerEvents="none" style={{position: 'absolute', right: 9, top: insets.top + 8 + 38 + 10}}>
-          <MapCompass headingDeg={recording.stats.headingDeg} moving={recording.stats.moving} altitudeM={gauge ? undefined : recording.stats.altitudeM} />
+          <MapCompass headingDeg={compassDeg ?? recording.stats.headingDeg} moving={compassDeg != null || recording.stats.moving} altitudeM={gauge ? undefined : recording.stats.altitudeM} />
         </View>
       ) : null}
 
