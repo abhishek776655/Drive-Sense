@@ -34,12 +34,12 @@ export interface ArcDialProps {
 }
 
 /** One tick: grey, and lit in the accent while the arc covers it. */
-function Tick({cx, cy, r, share, major, progress, accent}: {cx: number; cy: number; r: number; share: number; major: boolean; progress: SharedValue<number>; accent: string}) {
+function Tick({cx, cy, r, share, major, progress, accent, k}: {cx: number; cy: number; r: number; share: number; major: boolean; progress: SharedValue<number>; accent: string; k: number}) {
   const deg = angleAt(share);
   const outer = polar(cx, cy, r, deg);
-  const inner = polar(cx, cy, r - (major ? 14 : 7), deg);
+  const inner = polar(cx, cy, r - (major ? 14 : 7) * k, deg);
   const color = useDerivedValue(() => (progress.value >= share - 0.002 ? accent : CLUSTER_INK.tick));
-  return <Line p1={vec(outer.x, outer.y)} p2={vec(inner.x, inner.y)} color={color} strokeWidth={major ? 2.4 : 1.2} strokeCap="round" />;
+  return <Line p1={vec(outer.x, outer.y)} p2={vec(inner.x, inner.y)} color={color} strokeWidth={(major ? 2.4 : 1.2) * Math.max(0.7, k)} strokeCap="round" />;
 }
 
 /**
@@ -56,9 +56,12 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const heat = useSharedValue(0);
   const pulse = useSharedValue(0);
 
+  // Strokes, blur and ticks scale with the dial, so it reads the same as a card or full screen.
+  const k = Math.min(1, size / 300);
+  const showLabels = size >= 220;
   const cx = size / 2;
   const cy = size / 2;
-  const r = size / 2 - 18;
+  const r = size / 2 - 18 * k;
   const full = useMemo(() => Skia.Path.MakeFromSVGString(arcPath(cx, cy, r, 0, 1))!, [cx, cy, r]);
   const red = useMemo(() => (redline != null ? Skia.Path.MakeFromSVGString(arcPath(cx, cy, r, fraction(redline, max), 1)) : null), [cx, cy, r, redline, max]);
   const tickMarks = useMemo(() => tickList(max, majorStep, minorStep), [max, majorStep, minorStep]);
@@ -101,7 +104,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const redOpacity = useDerivedValue(() => 0.32 + 0.6 * heat.value);
   const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 : 0));
 
-  const labelR = r - 34;
+  const labelR = r - 34 * k;
   return (
     <View style={{width: size, height: size}}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -112,36 +115,36 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
           </Circle>
         </Group>
         {/* Face with a vignette, and a bevelled rim: light along the top, dark along the bottom. */}
-        <Circle cx={cx} cy={cy} r={r + 12}>
+        <Circle cx={cx} cy={cy} r={r + 12 * k}>
           <RadialGradient c={vec(cx, cy - r * 0.2)} r={r * 1.25} colors={[CLUSTER_INK.faceEdge, CLUSTER_INK.face, '#000000']} positions={[0, 0.7, 1]} />
         </Circle>
-        <Circle cx={cx} cy={cy} r={r + 12} style="stroke" strokeWidth={1.5}>
+        <Circle cx={cx} cy={cy} r={r + 12 * k} style="stroke" strokeWidth={1.5}>
           <LinearGradient start={vec(cx, cy - r)} end={vec(cx, cy + r)} colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.6)']} />
         </Circle>
-        <Path path={full} style="stroke" strokeWidth={10} strokeCap="round" color={CLUSTER_INK.track} />
-        {red ? <Path path={red} style="stroke" strokeWidth={10} strokeCap="round" color={CLUSTER_INK.red} opacity={redOpacity} /> : null}
+        <Path path={full} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.track} />
+        {red ? <Path path={red} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.red} opacity={redOpacity} /> : null}
         {tickMarks.map((t) => (
-          <Tick key={t.value} cx={cx} cy={cy} r={r - 10} share={fraction(t.value, max)} major={t.major} progress={progress} accent={accent} />
+          <Tick key={t.value} cx={cx} cy={cy} r={r - 10 * k} share={fraction(t.value, max)} major={t.major} progress={progress} accent={accent} k={k} />
         ))}
         {/* Afterglow, bloom, glow, core. */}
-        <Path path={full} start={0} end={trail} style="stroke" strokeWidth={10} strokeCap="round" color={accent} opacity={trailOpacity}>
-          <BlurMask blur={5} style="normal" />
+        <Path path={full} start={0} end={trail} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={trailOpacity}>
+          <BlurMask blur={5 * k} style="normal" />
         </Path>
-        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={24} strokeCap="round" color={accent} opacity={0.22}>
-          <BlurMask blur={14} style="normal" />
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={24 * k} strokeCap="round" color={accent} opacity={0.22}>
+          <BlurMask blur={14 * k} style="normal" />
         </Path>
-        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={10} strokeCap="round" color={accent} opacity={0.85}>
-          <BlurMask blur={3} style="solid" />
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={0.85}>
+          <BlurMask blur={3 * k} style="solid" />
         </Path>
-        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={3} strokeCap="round" color="rgba(255,255,255,0.85)" />
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={3 * Math.max(0.7, k)} strokeCap="round" color="rgba(255,255,255,0.85)" />
         {/* The leading edge: a bright point with its own glow. */}
-        <Circle cx={tipX} cy={tipY} r={9} color={accent} opacity={0.6}>
-          <BlurMask blur={8} style="normal" />
+        <Circle cx={tipX} cy={tipY} r={9 * k} color={accent} opacity={0.6}>
+          <BlurMask blur={8 * k} style="normal" />
         </Circle>
-        <Circle cx={tipX} cy={tipY} r={3.2} color="#FFFFFF" />
+        <Circle cx={tipX} cy={tipY} r={3.2 * Math.max(0.7, k)} color="#FFFFFF" />
       </Canvas>
       {tickMarks
-        .filter((t) => t.major)
+        .filter((t) => showLabels && t.major)
         .map((t) => {
           const p = polar(cx, cy, labelR, angleAt(fraction(t.value, max)));
           return (
@@ -152,7 +155,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         })}
       <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
         <Text style={[styles.number, {fontSize: size * numberScale}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
-        <Text style={styles.unit}>{unit}</Text>
+        <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}]}>{unit}</Text>
         {footer}
       </View>
     </View>

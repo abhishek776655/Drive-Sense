@@ -134,6 +134,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
         }
       },
       onVin: (vin) => store().setVin(vin),
+      onCodes: (codes) => store().setCodes(codes),
       onEngine: (running) => store().setLink(running ? 'live' : 'engineOff'),
       onError: () => undefined,
     });

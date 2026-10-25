@@ -11,7 +11,7 @@ import {AppText} from '../AppText';
 import {Card} from '../Card';
 
 /**
- * What the car is doing right now (spec 2026-10-25, telemetry sources): engine running, engine off
+ * What the car is doing when it is not simply running (spec 2026-10-25, telemetry sources): engine off
  * with the ignition on (a long light: the drive carries on), or parked with the ignition off (the
  * drive ends a minute later, counted down here).
  */
@@ -31,7 +31,7 @@ export function CarStateChip() {
   const answered = lastAnswerAt(values);
   const endsIn = answered == null ? null : Math.max(0, Math.ceil(ENGINE_OFF_END_S - (now - answered) / 1000));
   const look = {
-    running: {icon: 'flash' as const, color: c.green, title: 'Engine running', note: recording ? 'Saving to this drive' : null},
+    running: {icon: 'flash' as const, color: c.green, title: '', note: null},
     engineOff: {icon: 'pause-circle' as const, color: c.amber, title: 'Engine off · ignition on', note: recording ? 'Drive carries on' : null},
     parked: {
       icon: 'car' as const,
@@ -41,6 +41,10 @@ export function CarStateChip() {
     },
   }[state];
 
+  // Running is the normal case; the dials already say so.
+  if (state === 'running') {
+    return null;
+  }
   return (
     <Card style={{paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10}}>
       <View style={{width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: withAlpha(look.color, 0.14)}}>

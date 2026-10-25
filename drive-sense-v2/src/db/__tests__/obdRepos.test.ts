@@ -6,6 +6,7 @@ import {
   deleteAdapter,
   deleteTripObd,
   getAdapter,
+  latestTripObd,
   listAdapters,
   obdSamples,
   putAdapter,
@@ -48,6 +49,16 @@ describe('OBD storage', () => {
     clearObdSamples(db, T0);
     expect(obdSamples(db, T0)).toEqual([]);
     expect(obdSamples(db, T0 + 99)).toHaveLength(1);
+  });
+
+  it('gives the most recent drive with OBD data', () => {
+    const db = memoryDb();
+    migrate(db);
+    expect(latestTripObd(db)).toBeNull();
+    const r = rows(3);
+    putTripObd(db, T0, {stats: summarize(r, 3), series: downsample(r, T0)});
+    putTripObd(db, T0 + 60_000, {stats: {...summarize(r, 3), maxRpm: 4321}, series: downsample(r, T0)});
+    expect(latestTripObd(db)).toMatchObject({startedAt: T0 + 60_000, stats: {maxRpm: 4321}});
   });
 
   it('finds a trip by start time within two seconds', () => {

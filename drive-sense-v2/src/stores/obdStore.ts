@@ -47,6 +47,9 @@ interface ObdState {
   distanceM: number;
   /** Lowest throttle reading this session: the closed-throttle position (it seldom reads 0). */
   throttleLow: number | null;
+  /** Stored trouble codes from the last check (Mode 03). */
+  codes: string[];
+  setCodes: (codes: string[]) => void;
   setLink: (link: ObdLink, error?: string | null) => void;
   setAdapter: (adapter: ObdAdapter | null) => void;
   putValue: (key: PidKey, value: number, at: number) => void;
@@ -59,7 +62,7 @@ interface ObdState {
   reset: () => void;
 }
 
-const fresh = {link: 'none' as ObdLink, adapter: null, values: {}, derived: EMPTY_DERIVED, history: [], supported: [], mil: null, vin: null, error: null, engineOnAt: null, distanceM: 0, throttleLow: null};
+const fresh = {link: 'none' as ObdLink, adapter: null, values: {}, derived: EMPTY_DERIVED, history: [], supported: [], mil: null, vin: null, error: null, engineOnAt: null, distanceM: 0, throttleLow: null, codes: [] as string[]};
 
 export const useObdStore = create<ObdState>((set, get) => ({
   ...fresh,
@@ -92,6 +95,7 @@ export const useObdStore = create<ObdState>((set, get) => ({
   setSupported: (supported) => set({supported}),
   setStatus: ({mil, codeCount}) => set({mil: {on: mil, codes: codeCount}}),
   setVin: (vin) => set({vin}),
+  setCodes: (codes) => set({codes}),
   endSession: () => set({history: [], derived: EMPTY_DERIVED}),
   reset: () => set(fresh),
 }));

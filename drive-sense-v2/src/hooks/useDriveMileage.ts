@@ -46,6 +46,3 @@ export function useDriveFuel(): DriveFuel | null {
   // Not recording: nothing to show, whatever the last drive left behind.
   return startedAt == null ? null : fuel;
 }
-
-/** Just this drive's mileage so far (L/100 km). */
-export const useDriveMileage = (): number | null => useDriveFuel()?.l100km ?? null;

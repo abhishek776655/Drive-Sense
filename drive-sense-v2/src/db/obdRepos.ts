@@ -48,6 +48,12 @@ export const tripObd = (db: SqlDb, at: number): TripObd | null => {
   return row ? {stats: JSON.parse(row.stats) as ObdStats, series: JSON.parse(row.series) as ObdSeries} : null;
 };
 
+/** The most recent drive with OBD data: its start and summary. */
+export const latestTripObd = (db: SqlDb): {startedAt: number; stats: ObdStats} | null => {
+  const row = db.get<{started_at: number; stats: string}>('SELECT started_at, stats FROM trip_obd ORDER BY started_at DESC LIMIT 1');
+  return row ? {startedAt: row.started_at, stats: JSON.parse(row.stats) as ObdStats} : null;
+};
+
 export const deleteTripObd = (db: SqlDb, at: number) => {
   const startedAt = startKey(at);
   db.run('DELETE FROM trip_obd WHERE started_at BETWEEN ? AND ?', [startedAt - START_MATCH_MS, startedAt + START_MATCH_MS]);

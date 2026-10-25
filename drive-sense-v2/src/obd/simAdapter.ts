@@ -168,6 +168,9 @@ export const simReply = (command: string, car: SimCar): string => {
   if (cmd === '0902') {
     return VIN_REPLY;
   }
+  if (cmd === '03') {
+    return '43 01 04 20'; // one stored code: P0420, matching the check-engine light
+  }
   if (cmd.startsWith('01') && cmd.length === 4) {
     const pid = cmd.slice(2);
     if (['00', '20', '40'].includes(pid)) {

@@ -1,4 +1,5 @@
 import {parseVoltage} from './battery';
+import {parseDtcReply} from './dtc';
 import {ELM_INIT, isNoAnswer, parseReply, parseVin, pidRequest, PROMPT} from './elm327';
 import {decodeStatus, keyForCode, PIDS, type PidKey} from './pids';
 import {decodeSupported, SupportTracker} from './supported';
@@ -16,6 +17,8 @@ export interface PollHandlers {
   /** What the car answers; empty means no Mode 01 at all (EV, some hybrids). */
   onSupported: (keys: PidKey[]) => void;
   onVin: (vin: string) => void;
+  /** Stored trouble codes, read whenever the status says there are any (empty when cleared). */
+  onCodes?: (codes: string[]) => void;
   onEngine: (running: boolean) => void;
   onError: (error: Error) => void;
 }
@@ -133,7 +136,9 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       tracker.recordOk(def.code);
       const value = def.decode(bytes);
       if (key === 'status') {
-        handlers.onStatus(decodeStatus(value));
+        const status = decodeStatus(value);
+        handlers.onStatus(status);
+        handlers.onCodes?.(status.codeCount > 0 ? parseDtcReply(await ask('03')) : []);
       } else {
         handlers.onValue(key, value, now());
       }

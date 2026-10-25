@@ -42,6 +42,7 @@ const CAR = {
   '012F': '41 2F 80',
   '0133': '41 33 64',
   '0902': '014\r0: 49 02 01 31 44 34\r1: 47 50 30 30 52 35 35\r2: 42 31 32 33 34 35 36',
+  '03': '43 02 01 33 04 20',
 };
 
 const handlers = (overrides: Partial<PollHandlers> = {}): PollHandlers & {values: [PidKey, number][]} => {
@@ -52,6 +53,7 @@ const handlers = (overrides: Partial<PollHandlers> = {}): PollHandlers & {values
     onStatus: jest.fn(),
     onSupported: jest.fn(),
     onVin: jest.fn(),
+    onCodes: jest.fn(),
     onEngine: jest.fn(),
     onError: jest.fn(),
     ...overrides,
@@ -71,6 +73,7 @@ describe('poll loop', () => {
     expect(sent.slice(6, 8)).toEqual(['0100', '0120']);
     expect(h.onSupported).toHaveBeenCalledWith(expect.arrayContaining(['speed', 'rpm', 'coolant', 'maf', 'fuelLevel', 'baro', 'status']));
     expect(h.onStatus).toHaveBeenCalledWith({mil: true, codeCount: 2});
+    expect(h.onCodes).toHaveBeenCalledWith(['P0133', 'P0420']);
     expect(h.onVin).toHaveBeenCalledWith('1D4GP00R55B123456');
     // Never asked: oil temperature (5C) and fuel rate (5E) are not in the bitmaps.
     expect(sent).not.toContain('015C');

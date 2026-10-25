@@ -11,9 +11,10 @@ import {useTabBarInset} from '../../components/tabBarLayout';
 import {AdapterCard, LINK_TEXT} from '../../components/telemetry/AdapterCard';
 import {CarStateChip} from '../../components/telemetry/CarStateChip';
 import {PairSheet} from '../../components/telemetry/PairSheet';
-import {RpmDial} from '../../components/telemetry/RpmDial';
+import {CheckEngineCard} from '../../components/telemetry/CheckEngineCard';
+import {LiveDialsCard} from '../../components/telemetry/LiveDialsCard';
 import {Sparkline} from '../../components/telemetry/Sparkline';
-import {useDriveMileage} from '../../hooks/useDriveMileage';
+import {ThisDriveCard} from '../../components/telemetry/ThisDriveCard';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
 import {setSimEngine, setSimIgnition, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
@@ -103,16 +104,15 @@ export default function TelemetryScreen() {
   const vehicle = useActiveVehicle();
   const live = useRecordingStore((s) => s.status !== 'ready');
   const bottomInset = useTabBarInset(live);
-  const {link, adapter, values, derived, history, mil, vin} = useObdStore();
+  const {link, adapter, values, derived, history, mil, vin, codes} = useObdStore();
   const [pairing, setPairing] = useState(false);
 
   const connected = link === 'live' || link === 'engineOff';
   const tones: Record<TileTone, string> = {normal: c.textSecondary, warn: c.amber, alert: c.red};
   const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);
-  const driveL100km = useDriveMileage();
   const tiles = useMemo(
-    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km, mileage, driveL100km}),
-    [values, derived, u.units, temperatureUnit, link, range.km, mileage, driveL100km],
+    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km, mileage}),
+    [values, derived, u.units, temperatureUnit, link, range.km, mileage],
   );
   const spark = (pick: (p: (typeof history)[number]) => number | null) =>
     history.flatMap((p) => {
@@ -132,9 +132,9 @@ export default function TelemetryScreen() {
       return (
         <Explainer
           icon="hardware-chip"
-          title="See inside your engine"
-          text="Plug a Bluetooth OBD-II adapter into the port under the dashboard. DriveSense reads RPM, temperatures, fuel use and more, live and with every drive."
-          action={{label: 'Pair adapter', onPress: () => setPairing(true)}}
+          title="Connect your OBD-II adapter"
+          text="Plug a Bluetooth OBD-II adapter into the port under your dashboard, then turn the ignition on."
+          action={{label: 'Connect to your car', onPress: () => setPairing(true)}}
         />
       );
     }
@@ -156,15 +156,17 @@ export default function TelemetryScreen() {
     return (
       <>
         {otherCar ? <Banner icon="swap-horizontal" color={c.amber} text="This adapter is in a different car than the one it was paired with." /> : null}
-        {mil?.on ? <Banner icon="warning" color={c.amber} text={`Check engine light on · ${mil.codes} ${mil.codes === 1 ? 'code' : 'codes'}`} /> : null}
+        {mil?.on ? <CheckEngineCard codes={codes} count={mil.codes} /> : null}
         <CarStateChip />
-        <RpmDial
-          rpm={values.rpm?.v ?? null}
-          speed={speedKmh == null ? '—' : String(kmhInUnits(speedKmh, u.units))}
+        <LiveDialsCard
+          speed={speedKmh == null ? null : kmhInUnits(speedKmh, u.units)}
           speedUnit={u.speedUnit}
+          imperial={u.units === 'imperial'}
+          rpm={values.rpm?.v ?? null}
           gear={link === 'live' ? gearLabel(derived.gear) : null}
           redline={redline}
         />
+        <ThisDriveCard />
         <View style={{flexDirection: 'row', gap: theme.space.cardGap}}>
           <Sparkline label="RPM" value={values.rpm ? String(Math.round(values.rpm.v)) : '—'} unit="rpm" points={spark((p) => p.rpm)} color={c.accent} />
           <Sparkline
