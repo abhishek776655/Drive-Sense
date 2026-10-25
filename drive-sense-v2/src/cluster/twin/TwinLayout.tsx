@@ -186,7 +186,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
   const nextGauge = () => void setPrefs({ clusterGaugeStyle: GAUGE_STYLES[(GAUGE_STYLES.indexOf(gaugeStyle) + 1) % GAUGE_STYLES.length] });
   const rowH = height - STRIP_H;
   // Big dials that reach into the centre; the centre sits behind them and fades out under their rims.
-  const dial = Math.min(rowH * 1.04, width * 0.44);
+  const dial = Math.min(rowH * 0.94, width * 0.38);
   const overlap = dial * 0.11;
   // The centre takes a little less than the room between the dials (85%), and the dials close in by as much.
   const panelW = Math.max(200, (width - dial * 2 + overlap * 2) * 0.85);
