@@ -35,3 +35,7 @@ export const accentColor = (accent: ClusterAccent, driveAccent: string): string 
 export const DIAL_STYLES = ['arc', 'needle'] as const;
 export type DialStyle = (typeof DIAL_STYLES)[number];
 export const DIAL_STYLE_NAMES: Record<DialStyle, string> = {arc: 'Arc', needle: 'Needle'};
+
+/** How the bottom strip shows fuel and coolant: a segmented bar, a small ring, or just the figure. */
+export const GAUGE_STYLES = ['bar', 'ring', 'digits'] as const;
+export type GaugeStyle = (typeof GAUGE_STYLES)[number];

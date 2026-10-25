@@ -35,12 +35,12 @@ export interface ArcDialProps {
   dialStyle?: DialStyle;
 }
 
-/** One tick: grey, and lit in the accent while the arc covers it. */
-function Tick({cx, cy, r, share, major, progress, accent, k}: {cx: number; cy: number; r: number; share: number; major: boolean; progress: SharedValue<number>; accent: string; k: number}) {
+/** One tick: grey, and lit in the accent while the arc covers it; plain white marks in needle style. */
+function Tick({cx, cy, r, share, major, progress, needle, accent, k}: {cx: number; cy: number; r: number; share: number; major: boolean; progress: SharedValue<number>; needle: SharedValue<number>; accent: string; k: number}) {
   const deg = angleAt(share);
   const outer = polar(cx, cy, r, deg);
   const inner = polar(cx, cy, r - (major ? 14 : 7) * k, deg);
-  const color = useDerivedValue(() => (progress.value >= share - 0.002 ? accent : CLUSTER_INK.tick));
+  const color = useDerivedValue(() => (needle.value > 0.5 ? (major ? CLUSTER_INK.text : CLUSTER_INK.tick) : progress.value >= share - 0.002 ? accent : CLUSTER_INK.tick));
   return <Line p1={vec(outer.x, outer.y)} p2={vec(inner.x, inner.y)} color={color} strokeWidth={(major ? 2.4 : 1.2) * Math.max(0.7, k)} strokeCap="round" />;
 }
 
@@ -48,7 +48,8 @@ function Tick({cx, cy, r, share, major, progress, accent, k}: {cx: number; cy: n
  * A cluster dial drawn on the GPU (spec 2026-10-25, cluster mode, section 4): track, ticks that
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
- * In needle style a glowing blade sweeps over a faint arc instead.
+ * Needle style is a classic gauge instead: plain white ticks on a thin ring, a long glowing needle
+ * on a lit hub, and the number moved down below the hub.
  */
 export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
   const reduce = useReduceMotion();
@@ -111,29 +112,32 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const ambientOpacity = useDerivedValue(() => 0.18 + 0.5 * progress.value + 0.25 * pulse.value * heat.value);
   const redOpacity = useDerivedValue(() => 0.32 + 0.6 * heat.value);
   const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 * (1 - needle.value) : 0));
-  // Arc style lights the whole arc; needle style keeps a faint trace of it under the needle.
+  // Arc style lights the arc; needle style has no lit arc at all, only the needle.
+  const arcOpacity = useDerivedValue(() => 1 - needle.value);
   const bloomOpacity = useDerivedValue(() => 0.22 * (1 - needle.value));
-  const glowOpacity = useDerivedValue(() => 0.85 - 0.6 * needle.value);
+  const glowOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
   const coreOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
   const tipOpacity = useDerivedValue(() => 1 - needle.value);
   const tipGlowOpacity = useDerivedValue(() => 0.6 * (1 - needle.value));
-  // The needle: a tapered blade from inside the ticks out past the arc, drawn pointing at 0° and
-  // turned to the value. Short, so it never crosses the numbers in the middle.
+  // The needle: a long tapered blade from a short tail behind the hub to the ticks, drawn pointing
+  // at 0° and turned to the value.
   const blade = useMemo(() => {
-    const inner = r * 0.56;
-    const outer = r + 6 * k;
-    const w = 4.6 * k;
+    const tail = r * 0.16;
+    const tip = r - 4 * k;
+    const w = 5 * k;
     const p = Skia.Path.Make();
-    p.moveTo(cx + inner, cy - w);
-    p.lineTo(cx + outer, cy - 0.8 * k);
-    p.lineTo(cx + outer, cy + 0.8 * k);
-    p.lineTo(cx + inner, cy + w);
+    p.moveTo(cx - tail, cy - w * 0.8);
+    p.lineTo(cx + tip, cy - 0.9 * k);
+    p.lineTo(cx + tip, cy + 0.9 * k);
+    p.lineTo(cx - tail, cy + w * 0.8);
     p.close();
     return p;
   }, [cx, cy, r, k]);
   const needleTurn = useDerivedValue(() => [{rotate: (angleAt(progress.value) * Math.PI) / 180}]);
 
   const labelR = r - 34 * k;
+  // Needle style moves the figures below the hub, out of the needle's way.
+  const classic = dialStyle === 'needle';
   return (
     <View style={{width: size, height: size}}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -151,10 +155,15 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         <Circle cx={cx} cy={cy} r={r + 12 * k} style="stroke" strokeWidth={1.5}>
           <LinearGradient start={vec(cx, cy - r)} end={vec(cx, cy + r)} colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.6)']} />
         </Circle>
-        <Path path={full} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.track} />
+        <Path path={full} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.track} opacity={arcOpacity} />
+        {/* Needle style: a thin ring for the ticks to stand on, and an inner bezel. */}
+        <Group opacity={needle}>
+          <Path path={full} style="stroke" strokeWidth={1.6 * Math.max(0.7, k)} strokeCap="round" color={CLUSTER_INK.tick} />
+          <Circle cx={cx} cy={cy} r={r * 0.6} style="stroke" strokeWidth={1} color={CLUSTER_INK.track} />
+        </Group>
         {red ? <Path path={red} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.red} opacity={redOpacity} /> : null}
         {tickMarks.map((t) => (
-          <Tick key={t.value} cx={cx} cy={cy} r={r - 10 * k} share={fraction(t.value, max)} major={t.major} progress={progress} accent={accent} k={k} />
+          <Tick key={t.value} cx={cx} cy={cy} r={r - 10 * k} share={fraction(t.value, max)} major={t.major} progress={progress} needle={needle} accent={accent} k={k} />
         ))}
         {/* Afterglow, bloom, glow, core. */}
         <Path path={full} start={0} end={trail} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={trailOpacity}>
@@ -172,13 +181,21 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
           <BlurMask blur={8 * k} style="normal" />
         </Circle>
         <Circle cx={tipX} cy={tipY} r={3.2 * Math.max(0.7, k)} color="#FFFFFF" opacity={tipOpacity} />
-        {/* Needle: glow, accent blade, bright spine. */}
-        <Group opacity={needle} transform={needleTurn} origin={vec(cx, cy)}>
-          <Path path={blade} color={accent} opacity={0.7}>
-            <BlurMask blur={9 * k} style="normal" />
-          </Path>
-          <Path path={blade} color={accent} />
-          <Line p1={vec(cx + r * 0.6, cy)} p2={vec(cx + r + 4 * k, cy)} color="#FFFFFF" strokeWidth={1.2 * Math.max(0.7, k)} strokeCap="round" opacity={0.9} />
+        {/* Needle: glow, accent blade, bright spine, then the hub over its root. */}
+        <Group opacity={needle}>
+          <Group transform={needleTurn} origin={vec(cx, cy)}>
+            <Path path={blade} color={accent} opacity={0.75}>
+              <BlurMask blur={10 * k} style="normal" />
+            </Path>
+            <Path path={blade} color={accent} />
+            <Line p1={vec(cx + r * 0.1, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
+          </Group>
+          <Circle cx={cx} cy={cy} r={14 * k} color={accent} opacity={0.45}>
+            <BlurMask blur={8 * k} style="normal" />
+          </Circle>
+          <Circle cx={cx} cy={cy} r={11 * k} color={CLUSTER_INK.faceEdge} />
+          <Circle cx={cx} cy={cy} r={11 * k} style="stroke" strokeWidth={2 * k} color={accent} />
+          <Circle cx={cx} cy={cy} r={3.5 * k} color={accent} />
         </Group>
       </Canvas>
       {tickMarks
@@ -191,8 +208,8 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             </Text>
           );
         })}
-      <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
-        <Text style={[styles.number, {fontSize: size * numberScale}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
+      <View style={[StyleSheet.absoluteFill, classic ? {alignItems: 'center', paddingTop: cy + r * 0.22} : styles.centre]} pointerEvents="none">
+        <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.62 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
         <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}]}>{unit}</Text>
         {footer}
       </View>

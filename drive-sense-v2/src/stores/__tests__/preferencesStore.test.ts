@@ -39,8 +39,8 @@ describe('mapTypeFor', () => {
     expect(sanitizePreferences({fuelPrice: -3, currency: 'DM'})).toMatchObject({fuelPrice: null, currency: '₹', tankLitres: {}});
   });
 
-  it('keeps a known cluster dial style, else arc', () => {
-    expect(sanitizePreferences({clusterDialStyle: 'needle'}).clusterDialStyle).toBe('needle');
-    expect(sanitizePreferences({clusterDialStyle: 'tape'}).clusterDialStyle).toBe('arc');
+  it('keeps known cluster dial and gauge styles, else the defaults', () => {
+    expect(sanitizePreferences({clusterSpeedDial: 'needle', clusterRevDial: 'arc', clusterGaugeStyle: 'ring'})).toMatchObject({clusterSpeedDial: 'needle', clusterRevDial: 'arc', clusterGaugeStyle: 'ring'});
+    expect(sanitizePreferences({clusterSpeedDial: 'tape', clusterGaugeStyle: 'pie'})).toMatchObject({clusterSpeedDial: 'arc', clusterRevDial: 'arc', clusterGaugeStyle: 'bar'});
   });
 });
