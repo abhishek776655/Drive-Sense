@@ -5,7 +5,7 @@ import type {RecordingStatus} from '../../stores/recordingStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import type {StatDisplay} from '../../utils/liveStats';
 import {AppText} from '../AppText';
-import {GaugeDial} from './GaugeDial';
+import {SwipeGauge} from './SwipeGauge';
 import {PrimaryControls} from './PrimaryControls';
 
 interface GaugePanelProps {
@@ -28,7 +28,8 @@ export function GaugePanel({status, speed, scale, gaugeStyle, accent, stats, ...
   const ready = status === 'ready';
   return (
     <View style={{alignItems: 'center', paddingHorizontal: 12, gap: 14}}>
-      <GaugeDial speed={speed} scale={scale} gaugeStyle={gaugeStyle} accent={accent} size={270} />
+      {/* Swipe it left or right to change style. */}
+      <SwipeGauge speed={speed} scale={scale} gaugeStyle={gaugeStyle} accent={accent} size={270} />
       {!ready ? (
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignSelf: 'stretch', marginTop: 14}}>
           {stats.slice(0, 6).map((stat) => (

@@ -1,12 +1,13 @@
 import {Ionicons} from '@expo/vector-icons';
 import {Pressable, ScrollView, View} from 'react-native';
-import {ALL_STATS, GAUGE_ACCENTS, MAX_STATS, useDriveSettingsStore, type GaugeStyle} from '../../stores/driveSettingsStore';
+import {ALL_STATS, GAUGE_ACCENTS, MAX_STATS, useDriveSettingsStore} from '../../stores/driveSettingsStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import type {SpeedScale} from '../../utils/gaugeMath';
 import {STAT_META} from '../../utils/liveStats';
 import {AppText} from '../AppText';
 import {BottomSheet} from './BottomSheet';
 import {GaugeDial} from './GaugeDial';
+import {GAUGE_STYLE_OPTIONS} from './gaugeStyles';
 import {SettingsSwitch} from '../settings/SettingsRows';
 
 /** About two and a half rows of styles show at once; the rest scroll. */
@@ -16,27 +17,6 @@ const STYLE_PAD = 6;
 /** Exactly three rows of tiles; the rest scroll inside the container. */
 const STYLE_LIST_HEIGHT = STYLE_TILE_HEIGHT * 3 + STYLE_GAP * 2 + STYLE_PAD * 2 + 2;
 
-const STYLES: {id: GaugeStyle; label: string}[] = [
-  {id: 'arc', label: 'Arc'},
-  {id: 'tape', label: 'HUD'},
-  {id: 'neon', label: 'Neon'},
-  {id: 'classic', label: 'Classic'},
-  {id: 'sport', label: 'Sport Car'},
-  {id: 'luxury', label: 'Luxury'},
-  {id: 'vintage', label: 'Vintage'},
-  {id: 'rally', label: 'Rally'},
-  {id: 'truck', label: 'Truck'},
-  {id: 'motorcycle', label: 'Motorcycle'},
-  {id: 'f1', label: 'F1'},
-  {id: 'buggy', label: 'RC Buggy'},
-  {id: 'kart', label: 'Go-Kart'},
-  {id: 'atv', label: 'ATV'},
-  {id: 'scooter', label: 'Scooter'},
-  {id: 'moped', label: 'Moped'},
-  {id: 'openRoad', label: 'Open Road'},
-  {id: 'daylightRoad', label: 'Daylight Road'},
-  {id: 'sunsetRoad', label: 'Sunset Road'},
-];
 const SCALES: SpeedScale[] = ['auto', 120, 200, 300];
 
 function SectionLabel({children}: {children: string}) {
@@ -60,7 +40,7 @@ export function CustomizeSheet({visible, onClose}: {visible: boolean; onClose: (
             Customize stays in reach. */}
         <View style={{height: STYLE_LIST_HEIGHT, borderRadius: 22, padding: STYLE_PAD, backgroundColor: theme.colors.glassRow, borderWidth: 1, borderColor: theme.colors.separator}}>
           <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{flexDirection: 'row', flexWrap: 'wrap', gap: STYLE_GAP}}>
-            {STYLES.map((style) => {
+            {GAUGE_STYLE_OPTIONS.map((style) => {
               const on = settings.gaugeStyle === style.id;
               return (
                 <Pressable
