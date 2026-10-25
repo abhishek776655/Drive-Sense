@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import {CURRENCIES, type Currency} from '../obd/fuel';
 import type {MileageUnit} from '../obd/tiles';
+import {CLUSTER_ACCENTS, type ClusterAccent} from '../cluster/accents';
 import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
 export type MapStyle = 'standard' | 'muted' | 'satellite' | 'hybrid';
@@ -36,6 +37,9 @@ export interface Preferences {
   tankLitres: Record<string, number>;
   /** Metric economy as km/L ("mileage") or L/100 km; imperial is always mpg. */
   mileageUnit: MileageUnit;
+  /** Cluster mode: the chosen layout and its glow colour ('auto' follows the Drive speedometer accent). */
+  clusterLayout: string;
+  clusterAccent: ClusterAccent;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -65,6 +69,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   currency: '₹',
   tankLitres: {},
   mileageUnit: 'kmpl',
+  clusterLayout: 'twin',
+  clusterAccent: 'auto',
 };
 
 export const MAX_FUEL_PRICE = 10_000;
@@ -113,6 +119,8 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     currency: oneOf(r.currency, CURRENCIES, d.currency),
     tankLitres: tanks(r.tankLitres),
     mileageUnit: oneOf(r.mileageUnit, ['kmpl', 'l100'] as const, d.mileageUnit),
+    clusterLayout: typeof r.clusterLayout === 'string' ? r.clusterLayout : d.clusterLayout,
+    clusterAccent: oneOf(r.clusterAccent, ['auto', ...Object.keys(CLUSTER_ACCENTS)] as ClusterAccent[], d.clusterAccent),
   };
 };
 

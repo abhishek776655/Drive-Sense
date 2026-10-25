@@ -1,0 +1,71 @@
+import {angleAt, arcPath, dialMax, fraction, gFrom, gPoint, isCoasting, loadHeat, particleSpeed, redlineHeat, ticks} from '../motion';
+
+describe('cluster motion maths', () => {
+  it('maps values onto the 270° dial', () => {
+    expect(fraction(60, 240)).toBe(0.25);
+    expect(fraction(300, 240)).toBe(1);
+    expect(fraction(null, 240)).toBe(0);
+    expect(angleAt(0)).toBe(135);
+    expect(angleAt(1)).toBe(405);
+    expect(angleAt(0.5)).toBe(270); // straight up
+  });
+
+  it('draws arcs, taking the long way round past 180°', () => {
+    // Half the dial is 135°: the short way, ending straight up.
+    expect(arcPath(100, 100, 50, 0, 0.5)).toBe('M 64.64 135.36 A 50 50 0 0 1 100 50');
+    // Three quarters is 202.5°: the long way.
+    expect(arcPath(100, 100, 50, 0, 0.75)).toContain(' 0 1 1 ');
+  });
+
+  it('lays out major and minor ticks', () => {
+    const t = ticks(40, 20, 10);
+    expect(t).toEqual([
+      {value: 0, major: true},
+      {value: 10, major: false},
+      {value: 20, major: true},
+      {value: 30, major: false},
+      {value: 40, major: true},
+    ]);
+  });
+
+  it('rounds the dial top up to a step', () => {
+    expect(dialMax(8000, 1000, 6500)).toBe(8000);
+    expect(dialMax(8000, 1000, 8300)).toBe(9000);
+    expect(dialMax(200, 40, null, 215)).toBe(240);
+  });
+
+  it('heats the redline over the last 1,000 rpm', () => {
+    expect(redlineHeat(4000, 6000)).toBe(0);
+    expect(redlineHeat(5500, 6000)).toBe(0.5);
+    expect(redlineHeat(6400, 6000)).toBe(1);
+  });
+
+  it('speeds particles up with load and warms them past 80 %', () => {
+    expect(particleSpeed(0)).toBeCloseTo(0.08, 5);
+    expect(particleSpeed(100)).toBeCloseTo(0.98, 5);
+    expect(particleSpeed(50)).toBeLessThan(particleSpeed(80));
+    expect(loadHeat(70)).toBe(0);
+    expect(loadHeat(90)).toBe(0.5);
+  });
+
+  it('knows coasting from a closed throttle while rolling', () => {
+    expect(isCoasting(15, 14, 50)).toBe(true);
+    expect(isCoasting(25, 14, 50)).toBe(false);
+    expect(isCoasting(14, 14, 2)).toBe(false); // standing still is idling, not coasting
+    expect(isCoasting(14, null, 50)).toBe(false);
+  });
+
+  it('works out G from speed and heading, whatever the phone mount', () => {
+    // 20 → 10 m/s in 1 s: about 1 g of braking.
+    expect(gFrom({speedMps: 20, headingDeg: 90, at: 0}, {speedMps: 10, headingDeg: 90, at: 1000})?.lon).toBeCloseTo(-1.02, 2);
+    // 15 m/s turning right 20° in a second: about 0.53 g sideways.
+    expect(gFrom({speedMps: 15, headingDeg: 350, at: 0}, {speedMps: 15, headingDeg: 10, at: 1000})?.lat).toBeCloseTo(0.534, 2);
+    expect(gFrom({speedMps: 10, headingDeg: null, at: 0}, {speedMps: 10, headingDeg: null, at: 9000})).toBeNull();
+  });
+
+  it('places the G dot, speeding up toward the top and keeping it inside the rim', () => {
+    expect(gPoint({lon: 0.5, lat: 0}, 100)).toEqual({x: 0, y: -50});
+    const rim = gPoint({lon: 0, lat: 3}, 100);
+    expect(Math.hypot(rim.x, rim.y)).toBeCloseTo(100, 5);
+  });
+});

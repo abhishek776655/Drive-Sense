@@ -1,4 +1,5 @@
 import {Ionicons} from '@expo/vector-icons';
+import {router} from 'expo-router';
 import {useMemo, useState} from 'react';
 import {Pressable, View} from 'react-native';
 import {AppText} from '../../components/AppText';
@@ -198,6 +199,26 @@ export default function TelemetryScreen() {
   return (
     <View style={{flex: 1}}>
       <StickyHeaderScroll kicker="Live" title="Telemetry" contentContainerStyle={{paddingBottom: bottomInset + 12, gap: theme.space.cardGap}}>
+        {vehicle ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Open cluster" onPress={() => router.push('/cluster')}>
+            {({pressed}) => (
+              <Card style={{paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.7 : 1}}>
+                <View style={{width: 36, height: 36, borderRadius: 18, backgroundColor: c.accentTint, alignItems: 'center', justifyContent: 'center'}}>
+                  <Ionicons name="speedometer" size={19} color={c.accent} />
+                </View>
+                <View style={{flex: 1}}>
+                  <AppText size={16} weight="extrabold">
+                    Cluster
+                  </AppText>
+                  <AppText size={13} weight="semibold" tone="secondary">
+                    Full-screen dashboard, turn your phone sideways
+                  </AppText>
+                </View>
+                <Ionicons name="expand" size={20} color={c.textTertiary} />
+              </Card>
+            )}
+          </Pressable>
+        ) : null}
         {body()}
       </StickyHeaderScroll>
       {pairing && vehicle ? <PairSheet vehicleId={vehicle.id} vehicleName={vehicle.display_name} onClose={() => setPairing(false)} /> : null}

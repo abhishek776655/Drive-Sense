@@ -45,6 +45,8 @@ interface ObdState {
   engineOnAt: number | null;
   /** Distance the adapter's speed covers, summed since the app started (m). Only differences matter. */
   distanceM: number;
+  /** Lowest throttle reading this session: the closed-throttle position (it seldom reads 0). */
+  throttleLow: number | null;
   setLink: (link: ObdLink, error?: string | null) => void;
   setAdapter: (adapter: ObdAdapter | null) => void;
   putValue: (key: PidKey, value: number, at: number) => void;
@@ -57,7 +59,7 @@ interface ObdState {
   reset: () => void;
 }
 
-const fresh = {link: 'none' as ObdLink, adapter: null, values: {}, derived: EMPTY_DERIVED, history: [], supported: [], mil: null, vin: null, error: null, engineOnAt: null, distanceM: 0};
+const fresh = {link: 'none' as ObdLink, adapter: null, values: {}, derived: EMPTY_DERIVED, history: [], supported: [], mil: null, vin: null, error: null, engineOnAt: null, distanceM: 0, throttleLow: null};
 
 export const useObdStore = create<ObdState>((set, get) => ({
   ...fresh,
@@ -68,6 +70,11 @@ export const useObdStore = create<ObdState>((set, get) => ({
     const values = {...before, [key]: {v: value, at}};
     if (key === 'rpm') {
       set(value > 0 ? {values, engineOnAt: at} : {values});
+      return;
+    }
+    if (key === 'throttle') {
+      const low = get().throttleLow;
+      set({values, throttleLow: low == null || value < low ? value : low});
       return;
     }
     // One history point per speed reading (every cycle), carrying the latest of the others.
