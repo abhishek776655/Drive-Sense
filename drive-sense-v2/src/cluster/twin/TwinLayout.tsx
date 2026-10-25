@@ -1,33 +1,33 @@
-import {Ionicons} from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import {LinearGradient} from 'expo-linear-gradient';
-import {useEffect, useState, type ReactNode} from 'react';
-import {Pressable, StyleSheet, Text, View, type ViewStyle} from 'react-native';
-import {Gesture, GestureDetector} from 'react-native-gesture-handler';
-import Animated, {Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming} from 'react-native-reanimated';
-import {useUnits} from '../../hooks/useUnits';
-import {FONT} from '../../theme/theme';
-import {economy, temperature} from '../../obd/tiles';
-import {usePreferencesStore} from '../../stores/preferencesStore';
-import {kmhInUnits} from '../../utils/units';
-import {CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, DIAL_VIEWS, GAUGE_STYLES, PHONE_DIAL_NAMES, PHONE_DIALS, type DialView, type PhoneDial} from '../accents';
-import type {ClusterData} from '../clusterData';
-import {dialMax, gPoint, redlineHeat} from '../motion';
-import {ArcDial} from '../parts/ArcDial';
-import {BarGauge} from '../parts/BarGauge';
-import {CentrePager} from '../parts/CentrePager';
-import {ClimbDial} from '../parts/ClimbDial';
-import {CompassDial} from '../parts/CompassDial';
-import {GDial} from '../parts/GDial';
-import {SpeedGraphDial} from '../parts/SpeedGraphDial';
-import {usePhoneTrace} from '../usePhoneTrace';
-import {LoadBars} from '../parts/LoadBars';
-import {LoadMeter} from '../parts/LoadMeter';
-import {SideArc} from '../parts/SideArc';
-import {MapPage} from '../parts/MapPage';
-import {CarPage, TripPage} from '../parts/pages';
-import {AllTimePage, DrivingTotalsPage, GraphPage} from '../parts/statPages';
-import {VerticalPager} from '../parts/VerticalPager';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import { useUnits } from '../../hooks/useUnits';
+import { FONT } from '../../theme/theme';
+import { economy, temperature } from '../../obd/tiles';
+import { usePreferencesStore } from '../../stores/preferencesStore';
+import { kmhInUnits } from '../../utils/units';
+import { CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, DIAL_VIEWS, GAUGE_STYLES, PHONE_DIAL_NAMES, PHONE_DIALS, type DialView, type PhoneDial } from '../accents';
+import type { ClusterData } from '../clusterData';
+import { dialMax, gPoint, redlineHeat } from '../motion';
+import { ArcDial } from '../parts/ArcDial';
+import { BarGauge } from '../parts/BarGauge';
+import { CentrePager } from '../parts/CentrePager';
+import { ClimbDial } from '../parts/ClimbDial';
+import { CompassDial } from '../parts/CompassDial';
+import { GDial } from '../parts/GDial';
+import { SpeedGraphDial } from '../parts/SpeedGraphDial';
+import { usePhoneTrace } from '../usePhoneTrace';
+import { LoadBars } from '../parts/LoadBars';
+import { LoadMeter } from '../parts/LoadMeter';
+import { SideArc } from '../parts/SideArc';
+import { MapPage } from '../parts/MapPage';
+import { CarPage, TripPage } from '../parts/pages';
+import { AllTimePage, DrivingTotalsPage, GraphPage } from '../parts/statPages';
+import { VerticalPager } from '../parts/VerticalPager';
 
 const STRIP_H = 36;
 /** Names shown when a dial is swiped to another view (its own gauge is named per dial). */
@@ -41,20 +41,20 @@ function useClock(): string {
     const id = setInterval(() => setNow(new Date()), 15_000);
     return () => clearInterval(id);
   }, []);
-  return now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 /** A warning lamp in the strip: lit amber or red, otherwise not drawn. */
-function Lamp({icon, color}: {icon: keyof typeof Ionicons.glyphMap; color: string}) {
+function Lamp({ icon, color }: { icon: keyof typeof Ionicons.glyphMap; color: string }) {
   return (
-    <View style={[styles.lamp, {shadowColor: color}]}>
+    <View style={[styles.lamp, { shadowColor: color }]}>
       <Ionicons name={icon} size={17} color={color} />
     </View>
   );
 }
 
 /** Small readouts inside a dial, under its number: an icon and a value each. */
-function DialInfo({items, maxWidth, onPaper}: {items: {icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean}[]; maxWidth?: number; onPaper?: boolean}) {
+function DialInfo({ items, maxWidth, onPaper }: { items: { icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean }[]; maxWidth?: number; onPaper?: boolean }) {
   // On the Classic dial's white face the readouts are printed in dark ink.
   const ink = onPaper ? CLUSTER_INK.inkDim : CLUSTER_INK.textDim;
   const shown = items.filter((i) => i.text != null);
@@ -62,11 +62,11 @@ function DialInfo({items, maxWidth, onPaper}: {items: {icon: keyof typeof Ionico
     return null;
   }
   return (
-    <View style={[styles.info, maxWidth != null && {maxWidth}]}>
+    <View style={[styles.info, maxWidth != null && { maxWidth }]}>
       {shown.map((i) => (
         <View key={i.icon} style={styles.infoItem}>
           <Ionicons name={i.icon} size={13} color={i.warn ? CLUSTER_INK.amber : ink} />
-          <Text style={[styles.infoText, {color: ink}, i.warn && {color: CLUSTER_INK.amber}]}>{i.text}</Text>
+          <Text style={[styles.infoText, { color: ink }, i.warn && { color: CLUSTER_INK.amber }]}>{i.text}</Text>
         </View>
       ))}
     </View>
@@ -74,17 +74,17 @@ function DialInfo({items, maxWidth, onPaper}: {items: {icon: keyof typeof Ionico
 }
 
 /** G-force as a dot in a small ring: up speeding up, down braking, sideways cornering. */
-function GDot({g, accent}: {g: {lon: number; lat: number}; accent: string}) {
+function GDot({ g, accent }: { g: { lon: number; lat: number }; accent: string }) {
   const p = gPoint(g, 9);
   return (
     <View style={styles.gRing} accessibilityLabel="G-force">
-      <View style={[styles.gDot, {backgroundColor: accent, shadowColor: accent, transform: [{translateX: p.x}, {translateY: p.y}]}]} />
+      <View style={[styles.gDot, { backgroundColor: accent, shadowColor: accent, transform: [{ translateX: p.x }, { translateY: p.y }] }]} />
     </View>
   );
 }
 
 /** One way a dial can be swiped through: its options, their names, the current one and what to do on a change. */
-type SwipeAxis = {options: readonly string[]; names: Record<string, string>; value: string; onSwitch: (next: string) => void};
+type SwipeAxis = { options: readonly string[]; names: Record<string, string>; value: string; onSwitch: (next: string) => void };
 const swipeAxis = <T extends string>(options: readonly T[], names: Record<T, string>, value: T, onSwitch: (next: T) => void): SwipeAxis => ({
   options,
   names,
@@ -97,7 +97,7 @@ const swipeAxis = <T extends string>(options: readonly T[], names: Record<T, str
  * styles (`vertical`), left or right through what it shows (`horizontal`). The old face rolls away
  * in the swipe's direction and the next rolls in, with a light tick and its name shown briefly.
  */
-function DialSwitch({style, size, vertical, horizontal, children}: {style: ViewStyle; size: number; vertical?: SwipeAxis; horizontal?: SwipeAxis; children: ReactNode}) {
+function DialSwitch({ style, size, vertical, horizontal, children }: { style: ViewStyle; size: number; vertical?: SwipeAxis; horizontal?: SwipeAxis; children: ReactNode }) {
   const label = useSharedValue(0);
   const rollX = useSharedValue(0);
   const rollY = useSharedValue(0);
@@ -110,8 +110,8 @@ function DialSwitch({style, size, vertical, horizontal, children}: {style: ViewS
     }
     axis.onSwitch(next);
     setName(axis.names[next]);
-    (across ? rollX : rollY).set(withSequence(withTiming(-dir, {duration: 0}), withSpring(0, {dampingRatio: 0.8, duration: 450})));
-    label.set(withSequence(withTiming(1, {duration: 150}), withDelay(900, withTiming(0, {duration: 400}))));
+    (across ? rollX : rollY).set(withSequence(withTiming(-dir, { duration: 0 }), withSpring(0, { dampingRatio: 0.8, duration: 450 })));
+    label.set(withSequence(withTiming(1, { duration: 150 }), withDelay(900, withTiming(0, { duration: 400 }))));
   };
   const swipe = Gesture.Pan()
     .runOnJS(true)
@@ -130,7 +130,7 @@ function DialSwitch({style, size, vertical, horizontal, children}: {style: ViewS
       const next = axis.options[(i + (forward ? 1 : axis.options.length - 1)) % axis.options.length];
       void Haptics.selectionAsync().catch(() => undefined);
       (across ? rollX : rollY).set(
-        withTiming(dir, {duration: 170, easing: Easing.in(Easing.quad)}, (done) => {
+        withTiming(dir, { duration: 170, easing: Easing.in(Easing.quad) }, (done) => {
           if (done) {
             runOnJS(swapIn)(across, next, dir);
           }
@@ -142,16 +142,16 @@ function DialSwitch({style, size, vertical, horizontal, children}: {style: ViewS
     return {
       opacity: 1 - away,
       transform: [
-        {perspective: 900},
-        {translateX: rollX.value * size * 0.22},
-        {translateY: rollY.value * size * 0.22},
-        {rotateY: `${rollX.value * 40}deg`},
-        {rotateX: `${-rollY.value * 40}deg`},
-        {scale: 1 - away * 0.1},
+        { perspective: 900 },
+        { translateX: rollX.value * size * 0.22 },
+        { translateY: rollY.value * size * 0.22 },
+        { rotateY: `${rollX.value * 40}deg` },
+        { rotateX: `${-rollY.value * 40}deg` },
+        { scale: 1 - away * 0.1 },
       ],
     };
   });
-  const labelStyle = useAnimatedStyle(() => ({opacity: label.value, transform: [{translateY: (1 - label.value) * 6}]}));
+  const labelStyle = useAnimatedStyle(() => ({ opacity: label.value, transform: [{ translateY: (1 - label.value) * 6 }] }));
   return (
     <GestureDetector gesture={swipe}>
       <View style={style}>
@@ -169,7 +169,7 @@ function DialSwitch({style, size, vertical, horizontal, children}: {style: ViewS
  * on the left, RPM (or G without an adapter) on the right, each with small readouts inside (swipe up or down on a dial to roll it to its other style); the
  * swipeable centre pages sit behind the dials with no panel and fade out under their rims; and a strip of bar gauges and warning lamps along the bottom.
  */
-export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: number; height: number; accent: string}) {
+export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width: number; height: number; accent: string }) {
   const u = useUnits();
   const clock = useClock();
   const tempUnit = usePreferencesStore((s) => s.temperature);
@@ -183,13 +183,13 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   // The phone's compass only runs while a dial is showing it.
   const trace = usePhoneTrace(leftView === 'compass' || (d.mode === 'adapter' ? rightView === 'compass' : phoneDial === 'compass'));
   const setPrefs = usePreferencesStore((s) => s.set);
-  const nextGauge = () => void setPrefs({clusterGaugeStyle: GAUGE_STYLES[(GAUGE_STYLES.indexOf(gaugeStyle) + 1) % GAUGE_STYLES.length]});
+  const nextGauge = () => void setPrefs({ clusterGaugeStyle: GAUGE_STYLES[(GAUGE_STYLES.indexOf(gaugeStyle) + 1) % GAUGE_STYLES.length] });
   const rowH = height - STRIP_H;
   // Big dials that reach into the centre; the centre sits behind them and fades out under their rims.
-  const dial = Math.min(rowH * 1.06, width * 0.43);
-  const overlap = dial * 0.1;
-  // The centre takes a little less than the room between the dials, and the dials close in by as much.
-  const panelW = Math.max(200, (width - dial * 2 + overlap * 2) * 0.88);
+  const dial = Math.min(rowH * 1.04, width * 0.44);
+  const overlap = dial * 0.11;
+  // The centre takes a little less than the room between the dials (85%), and the dials close in by as much.
+  const panelW = Math.max(200, (width - dial * 2 + overlap * 2) * 0.85);
   const groupX = (width - (dial * 2 + panelW - overlap * 2)) / 2;
   const panelH = rowH * 0.86;
   // The centre layer runs on under the dials by this much; only the map uses it, other pages are
@@ -204,7 +204,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   const instant = d.instantL100km != null ? economy(d.instantL100km, u.units, mileage) : null;
   const coolant = d.coolantC != null ? temperature(d.coolantC, tempUnit) : null;
 
-  const inset = (node: ReactNode) => <View style={{flex: 1, paddingHorizontal: under}}>{node}</View>;
+  const inset = (node: ReactNode) => <View style={{ flex: 1, paddingHorizontal: under }}>{node}</View>;
   // Trip and Engine each have more views, a swipe up or down away.
   const pages = [
     {
@@ -214,16 +214,16 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           height={panelH}
           accent={accent}
           views={[
-            {key: 'drive', node: <TripPage d={d} />},
-            {key: 'totals', node: <DrivingTotalsPage />},
-            {key: 'graph', node: <GraphPage width={panelW} accent={accent} />},
+            { key: 'drive', node: <TripPage d={d} /> },
+            { key: 'totals', node: <DrivingTotalsPage /> },
+            { key: 'graph', node: <GraphPage width={panelW} accent={accent} /> },
           ]}
         />,
       ),
     },
   ];
   if (d.mode === 'adapter') {
-    const engine = {loadPct: d.loadPct, throttlePct: d.throttlePct, coasting: d.coasting, boostKpa: d.boostKpa, accent};
+    const engine = { loadPct: d.loadPct, throttlePct: d.throttlePct, coasting: d.coasting, boostKpa: d.boostKpa, accent };
     pages.push({
       key: 'engine',
       node: inset(
@@ -231,9 +231,9 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           height={panelH}
           accent={accent}
           views={[
-            {key: 'arc', node: <LoadMeter width={panelW} height={panelH - 14} {...engine} />},
-            {key: 'bars', node: <LoadBars width={panelW} height={panelH - 30} vertical={false} {...engine} />},
-            {key: 'columns', node: <LoadBars width={panelW} height={panelH - 30} vertical {...engine} />},
+            { key: 'arc', node: <LoadMeter width={panelW} height={panelH - 14} {...engine} /> },
+            { key: 'bars', node: <LoadBars width={panelW} height={panelH - 30} vertical={false} {...engine} /> },
+            { key: 'columns', node: <LoadBars width={panelW} height={panelH - 30} vertical {...engine} /> },
           ]}
         />,
       ),
@@ -245,14 +245,14 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           height={panelH}
           accent={accent}
           views={[
-            {key: 'now', node: <CarPage d={d} />},
-            {key: 'all', node: <AllTimePage />},
+            { key: 'now', node: <CarPage d={d} /> },
+            { key: 'all', node: <AllTimePage /> },
           ]}
         />,
       ),
     });
   }
-  pages.push({key: 'map', node: <MapPage accent={accent} />});
+  pages.push({ key: 'map', node: <MapPage accent={accent} /> });
 
   const coolantShare = d.coolantC == null ? null : Math.min(1, Math.max(0, (d.coolantC - COOLANT_RANGE[0]) / (COOLANT_RANGE[1] - COOLANT_RANGE[0])));
   const outside = d.outsideC != null ? temperature(d.outsideC, tempUnit) : null;
@@ -282,8 +282,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           maxWidth={speedStyle === 'needle' || speedStyle === 'classic' ? dial * 0.34 : undefined}
           items={[
             // This drive's distance while recording, else how far the tank goes.
-            d.distanceM != null ? {icon: 'navigate-circle', text: `${u.distance(d.distanceM)} ${u.distanceUnit}`} : {icon: 'color-fill', text: range, warn: d.alerts.lowFuel},
-            {icon: 'leaf', text: instant ? `${instant.value} ${instant.unit}` : null},
+            d.distanceM != null ? { icon: 'navigate-circle', text: `${u.distance(d.distanceM)} ${u.distanceUnit}` } : { icon: 'color-fill', text: range, warn: d.alerts.lowFuel },
+            { icon: 'leaf', text: instant ? `${instant.value} ${instant.unit}` : null },
           ]}
         />
       }
@@ -309,8 +309,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
         <>
           {/* Always there, so the gear has a known place; a dash until it is worked out. */}
           <View style={styles.gearRow}>
-            <View style={[styles.gear, {borderColor: d.gear ? accent : revStyle === 'classic' ? CLUSTER_INK.inkFaint : CLUSTER_INK.textFaint}]}>
-              <Text style={[styles.gearText, {color: d.gear ? accent : revStyle === 'classic' ? CLUSTER_INK.inkFaint : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
+            <View style={[styles.gear, { borderColor: d.gear ? accent : revStyle === 'classic' ? CLUSTER_INK.inkFaint : CLUSTER_INK.textFaint }]}>
+              <Text style={[styles.gearText, { color: d.gear ? accent : revStyle === 'classic' ? CLUSTER_INK.inkFaint : CLUSTER_INK.textFaint }]}>{d.gear ?? '–'}</Text>
             </View>
             {/* Shift-up hint: high revs in a low gear. */}
             {d.shiftUp ? (
@@ -320,7 +320,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
               </View>
             ) : null}
           </View>
-          <DialInfo onPaper={revStyle === 'classic'} items={[{icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null}]} />
+          <DialInfo onPaper={revStyle === 'classic'} items={[{ icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null }]} />
         </>
       }
     />
@@ -338,12 +338,12 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
     );
 
   return (
-    <View style={{width, height}}>
-      <View style={{height: rowH}}>
-        <View style={[styles.centre, {left: (width - layerW) / 2, top: (rowH - panelH) / 2 + rowH * 0.06, width: layerW, height: panelH}]}>
+    <View style={{ width, height }}>
+      <View style={{ height: rowH }}>
+        <View style={[styles.centre, { left: (width - layerW) / 2, top: (rowH - panelH) / 2 + rowH * 0.06, width: layerW, height: panelH }]}>
           <CentrePager pages={pages} width={layerW} height={panelH - 10} accent={accent} />
-          <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
-          <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
+          <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.fade, { left: 0, width: fadeW }]} />
+          <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.fade, { right: 0, width: fadeW }]} />
         </View>
         {/* Outside air and heading, along the top between the dials. */}
         {outside || d.heading ? (
@@ -372,32 +372,32 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           </>
         ) : null}
         <DialSwitch
-          style={{...styles.dial, left: groupX, top: dialTop}}
+          style={{ ...styles.dial, left: groupX, top: dialTop }}
           size={dial}
-          vertical={leftView === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, speedStyle, (next) => void setPrefs({clusterSpeedDial: next})) : undefined}
-          horizontal={swipeAxis(DIAL_VIEWS, {...VIEW_NAMES, main: 'Speed'}, leftView, (next) => void setPrefs({clusterLeftView: next}))}>
+          vertical={leftView === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, speedStyle, (next) => void setPrefs({ clusterSpeedDial: next })) : undefined}
+          horizontal={swipeAxis(DIAL_VIEWS, { ...VIEW_NAMES, main: 'Speed' }, leftView, (next) => void setPrefs({ clusterLeftView: next }))}>
           {leftView === 'main' ? speedGauge : phoneView(leftView)}
         </DialSwitch>
         {d.mode === 'adapter' ? (
           <DialSwitch
-            style={{...styles.dial, right: groupX, top: dialTop}}
+            style={{ ...styles.dial, right: groupX, top: dialTop }}
             size={dial}
-            vertical={rightView === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, revStyle, (next) => void setPrefs({clusterRevDial: next})) : undefined}
-            horizontal={swipeAxis(DIAL_VIEWS, {...VIEW_NAMES, main: 'RPM'}, rightView, (next) => void setPrefs({clusterRightView: next}))}>
+            vertical={rightView === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, revStyle, (next) => void setPrefs({ clusterRevDial: next })) : undefined}
+            horizontal={swipeAxis(DIAL_VIEWS, { ...VIEW_NAMES, main: 'RPM' }, rightView, (next) => void setPrefs({ clusterRightView: next }))}>
             {rightView === 'main' ? rpmGauge : phoneView(rightView)}
           </DialSwitch>
         ) : (
           // Without the adapter there is no RPM: the right dial rolls between the phone views either way.
           <DialSwitch
-            style={{...styles.dial, right: groupX, top: dialTop}}
+            style={{ ...styles.dial, right: groupX, top: dialTop }}
             size={dial}
-            vertical={swipeAxis(PHONE_DIALS, PHONE_DIAL_NAMES, phoneDial, (next) => void setPrefs({clusterPhoneDial: next}))}
-            horizontal={swipeAxis(PHONE_DIALS, PHONE_DIAL_NAMES, phoneDial, (next) => void setPrefs({clusterPhoneDial: next}))}>
+            vertical={swipeAxis(PHONE_DIALS, PHONE_DIAL_NAMES, phoneDial, (next) => void setPrefs({ clusterPhoneDial: next }))}
+            horizontal={swipeAxis(PHONE_DIALS, PHONE_DIAL_NAMES, phoneDial, (next) => void setPrefs({ clusterPhoneDial: next }))}>
             {phoneView(phoneDial)}
           </DialSwitch>
         )}
       </View>
-      <View style={[styles.strip, {height: STRIP_H}]}>
+      <View style={[styles.strip, { height: STRIP_H }]}>
         <View style={styles.stripSide}>
           {stripGauge ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
@@ -448,32 +448,32 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
 }
 
 const styles = StyleSheet.create({
-  centre: {position: 'absolute', overflow: 'hidden'},
-  fade: {position: 'absolute', top: 0, bottom: 0},
-  dial: {position: 'absolute'},
-  switchLabel: {position: 'absolute', left: 0, right: 0, bottom: '9%', alignItems: 'center'},
-  switchText: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase'},
-  info: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 12, rowGap: 2, marginTop: 8},
-  infoItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
-  infoText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
-  topLine: {position: 'absolute', top: 6, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 16},
-  topText: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12, fontVariant: ['tabular-nums']},
-  gearRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  shift: {flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8, paddingHorizontal: 7, height: 24, borderRadius: 7, backgroundColor: 'rgba(52,224,122,0.14)'},
-  shiftText: {color: CLUSTER_INK.green, fontFamily: FONT.black, fontSize: 14},
-  stripSide: {flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1},
-  stripRight: {justifyContent: 'flex-end'},
-  gapLeft: {marginLeft: 6},
-  stripText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
-  limit: {width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: CLUSTER_INK.red, backgroundColor: CLUSTER_INK.text, alignItems: 'center', justifyContent: 'center'},
-  limitText: {color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 11, fontVariant: ['tabular-nums']},
-  gRing: {width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: CLUSTER_INK.tick, alignItems: 'center', justifyContent: 'center'},
-  gDot: {width: 7, height: 7, borderRadius: 4, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: {width: 0, height: 0}},
-  gear: {marginTop: 8, minWidth: 34, height: 28, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8},
-  gearText: {fontFamily: FONT.black, fontSize: 17},
-  strip: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18},
-  lamps: {flexDirection: 'row', alignItems: 'center', gap: 14},
-  lamp: {shadowOpacity: 0.9, shadowRadius: 8, shadowOffset: {width: 0, height: 0}},
-  state: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 1.5},
-  clock: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 15, fontVariant: ['tabular-nums']},
+  centre: { position: 'absolute', overflow: 'hidden' },
+  fade: { position: 'absolute', top: 0, bottom: 0 },
+  dial: { position: 'absolute' },
+  switchLabel: { position: 'absolute', left: 0, right: 0, bottom: '9%', alignItems: 'center' },
+  switchText: { color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' },
+  info: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 12, rowGap: 2, marginTop: 8 },
+  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  infoText: { color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  topLine: { position: 'absolute', top: 6, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 16 },
+  topText: { color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  gearRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  shift: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8, paddingHorizontal: 7, height: 24, borderRadius: 7, backgroundColor: 'rgba(52,224,122,0.14)' },
+  shiftText: { color: CLUSTER_INK.green, fontFamily: FONT.black, fontSize: 14 },
+  stripSide: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  stripRight: { justifyContent: 'flex-end' },
+  gapLeft: { marginLeft: 6 },
+  stripText: { color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  limit: { width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: CLUSTER_INK.red, backgroundColor: CLUSTER_INK.text, alignItems: 'center', justifyContent: 'center' },
+  limitText: { color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 11, fontVariant: ['tabular-nums'] },
+  gRing: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: CLUSTER_INK.tick, alignItems: 'center', justifyContent: 'center' },
+  gDot: { width: 7, height: 7, borderRadius: 4, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
+  gear: { marginTop: 8, minWidth: 34, height: 28, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  gearText: { fontFamily: FONT.black, fontSize: 17 },
+  strip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18 },
+  lamps: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  lamp: { shadowOpacity: 0.9, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
+  state: { color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 1.5 },
+  clock: { color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 15, fontVariant: ['tabular-nums'] },
 });
