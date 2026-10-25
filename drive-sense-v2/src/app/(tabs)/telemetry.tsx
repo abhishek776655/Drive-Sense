@@ -11,8 +11,8 @@ import {useTabBarInset} from '../../components/tabBarLayout';
 import {AdapterCard, LINK_TEXT} from '../../components/telemetry/AdapterCard';
 import {CarStateChip} from '../../components/telemetry/CarStateChip';
 import {PairSheet} from '../../components/telemetry/PairSheet';
+import {RpmDial} from '../../components/telemetry/RpmDial';
 import {CheckEngineCard} from '../../components/telemetry/CheckEngineCard';
-import {LiveDialsCard} from '../../components/telemetry/LiveDialsCard';
 import {Sparkline} from '../../components/telemetry/Sparkline';
 import {ThisDriveCard} from '../../components/telemetry/ThisDriveCard';
 import {useRange} from '../../hooks/useRange';
@@ -158,11 +158,10 @@ export default function TelemetryScreen() {
         {otherCar ? <Banner icon="swap-horizontal" color={c.amber} text="This adapter is in a different car than the one it was paired with." /> : null}
         {mil?.on ? <CheckEngineCard codes={codes} count={mil.codes} /> : null}
         <CarStateChip />
-        <LiveDialsCard
-          speed={speedKmh == null ? null : kmhInUnits(speedKmh, u.units)}
-          speedUnit={u.speedUnit}
-          imperial={u.units === 'imperial'}
+        <RpmDial
           rpm={values.rpm?.v ?? null}
+          speed={speedKmh == null ? '—' : String(kmhInUnits(speedKmh, u.units))}
+          speedUnit={u.speedUnit}
           gear={link === 'live' ? gearLabel(derived.gear) : null}
           redline={redline}
         />
