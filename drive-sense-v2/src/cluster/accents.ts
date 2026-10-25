@@ -42,3 +42,8 @@ export const DIAL_STYLE_NAMES: Record<DialStyle, string> = {arc: 'Arc', needle: 
  */
 export const GAUGE_STYLES = ['arc', 'bar', 'ring', 'digits'] as const;
 export type GaugeStyle = (typeof GAUGE_STYLES)[number];
+
+/** What the right dial shows without the adapter, rolled through by swiping up or down on it. */
+export const PHONE_DIALS = ['g', 'climb', 'compass', 'speed'] as const;
+export type PhoneDial = (typeof PHONE_DIALS)[number];
+export const PHONE_DIAL_NAMES: Record<PhoneDial, string> = {g: 'G-force', climb: 'Climb', compass: 'Compass', speed: 'Speed'};

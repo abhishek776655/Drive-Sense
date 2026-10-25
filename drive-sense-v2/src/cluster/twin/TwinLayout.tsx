@@ -10,13 +10,17 @@ import {FONT} from '../../theme/theme';
 import {economy, temperature} from '../../obd/tiles';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {kmhInUnits} from '../../utils/units';
-import {CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, GAUGE_STYLES, type DialStyle} from '../accents';
+import {CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, GAUGE_STYLES, PHONE_DIAL_NAMES, PHONE_DIALS} from '../accents';
 import type {ClusterData} from '../clusterData';
 import {dialMax, gPoint, redlineHeat} from '../motion';
 import {ArcDial} from '../parts/ArcDial';
 import {BarGauge} from '../parts/BarGauge';
 import {CentrePager} from '../parts/CentrePager';
+import {ClimbDial} from '../parts/ClimbDial';
+import {CompassDial} from '../parts/CompassDial';
 import {GDial} from '../parts/GDial';
+import {SpeedGraphDial} from '../parts/SpeedGraphDial';
+import {usePhoneTrace} from '../usePhoneTrace';
 import {LoadBars} from '../parts/LoadBars';
 import {LoadMeter} from '../parts/LoadMeter';
 import {SideArc} from '../parts/SideArc';
@@ -76,18 +80,18 @@ function GDot({g, accent}: {g: {lon: number; lat: number}; accent: string}) {
 }
 
 /**
- * A dial that changes its own style when swiped up or down on, turning like a wheel: the old style
- * rolls away in the swipe's direction and the next one rolls in from the other side, with a light
+ * A dial that rolls to its next option (a style, or what it shows) when swiped up or down on,
+ * turning like a wheel: the old one rolls away in the swipe's direction and the next rolls in, with a light
  * tick and the style's name shown briefly under it.
  */
-function DialSwitch({style, size, dialStyle, onSwitch, children}: {style: ViewStyle; size: number; dialStyle: DialStyle; onSwitch: (next: DialStyle) => void; children: ReactNode}) {
+function DialSwitch<T extends string>({style, size, options, names, value, onSwitch, children}: {style: ViewStyle; size: number; options: readonly T[]; names: Record<T, string>; value: T; onSwitch: (next: T) => void; children: ReactNode}) {
   const label = useSharedValue(0);
   const roll = useSharedValue(0);
   const [name, setName] = useState<string | null>(null);
   // Halfway through the roll (old style out of sight), swap in the next style and roll it in.
-  const swapIn = (next: DialStyle, dir: number) => {
+  const swapIn = (next: T, dir: number) => {
     onSwitch(next);
-    setName(DIAL_STYLE_NAMES[next]);
+    setName(names[next]);
     roll.set(withSequence(withTiming(-dir, {duration: 0}), withSpring(0, {dampingRatio: 0.8, duration: 450})));
     label.set(withSequence(withTiming(1, {duration: 150}), withDelay(900, withTiming(0, {duration: 400}))));
   };
@@ -98,8 +102,8 @@ function DialSwitch({style, size, dialStyle, onSwitch, children}: {style: ViewSt
     .onEnd((e) => {
       const up = e.translationY < 0;
       const dir = up ? -1 : 1;
-      const i = DIAL_STYLES.indexOf(dialStyle);
-      const next = DIAL_STYLES[(i + (up ? 1 : DIAL_STYLES.length - 1)) % DIAL_STYLES.length];
+      const i = options.indexOf(value);
+      const next = options[(i + (up ? 1 : options.length - 1)) % options.length];
       void Haptics.selectionAsync().catch(() => undefined);
       roll.set(
         withTiming(dir, {duration: 170, easing: Easing.in(Easing.quad)}, (done) => {
@@ -142,6 +146,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   const speedStyle = usePreferencesStore((s) => s.clusterSpeedDial);
   const revStyle = usePreferencesStore((s) => s.clusterRevDial);
   const gaugeStyle = usePreferencesStore((s) => s.clusterGaugeStyle);
+  const phoneDial = usePreferencesStore((s) => s.clusterPhoneDial);
+  const trace = usePhoneTrace();
   const setPrefs = usePreferencesStore((s) => s.set);
   const nextGauge = () => void setPrefs({clusterGaugeStyle: GAUGE_STYLES[(GAUGE_STYLES.indexOf(gaugeStyle) + 1) % GAUGE_STYLES.length]});
   const rowH = height - STRIP_H;
@@ -259,7 +265,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
             <SideArc size={dial} left={width - groupX - dial} top={dialTop} side="right" share={d.fuelPct == null ? null : d.fuelPct / 100} color={fuelColor} icon="color-fill" value={d.fuelPct == null ? null : `${Math.round(d.fuelPct)}%`} onPress={nextGauge} />
           </>
         ) : null}
-        <DialSwitch style={{...styles.dial, left: groupX, top: (rowH - dial) / 2}} size={dial} dialStyle={speedStyle} onSwitch={(next) => void setPrefs({clusterSpeedDial: next})}>
+        <DialSwitch style={{...styles.dial, left: groupX, top: (rowH - dial) / 2}} size={dial} options={DIAL_STYLES} names={DIAL_STYLE_NAMES} value={speedStyle} onSwitch={(next) => void setPrefs({clusterSpeedDial: next})}>
           <ArcDial
             size={dial}
             dialStyle={speedStyle}
@@ -282,46 +288,57 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
             }
           />
         </DialSwitch>
-        <DialSwitch style={{...styles.dial, right: groupX, top: (rowH - dial) / 2}} size={dial} dialStyle={revStyle} onSwitch={(next) => void setPrefs({clusterRevDial: next})}>
-          {d.mode === 'adapter' ? (
-            <ArcDial
-              size={dial}
-              dialStyle={revStyle}
-              value={d.rpm}
-              max={dialMax(8000, 1000, d.rpm)}
-              majorStep={1000}
-              minorStep={500}
-              accent={accent}
-              unit="× 1000 rpm"
-              label={(v) => String(v / 1000)}
-              redline={d.redline}
-              redHeat={redlineHeat(d.rpm, d.redline)}
-              settleMs={180}
-              // In thousands, like the scale: 2.9 for 2,900 rpm.
-              display={d.rpm == null ? '–' : (d.rpm / 1000).toFixed(1)}
-              footer={
-                <>
-                  {/* Always there, so the gear has a known place; a dash until it is worked out. */}
-                  <View style={styles.gearRow}>
-                    <View style={[styles.gear, {borderColor: d.gear ? accent : CLUSTER_INK.textFaint}]}>
-                      <Text style={[styles.gearText, {color: d.gear ? accent : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
-                    </View>
-                    {/* Shift-up hint: high revs in a low gear. */}
-                    {d.shiftUp ? (
-                      <View style={styles.shift}>
-                        <Ionicons name="arrow-up" size={13} color={CLUSTER_INK.green} />
-                        <Text style={styles.shiftText}>{d.shiftUp}</Text>
+        {d.mode === 'adapter' ? (
+          <DialSwitch style={{...styles.dial, right: groupX, top: dialTop}} size={dial} options={DIAL_STYLES} names={DIAL_STYLE_NAMES} value={revStyle} onSwitch={(next) => void setPrefs({clusterRevDial: next})}>
+              <ArcDial
+                size={dial}
+                dialStyle={revStyle}
+                value={d.rpm}
+                max={dialMax(8000, 1000, d.rpm)}
+                majorStep={1000}
+                minorStep={500}
+                accent={accent}
+                unit="× 1000 rpm"
+                label={(v) => String(v / 1000)}
+                redline={d.redline}
+                redHeat={redlineHeat(d.rpm, d.redline)}
+                settleMs={180}
+                // In thousands, like the scale: 2.9 for 2,900 rpm.
+                display={d.rpm == null ? '–' : (d.rpm / 1000).toFixed(1)}
+                footer={
+                  <>
+                    {/* Always there, so the gear has a known place; a dash until it is worked out. */}
+                    <View style={styles.gearRow}>
+                      <View style={[styles.gear, {borderColor: d.gear ? accent : CLUSTER_INK.textFaint}]}>
+                        <Text style={[styles.gearText, {color: d.gear ? accent : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
                       </View>
-                    ) : null}
-                  </View>
-                  <DialInfo items={[{icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null}]} />
-                </>
-              }
-            />
-          ) : (
-            <GDial size={dial} g={d.g} accent={accent} />
-          )}
-        </DialSwitch>
+                      {/* Shift-up hint: high revs in a low gear. */}
+                      {d.shiftUp ? (
+                        <View style={styles.shift}>
+                          <Ionicons name="arrow-up" size={13} color={CLUSTER_INK.green} />
+                          <Text style={styles.shiftText}>{d.shiftUp}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <DialInfo items={[{icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null}]} />
+                  </>
+                }
+              />
+          </DialSwitch>
+        ) : (
+          // Without the adapter the right dial rolls between G-force, climb, compass and a speed graph.
+          <DialSwitch style={{...styles.dial, right: groupX, top: dialTop}} size={dial} options={PHONE_DIALS} names={PHONE_DIAL_NAMES} value={phoneDial} onSwitch={(next) => void setPrefs({clusterPhoneDial: next})}>
+            {phoneDial === 'climb' ? (
+              <ClimbDial size={dial} accent={accent} altitudeM={trace.altitudeM} gradePct={trace.gradePct} />
+            ) : phoneDial === 'compass' ? (
+              <CompassDial size={dial} accent={accent} headingDeg={trace.headingDeg} />
+            ) : phoneDial === 'speed' ? (
+              <SpeedGraphDial size={dial} accent={accent} trace={trace.speed} />
+            ) : (
+              <GDial size={dial} g={d.g} accent={accent} />
+            )}
+          </DialSwitch>
+        )}
       </View>
       <View style={[styles.strip, {height: STRIP_H}]}>
         <View style={styles.stripSide}>

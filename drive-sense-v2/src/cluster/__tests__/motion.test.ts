@@ -1,4 +1,4 @@
-import {angleAt, arcPath, compassPoint, dialMax, fraction, gFrom, gPoint, isCoasting, loadHeat, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
+import {angleAt, arcPath, compassPoint, dialMax, fraction, gFrom, gPoint, gradePct, isCoasting, loadHeat, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
 
 describe('cluster motion maths', () => {
   it('maps values onto the 270° dial', () => {
@@ -88,5 +88,13 @@ describe('cluster motion maths', () => {
     expect(compassPoint(350)).toBe('N');
     expect(compassPoint(-1)).toBeNull();
     expect(compassPoint(null)).toBeNull();
+  });
+
+  it('works out road gradient from altitude over distance, once there is enough road', () => {
+    const climb = Array.from({length: 16}, (_, i) => ({d: i * 10, alt: 100 + i * 0.5 + (i % 2 ? 0.3 : -0.3)}));
+    expect(gradePct(climb)).toBeCloseTo(5, 0);
+    const flatThenDown = [...Array.from({length: 10}, (_, i) => ({d: i * 20, alt: 50})), ...Array.from({length: 10}, (_, i) => ({d: 200 + i * 15, alt: 50 - i * 1.2}))];
+    expect(gradePct(flatThenDown)).toBeCloseTo(-8, 0);
+    expect(gradePct([{d: 0, alt: 1}, {d: 10, alt: 2}, {d: 20, alt: 3}])).toBeNull();
   });
 });

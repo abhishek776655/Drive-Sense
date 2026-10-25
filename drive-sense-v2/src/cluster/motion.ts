@@ -127,3 +127,29 @@ const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 /** Eight-point compass name of a GPS heading; null when there is none (standing still reports -1). */
 export const compassPoint = (deg: number | null | undefined): string | null =>
   deg == null || deg < 0 ? null : POINTS[Math.round((deg % 360) / 45) % 8];
+
+/** Gradient is measured over this much road, and needs at least the shorter span to say anything. */
+export const GRADE_WINDOW_M = 150;
+const GRADE_MIN_M = 40;
+
+/**
+ * Road gradient (%) from GPS altitude against distance driven: the least-squares slope over the last
+ * `GRADE_WINDOW_M`, which rides out GPS altitude jitter better than two end points. Null when the
+ * car hasn't covered enough road.
+ */
+export const gradePct = (samples: {d: number; alt: number}[], windowM = GRADE_WINDOW_M): number | null => {
+  if (samples.length < 3) {
+    return null;
+  }
+  const end = samples[samples.length - 1].d;
+  const recent = samples.filter((p) => p.d >= end - windowM);
+  if (recent.length < 3 || end - recent[0].d < GRADE_MIN_M) {
+    return null;
+  }
+  const n = recent.length;
+  const md = recent.reduce((a, p) => a + p.d, 0) / n;
+  const ma = recent.reduce((a, p) => a + p.alt, 0) / n;
+  const num = recent.reduce((a, p) => a + (p.d - md) * (p.alt - ma), 0);
+  const den = recent.reduce((a, p) => a + (p.d - md) ** 2, 0);
+  return den === 0 ? null : (num / den) * 100;
+};
