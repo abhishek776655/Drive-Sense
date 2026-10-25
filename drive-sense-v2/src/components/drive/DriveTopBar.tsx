@@ -1,4 +1,5 @@
 import {Ionicons} from '@expo/vector-icons';
+import {router} from 'expo-router';
 import {Pressable, View} from 'react-native';
 import {useShallow} from 'zustand/react/shallow';
 import {useNow} from '../../hooks/useNow';
@@ -65,7 +66,7 @@ interface DriveTopBarProps {
   onTune: () => void;
 }
 
-/** Vehicle chip (Ready) or timer pill (live) on the left; Map | Gauge toggle and tune on the right. */
+/** Vehicle chip (Ready) or timer pill (live) on the left; Map | Gauge toggle, the cluster (live) and tune on the right. */
 export function DriveTopBar({live, vehicleName, mode, tilt3d, onToggle3d, onVehiclePress, onModeChange, onTune}: DriveTopBarProps) {
   const theme = useAppTheme();
   const segment = (value: DriveMode, icon: keyof typeof Ionicons.glyphMap, label: string) => {
@@ -99,6 +100,14 @@ export function DriveTopBar({live, vehicleName, mode, tilt3d, onToggle3d, onVehi
           {segment('map', 'map', 'Map mode')}
           {segment('gauge', 'speedometer', 'Gauge mode')}
         </Glass>
+        {/* During a drive, one tap to the full-screen landscape cluster. */}
+        {live ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Open cluster" onPress={() => router.push('/cluster')}>
+            <Glass style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}>
+              <Ionicons name="tv-outline" size={18} color={theme.colors.textPrimary} />
+            </Glass>
+          </Pressable>
+        ) : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Customize" onPress={onTune}>
           <Glass style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}>
             <Ionicons name="options" size={18} color={theme.colors.textPrimary} />
