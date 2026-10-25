@@ -64,8 +64,8 @@ function Segment({i, cx, cy, r, k, progress, accent, redShare}: {i: number; cx: 
  * A cluster dial drawn on the GPU (spec 2026-10-25, cluster mode, section 4): track, ticks that
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
- * LED style lights a ring of separate bars instead. Classic prints a red needle gauge on an ivory
- * face under a chrome bezel. Needle style is the same gauge on the dark face: plain white ticks on a thin ring, and a glowing needle
+ * LED style lights a ring of separate bars instead. Vintage ('classic') is Drive's Vintage gauge: a
+ * cream face, brass bezel, long dark needle on a hub, figures below it. Needle style is on the dark face: plain white ticks on a thin ring, and a glowing needle
  * that starts out from the centre, leaving the number in the middle clear.
  */
 export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
@@ -79,6 +79,8 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const needle = useSharedValue(dialStyle === 'needle' ? 1 : 0);
   const segment = useSharedValue(dialStyle === 'segment' ? 1 : 0);
   const paper = useSharedValue(dialStyle === 'classic' ? 1 : 0);
+  // A lagging copy of the value for the Needle style's fading ghost needle.
+  const ghost = useSharedValue(0);
 
   // Strokes, blur and ticks scale with the dial, so it reads the same as a card or full screen.
   const k = Math.min(1, size / 300);
@@ -110,7 +112,8 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     progress.set(withSpring(target, {dampingRatio: 1, duration: settleMs}));
     // Coming off: the lit arc above the new value fades away instead of vanishing.
     trail.set(target < trail.value && !reduce ? withTiming(target, {duration: 300, easing: Easing.out(Easing.quad)}) : withSpring(target, {dampingRatio: 1, duration: settleMs}));
-  }, [value, max, ready, settleMs, progress, trail, reduce]);
+    ghost.set(reduce ? target : withTiming(target, {duration: 750, easing: Easing.out(Easing.cubic)}));
+  }, [value, max, ready, settleMs, progress, trail, ghost, reduce]);
 
   useEffect(() => {
     const fade = (on: boolean) => (reduce ? (on ? 1 : 0) : withTiming(on ? 1 : 0, {duration: 380, easing: Easing.inOut(Easing.quad)}));
@@ -166,11 +169,29 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     return p;
   }, [cx, cy, r, k]);
   const needleTurn = useDerivedValue(() => [{rotate: (angleAt(progress.value) * Math.PI) / 180}]);
+  // Vintage: a long needle from a short tail behind the hub, the number sitting below the hub.
+  const longBlade = useMemo(() => {
+    const tail = r * 0.18;
+    const tip = r - 6 * k;
+    const p = Skia.Path.Make();
+    p.moveTo(cx - tail, cy - 3.4 * k);
+    p.lineTo(cx + tip, cy - 0.8 * k);
+    p.lineTo(cx + tip, cy + 0.8 * k);
+    p.lineTo(cx - tail, cy + 3.4 * k);
+    p.close();
+    return p;
+  }, [cx, cy, r, k]);
+  // Needle style: the ghost trails the needle and fades as it catches up; a soft shadow sits under both needles.
+  const ghostTurn = useDerivedValue(() => [{rotate: (angleAt(ghost.value) * Math.PI) / 180}]);
+  const ghostOpacity = useDerivedValue(() => needle.value * Math.min(0.5, Math.abs(ghost.value - progress.value) * 7));
+  const shadowTurn = useDerivedValue(() => [{translateX: 3 * k}, {translateY: 5 * k}, {rotate: (angleAt(progress.value) * Math.PI) / 180}]);
+  const needleOnly = needle;
 
-  const labelR = r - 34 * k;
-  const needleLike = dialStyle === 'needle' || dialStyle === 'classic';
+  // Far enough in that the numbers clear the major ticks (which reach r − 24k).
+  const labelR = r - 42 * k;
+  const needleLike = dialStyle === 'needle';
   const onPaper = dialStyle === 'classic';
-  const needleColor = onPaper ? CLUSTER_INK.red : accent;
+  const needleColor = accent;
   return (
     <View style={{width: size, height: size}}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -233,16 +254,37 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             <Segment key={i} i={i} cx={cx} cy={cy} r={r} k={k} progress={progress} accent={accent} redShare={redShare} />
           ))}
         </Group>
-        {/* Needle: glow, accent blade, bright spine, then the hub over its root. */}
+        {/* Needle: the fading ghost behind, a soft shadow under, then the glowing blade and its spine. */}
+        <Group opacity={ghostOpacity}>
+          <Group transform={ghostTurn} origin={vec(cx, cy)}>
+            <Path path={blade} color={accent}>
+              <BlurMask blur={6 * k} style="normal" />
+            </Path>
+          </Group>
+        </Group>
         <Group opacity={needleShown}>
+          <Group transform={shadowTurn} origin={vec(cx, cy)}>
+            <Path path={onPaper ? longBlade : blade} color="#000000" opacity={onPaper ? 0.25 : 0.55}>
+              <BlurMask blur={4 * k} style="normal" />
+            </Path>
+          </Group>
+        </Group>
+        <Group opacity={needleOnly}>
           <Group transform={needleTurn} origin={vec(cx, cy)}>
-            {/* On the white face the glow would only smudge; it is kept faint there. */}
-            <Path path={blade} color={needleColor} opacity={onPaper ? 0.25 : 0.75}>
+            <Path path={blade} color={needleColor} opacity={0.75}>
               <BlurMask blur={10 * k} style="normal" />
             </Path>
             <Path path={blade} color={needleColor} />
             <Line p1={vec(cx + r * 0.5, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
           </Group>
+        </Group>
+        {/* Vintage: the long dark needle on a brass hub. */}
+        <Group opacity={paper}>
+          <Group transform={needleTurn} origin={vec(cx, cy)}>
+            <Path path={longBlade} color={CLUSTER_INK.vintageNeedle} />
+          </Group>
+          <Circle cx={cx} cy={cy} r={10 * k} color={CLUSTER_INK.vintageHub} />
+          <Circle cx={cx} cy={cy} r={3.5 * k} color={CLUSTER_INK.vintageNeedle} />
         </Group>
       </Canvas>
       {tickMarks
@@ -255,9 +297,10 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             </Text>
           );
         })}
-      <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
+      {/* Vintage puts the figures below the hub, as on Drive's Vintage gauge; the others centre them. */}
+      <View style={[StyleSheet.absoluteFill, onPaper ? {alignItems: 'center', paddingTop: cy + r * 0.2} : styles.centre]} pointerEvents="none">
         {/* Needle style keeps the figures in the clear middle, a little smaller. */}
-        <Text style={[styles.number, {fontSize: size * numberScale * (needleLike ? 0.78 : 1)}, onPaper && {color: CLUSTER_INK.ink}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
+        <Text style={[styles.number, {fontSize: size * numberScale * (onPaper ? 0.6 : needleLike ? 0.78 : 1)}, onPaper && {color: CLUSTER_INK.ink}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
         <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}, onPaper && {color: CLUSTER_INK.inkDim}]}>{unit}</Text>
         {needleLike ? null : footer}
       </View>
