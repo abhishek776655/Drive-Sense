@@ -22,6 +22,9 @@ import {useAppearanceStore} from '../theme/appearanceStore';
 import {ThemeProvider, useAppTheme} from '../theme/ThemeProvider';
 import {startDriveNotifications} from '../notifications/driveNotifications';
 import {startDriveRecorder} from '../sync/driveRecorder';
+import {startObdRecorder} from '../sync/obdRecorder';
+import {startSensorRecorder} from '../sync/sensorRecorder';
+import {CLUSTER_INK} from '../cluster/accents';
 import {startSync} from '../sync/syncEngine';
 import {startDriveActivitySync} from '../widgets/driveActivitySync';
 import {startWeekWidgetSync} from '../widgets/weekWidgetSync';
@@ -42,7 +45,7 @@ function RootStack() {
   return (
     <>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={{headerShown: false, contentStyle: {backgroundColor: theme.colors.canvas}}}>
+      <Stack screenOptions={{headerShown: false, orientation: 'portrait', contentStyle: {backgroundColor: theme.colors.canvas}}}>
         <Stack.Protected guard={signedIn && !onboarded}>
           <Stack.Screen name="onboarding" options={{animation: 'fade', contentStyle: {backgroundColor: theme.colors.accent}}} />
         </Stack.Protected>
@@ -55,6 +58,8 @@ function RootStack() {
           {/* Rovy: the drive opens as a sheet sliding up over the Logbook, swiped down to close. */}
           <Stack.Screen name="trip/[id]" options={{presentation: 'modal', contentStyle: {backgroundColor: theme.colors.canvas}}} />
           <Stack.Screen name="trip-summary" options={{presentation: 'fullScreenModal', gestureEnabled: false}} />
+          {/* Cluster mode: the one landscape screen (spec 2026-10-25, cluster mode). */}
+          <Stack.Screen name="cluster" options={{presentation: 'fullScreenModal', orientation: 'landscape', animation: 'fade', contentStyle: {backgroundColor: CLUSTER_INK.background}}} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="(auth)" />
@@ -109,9 +114,15 @@ export default function RootLayout() {
     const stopSync = startSync();
     // Every fix of a drive, kept so the drive is scored whole when it ends (part 2b).
     const stopRecorder = startDriveRecorder();
+    // Each second of OBD-II data while a drive records (spec 2026-10-25, telemetry).
+    const stopObdRecorder = startObdRecorder();
+    // The phone's own sensors: corners, road and phone use per drive (telemetry sources, step 5).
+    const stopSensorRecorder = startSensorRecorder();
     return () => {
       stopSync();
       stopRecorder();
+      stopObdRecorder();
+      stopSensorRecorder();
       stopActivity();
       stopWidget();
       stopNotifications();

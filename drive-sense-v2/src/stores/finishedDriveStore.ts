@@ -6,6 +6,8 @@ import {getDb} from '../db';
 import {clearDrivePoints, drivePoints, getDetail, outboxId, outboxPut, putLocalTrip} from '../db/repos';
 import {clearObdSamples, deleteTripObd, obdSamples} from '../db/obdRepos';
 import {finalizeObd} from '../sync/obdRecorder';
+import {deleteTripSensors, putTripSensors} from '../db/sensorRepos';
+import {useSensorDriveStore} from './sensorDriveStore';
 import {HIGH_RPM} from '../obd/series';
 import {useVehicleStore} from './vehicleStore';
 import {isPhoneOnly, lookUpAddresses} from '../sync/driveBackup';
@@ -82,7 +84,19 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
       } catch (error) {
         console.warn('Could not save the drive\'s OBD data', error);
       }
+      // The phone-sensor summary (corners, road, phone use) goes with it, also kept only with a vehicle.
+      try {
+        const sensors = useSensorDriveStore.getState().summary();
+        if (drive.vehicle && sensors) {
+          putTripSensors(db, drive.startedAt, sensors);
+        } else {
+          deleteTripSensors(db, drive.startedAt);
+        }
+      } catch (error) {
+        console.warn('Could not save the drive\'s sensor data', error);
+      }
     }
+    useSensorDriveStore.getState().reset();
     set({drive, metrics, samples: drive.unsentSamples, progress: progressFor(drive), saveStatus: drive.vehicle ? 'saving' : 'local', error: null, detail: null, detailDone: false});
     if (drive.vehicle && db && isPhoneOnly()) {
       // "This phone only" (part 3): stored here for good, nothing uploads. The phone looks up the
@@ -129,6 +143,7 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
       const drive = get().drive;
       if (db && drive) {
         deleteTripObd(db, drive.startedAt);
+        deleteTripSensors(db, drive.startedAt);
         finishOutboxItem(db, outboxId(drive));
         useSyncStore.setState((s) => ({version: s.version + 1}));
       }

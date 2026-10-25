@@ -99,9 +99,17 @@ export const MIGRATIONS: string[] = [
     last_state TEXT
   );
   `,
+  // v7 (phone sensors): each finished drive's cornering, road and phone-use summary, keyed by
+  // start time like trip_obd.
+  `
+  CREATE TABLE trip_sensors (
+    started_at INTEGER PRIMARY KEY,
+    json TEXT NOT NULL
+  );
+  `,
 ];
 
-export const TABLES = ['vehicles', 'trips', 'trip_details', 'api_cache', 'sync_meta', 'outbox', 'drive_points', 'drive_obd_samples', 'trip_obd', 'obd_adapters'];
+export const TABLES = ['vehicles', 'trips', 'trip_details', 'api_cache', 'sync_meta', 'outbox', 'drive_points', 'drive_obd_samples', 'trip_obd', 'obd_adapters', 'trip_sensors'];
 
 export const schemaVersion = (db: SqlDb): number => db.get<{user_version: number}>('PRAGMA user_version')?.user_version ?? 0;
 
