@@ -30,7 +30,7 @@ export function DrivingTotalsPage() {
     return (
       <View style={pageStyles.page}>
         <Text style={pageStyles.title}>ALL TIME · DRIVING</Text>
-        <Text style={pageStyles.hint}>Your drives add up here</Text>
+        <Text style={pageStyles.hint}>No drives yet</Text>
       </View>
     );
   }
@@ -60,7 +60,7 @@ export function AllTimePage() {
     return (
       <View style={pageStyles.page}>
         <Text style={pageStyles.title}>ALL TIME · CAR</Text>
-        <Text style={pageStyles.hint}>Drives with the adapter show up here</Text>
+        <Text style={pageStyles.hint}>Needs the adapter</Text>
       </View>
     );
   }
@@ -161,7 +161,7 @@ export function GraphPage({width, accent}: {width: number; accent: string}) {
           </View>
         </>
       ) : (
-        <Text style={pageStyles.hint}>The graph fills in as you drive</Text>
+        <Text style={pageStyles.hint}>Drive to fill the graph</Text>
       )}
     </View>
   );
