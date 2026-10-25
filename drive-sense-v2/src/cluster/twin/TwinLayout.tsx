@@ -165,7 +165,6 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           views={[
             {key: 'drive', node: <TripPage d={d} />},
             {key: 'totals', node: <DrivingTotalsPage />},
-            {key: 'all', node: <AllTimePage />},
             {key: 'graph', node: <GraphPage width={panelW} accent={accent} />},
           ]}
         />,
@@ -188,7 +187,19 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
         />,
       ),
     });
-    pages.push({key: 'car', node: inset(<CarPage d={d} />)});
+    pages.push({
+      key: 'car',
+      node: inset(
+        <VerticalPager
+          height={panelH}
+          accent={accent}
+          views={[
+            {key: 'now', node: <CarPage d={d} />},
+            {key: 'all', node: <AllTimePage />},
+          ]}
+        />,
+      ),
+    });
   }
   pages.push({key: 'map', node: <MapPage accent={accent} />});
 

@@ -49,7 +49,7 @@ function Tick({cx, cy, r, share, major, progress, needle, accent, k}: {cx: numbe
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
  * Needle style is a classic gauge instead: plain white ticks on a thin ring, and a glowing needle
- * turning around a lit centre ring with the number inside it.
+ * that starts out from the centre, leaving the number in the middle clear.
  */
 export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
   const reduce = useReduceMotion();
@@ -119,8 +119,8 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const coreOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
   const tipOpacity = useDerivedValue(() => 1 - needle.value);
   const tipGlowOpacity = useDerivedValue(() => 0.6 * (1 - needle.value));
-  // The needle: a tapered blade from the edge of the centre ring out to the ticks, drawn pointing
-  // at 0° and turned to the value; the number sits inside the ring, clear of it.
+  // The needle: a tapered blade from a little way out from the centre to the ticks, drawn
+  // pointing at 0° and turned to the value; the number sits in the clear middle.
   const hubR = r * 0.44;
   const blade = useMemo(() => {
     const root = r * 0.47;
@@ -190,11 +190,6 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             <Path path={blade} color={accent} />
             <Line p1={vec(cx + r * 0.5, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
           </Group>
-          {/* The centre ring the needle turns around, softly lit in the accent. */}
-          <Circle cx={cx} cy={cy} r={hubR} style="stroke" strokeWidth={6 * k} color={accent} opacity={0.35}>
-            <BlurMask blur={8 * k} style="normal" />
-          </Circle>
-          <Circle cx={cx} cy={cy} r={hubR} style="stroke" strokeWidth={1.6 * Math.max(0.7, k)} color={accent} />
         </Group>
       </Canvas>
       {tickMarks
@@ -208,12 +203,12 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
           );
         })}
       <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
-        {/* Needle style keeps the figures inside the centre ring, a little smaller. */}
+        {/* Needle style keeps the figures in the clear middle, a little smaller. */}
         <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.78 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
         <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}]}>{unit}</Text>
         {classic ? null : footer}
       </View>
-      {/* Needle style: the gear and readouts sit just below the centre ring, not across it. */}
+      {/* Needle style: the gear and readouts sit below the clear middle, out of the needle's root. */}
       {classic ? (
         <View style={[styles.below, {top: cy + hubR + 4 * k}]} pointerEvents="none">
           {footer}
