@@ -5,6 +5,7 @@ import {useRecordingStore} from '../../stores/recordingStore';
 import {useLocationFeed} from '../../tracking/useLocationFeed';
 import {useMotionFeed} from '../../tracking/useMotionFeed';
 import {useBarometerFeed} from '../../tracking/useBarometerFeed';
+import {useDeviceMotionFeed} from '../../tracking/useDeviceMotionFeed';
 import {useBackgroundLocation} from '../../tracking/backgroundLocation';
 import {useDriveHandoff} from '../../tracking/useDriveHandoff';
 import {useSpeedAlertFeedback} from '../../tracking/useSpeedAlertFeedback';
@@ -19,6 +20,8 @@ export default function TabsLayout() {
   // The barometer follows GPS: it refines the same altitude.
   useBarometerFeed(pathname === '/drive' || live);
   useMotionFeed(recording);
+  // Corners and road roughness for the drive's sensor summary.
+  useDeviceMotionFeed(recording);
   useBackgroundLocation();
   useTripSync();
   useDriveHandoff();

@@ -22,6 +22,7 @@ import {useAppearanceStore} from '../theme/appearanceStore';
 import {ThemeProvider, useAppTheme} from '../theme/ThemeProvider';
 import {startDriveNotifications} from '../notifications/driveNotifications';
 import {startDriveRecorder} from '../sync/driveRecorder';
+import {usePhoneUseFeed} from '../tracking/usePhoneUseFeed';
 import {startObdRecorder} from '../sync/obdRecorder';
 import {startSensorRecorder} from '../sync/sensorRecorder';
 import {CLUSTER_INK} from '../cluster/accents';
@@ -32,6 +33,8 @@ import {startWeekWidgetSync} from '../widgets/weekWidgetSync';
 void SplashScreen.preventAutoHideAsync();
 
 function RootStack() {
+  // Phone use while driving is counted across every screen, so it lives at the root.
+  usePhoneUseFeed();
   const theme = useAppTheme();
   const status = useAuthStore((s) => s.status);
   const signedIn = status === 'signedIn';
