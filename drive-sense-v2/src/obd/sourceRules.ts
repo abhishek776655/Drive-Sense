@@ -8,8 +8,6 @@ import type {PidKey} from './pids';
 
 /** An adapter reading older than this is not used for a fix. */
 export const ADAPTER_FRESH_MS = 2000;
-/** A drive ends this long after the car's computer stops answering (ignition off). */
-export const ENGINE_OFF_END_S = 60;
 /** GPS saying the car moved this recently means the adapter dropped out, not that the engine stopped. */
 export const RECENT_MOVEMENT_S = 30;
 /** GPS gaps longer than this are filled from adapter distance (tunnels, garages). */
@@ -70,31 +68,40 @@ export const lastAnswerAt = (values: Values): number | null => {
 };
 
 /**
- * When a drive should end because the ignition went off: the time the engine stopped, or null.
- *
- * The engine stopping is not enough: at a long red light the engine may be off (switched off, or
- * auto start-stop) with the ignition on, and the car's computer keeps answering with RPM 0. That
- * case is left to the GPS parked rule. Only when the computer stops answering altogether for
- * `ENGINE_OFF_END_S` (key out) and GPS isn't showing the car moving does the drive end here.
+ * Once the adapter has seen the engine run during a drive, it decides auto-pause and auto-stop
+ * instead of GPS: a standstill with the engine running is traffic, not parking.
+ */
+export const adapterGoverns = (engineOnAt: number | null, startedAt: number): boolean => engineOnAt != null && engineOnAt >= startedAt;
+
+/** When the car was last doing anything: moving, or (with the adapter in charge) its engine running. */
+export const lastActiveAt = (lastMovementAt: number | null, engineOnAt: number | null, governs: boolean): number | null =>
+  governs && engineOnAt != null ? Math.max(lastMovementAt ?? 0, engineOnAt) : lastMovementAt;
+
+/**
+ * When a drive with the adapter should end: the time the engine stopped, or null. The engine counts
+ * as off whether the car's computer still answers with RPM 0 (ignition on, start-stop) or has gone
+ * quiet (key out); either way the drive ends once it has been off for the Auto-stop time (`idleS`).
+ * While it runs, `engineOnAt` keeps moving up, so a long standstill never ends the drive. GPS showing
+ * movement means the adapter dropped out, not that the car stopped.
  */
 export const engineEndAt = ({
   engineOnAt,
-  answeredAt,
   startedAt,
   now,
   lastMovementAt,
+  idleS,
 }: {
   engineOnAt: number | null;
-  answeredAt: number | null;
   startedAt: number;
   now: number;
   lastMovementAt: number | null;
+  idleS: number;
 }): number | null => {
-  if (engineOnAt == null || engineOnAt < startedAt || answeredAt == null) {
+  if (engineOnAt == null || !adapterGoverns(engineOnAt, startedAt)) {
     return null;
   }
-  if (now - answeredAt < ENGINE_OFF_END_S * 1000) {
-    return null; // still answering: ignition on, whatever the engine is doing
+  if (now - engineOnAt < idleS * 1000) {
+    return null;
   }
   if (lastMovementAt != null && lastMovementAt > engineOnAt && now - lastMovementAt < RECENT_MOVEMENT_S * 1000) {
     return null; // GPS says it's moving: the adapter dropped out, the car didn't stop

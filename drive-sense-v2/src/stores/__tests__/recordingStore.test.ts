@@ -416,4 +416,50 @@ describe('recordingStore', () => {
     expect(useRecordingStore.getState().stats.altitudeSource).toBe('gps');
     expect(useRecordingStore.getState().stats.altitudeM).toBe(60);
   });
+
+  describe('with the adapter in charge', () => {
+    const engine = (t: number, running: boolean) =>
+      useObdStore.setState((o) => ({values: {rpm: {v: running ? 800 : 0, at: t}}, engineOnAt: running ? t : o.engineOnAt}));
+    afterEach(() => useObdStore.setState({values: {}, engineOnAt: null}));
+
+    it('does not auto-stop by GPS while the engine runs at a standstill', () => {
+      usePreferencesStore.setState({autoStopMinutes: 1});
+      const now = jest.spyOn(Date, 'now').mockReturnValue(0);
+      const store = useRecordingStore.getState();
+      store.start({id: 'v1', name: 'Citigo'}, 0);
+      for (let t = 1000; t <= 400_000; t += 1000) {
+        now.mockReturnValue(t);
+        engine(t, true);
+        store.ingest(sample({timestamp: t, speedMps: t === 1000 ? 10 : 0, latitude: 28.60001}));
+      }
+      now.mockRestore();
+      expect(useRecordingStore.getState().status).toBe('recording');
+    });
+
+    it('auto-pauses only once the engine stops too, and resumes when it starts again', () => {
+      usePreferencesStore.setState({autoPause: true, autoPauseSeconds: 30, autoStop: false});
+      const now = jest.spyOn(Date, 'now').mockReturnValue(0);
+      const store = useRecordingStore.getState();
+      store.start({id: 'v1', name: 'Citigo'}, 0);
+      const tick = (t: number, running: boolean) => {
+        now.mockReturnValue(t);
+        engine(t, running);
+        store.ingest(sample({timestamp: t, speedMps: t === 1000 ? 10 : 0, latitude: 28.60001}));
+      };
+      // Standing 60 s with the engine running: traffic, no pause.
+      for (let t = 1000; t <= 61_000; t += 1000) {
+        tick(t, true);
+      }
+      expect(useRecordingStore.getState().status).toBe('recording');
+      // Engine off: paused 30 s later.
+      for (let t = 62_000; t <= 95_000; t += 1000) {
+        tick(t, false);
+      }
+      expect(useRecordingStore.getState()).toMatchObject({status: 'paused', autoPaused: true});
+      // Engine on again: the drive carries on.
+      tick(96_000, true);
+      now.mockRestore();
+      expect(useRecordingStore.getState().status).toBe('recording');
+    });
+  });
 });

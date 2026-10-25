@@ -11,7 +11,7 @@ import {BatteryWatch} from './battery';
 import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
 import {createPollLoop} from './pollLoop';
 import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
-import {engineEndAt, lastAnswerAt} from './sourceRules';
+import {engineEndAt} from './sourceRules';
 
 /** Waits before trying the adapter again after a drop or failure, in ms. */
 const BACKOFF_MS = [2_000, 5_000, 10_000, 30_000];
@@ -196,21 +196,23 @@ export function useObdLink() {
     return runSession(adapter, fuel);
   }, [deviceId, fuel]);
 
-  // Drive end (spec 2026-10-25, telemetry sources): 60 s after the ignition goes off. Driven by adapter
-  // and recording updates, which keep coming in the background; the tick is a foreground backup.
+  // Drive end with the adapter (spec 2026-10-25, telemetry sources): once the engine has been off
+  // (RPM 0 or ignition off) for the Auto-stop time. Driven by adapter and recording updates, which
+  // keep coming in the background; the tick is a foreground backup. Auto-paused drives end the same way.
   useEffect(() => {
     const check = () => {
       const rec = useRecordingStore.getState();
-      if (rec.status !== 'recording' || rec.startedAt == null || !usePreferencesStore.getState().autoStop) {
+      const prefs = usePreferencesStore.getState();
+      const live = rec.status === 'recording' || (rec.status === 'paused' && rec.autoPaused);
+      if (!live || rec.startedAt == null || !prefs.autoStop) {
         return;
       }
-      const obd = useObdStore.getState();
       const endAt = engineEndAt({
-        engineOnAt: obd.engineOnAt,
-        answeredAt: lastAnswerAt(obd.values),
+        engineOnAt: useObdStore.getState().engineOnAt,
         startedAt: rec.startedAt,
         now: Date.now(),
         lastMovementAt: rec.lastMovementAt,
+        idleS: prefs.autoStopMinutes * 60,
       });
       if (endAt != null) {
         rec.end(endAt, true);

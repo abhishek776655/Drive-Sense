@@ -1,4 +1,4 @@
-import {adapterReading, applyAdapter, fillGap} from '../obd/sourceRules';
+import {adapterGoverns, adapterReading, applyAdapter, fillGap, lastActiveAt} from '../obd/sourceRules';
 import {useObdStore} from './obdStore';
 import {create} from 'zustand';
 import {usePreferencesStore} from './preferencesStore';
@@ -366,13 +366,17 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
         set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}, obdDistAt: null});
         return;
       }
-      // Auto-paused: driving off resumes the drive; staying parked can still auto-stop it.
+      // Auto-paused: driving off (or, with the adapter, the engine starting again) resumes the drive.
+      // Staying parked can still auto-stop it: by GPS here, or by the adapter's engine-off rule.
       const recentFixes = [...state.recentFixes, sample].slice(-RECENT_FIXES);
       const fastFixes = fresh && shouldAutoStart(sample.speedMps, true) ? state.fastFixes + 1 : 0;
+      const engineOnAt = useObdStore.getState().engineOnAt;
+      const governs = state.startedAt != null && adapterGoverns(engineOnAt, state.startedAt);
+      const engineBack = governs && reading?.engineOn === true && state.pausedAt != null && (engineOnAt ?? 0) > state.pausedAt;
       set({position: sample, stats: {...state.stats, ...fix, speedMps: 0}, recentFixes, fastFixes, obdDistAt: null});
-      if (fastFixes >= AUTO_RESUME_FIXES) {
+      if (fastFixes >= AUTO_RESUME_FIXES || engineBack) {
         get().resume();
-      } else if (fresh && prefs.autoStop && shouldAutoEnd(state.lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
+      } else if (!governs && fresh && prefs.autoStop && shouldAutoEnd(state.lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
         get().end(sample.timestamp, true);
       }
       return;
@@ -464,11 +468,17 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       recentFixes,
       obdDistAt: reading ? reading.distanceM : null,
     });
-    if (fresh && prefs.autoStop && shouldAutoEnd(lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
+    // With the adapter in charge (it has seen the engine run this drive), a standstill with the engine
+    // running is traffic: auto-pause waits for the engine to stop too, and auto-stop is the adapter's
+    // engine-off rule (useObdLink), not the GPS parked rule.
+    const engineOnAt = useObdStore.getState().engineOnAt;
+    const governs = state.startedAt != null && adapterGoverns(engineOnAt, state.startedAt);
+    const activeAt = lastActiveAt(lastMovementAt, engineOnAt, governs);
+    if (!governs && fresh && prefs.autoStop && shouldAutoEnd(lastMovementAt, sample.timestamp, recentFixes, prefs.autoStopMinutes * 60)) {
       get().end(sample.timestamp, true);
-    } else if (fresh && prefs.autoPause && shouldAutoPause(lastMovementAt, sample.timestamp, prefs.autoPauseSeconds)) {
-      // Paused from when the car stopped, so the standing time is not counted as driving.
-      const since = Math.min(lastMovementAt ?? sample.timestamp, sample.timestamp);
+    } else if (fresh && prefs.autoPause && shouldAutoPause(activeAt, sample.timestamp, prefs.autoPauseSeconds)) {
+      // Paused from when the car stopped (and its engine, with the adapter), so standing time isn't driving.
+      const since = Math.min(activeAt ?? sample.timestamp, sample.timestamp);
       set({status: 'paused', pausedAt: since, autoPaused: true, fastFixes: 0, stats: {...get().stats, speedMps: 0}});
     }
   },

@@ -1,7 +1,7 @@
 import {Ionicons} from '@expo/vector-icons';
 import {useEffect, useState} from 'react';
 import {View} from 'react-native';
-import {carState, ENGINE_OFF_END_S, lastAnswerAt, type CarState} from '../../obd/sourceRules';
+import {adapterGoverns, carState, type CarState} from '../../obd/sourceRules';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useRecordingStore} from '../../stores/recordingStore';
@@ -28,26 +28,30 @@ export function useCarState(): CarState {
 
 /**
  * What the car is doing when it is not simply running (spec 2026-10-25, telemetry sources): engine off
- * with the ignition on (a long light: the drive carries on), or parked with the ignition off (the
- * drive ends a minute later, counted down here).
+ * with the ignition on, or parked with the ignition off. Either way, once the engine has been off for
+ * the Auto-stop time the drive ends; the time left is counted down here.
  */
 export function CarStateChip() {
   const c = useAppTheme().colors;
   const values = useObdStore((s) => s.values);
-  const recording = useRecordingStore((s) => s.status === 'recording');
+  const recording = useRecordingStore((s) => s.status === 'recording' || (s.status === 'paused' && s.autoPaused));
+  const startedAt = useRecordingStore((s) => s.startedAt);
+  const engineOnAt = useObdStore((s) => s.engineOnAt);
   const autoStop = usePreferencesStore((s) => s.autoStop);
+  const stopS = usePreferencesStore((s) => s.autoStopMinutes) * 60;
   const now = useNow();
   const state = carState(values, now);
-  const answered = lastAnswerAt(values);
-  const endsIn = answered == null ? null : Math.max(0, Math.ceil(ENGINE_OFF_END_S - (now - answered) / 1000));
+  const counting = recording && autoStop && startedAt != null && adapterGoverns(engineOnAt, startedAt);
+  const left = counting && engineOnAt != null ? Math.max(0, Math.ceil(stopS - (now - engineOnAt) / 1000)) : null;
+  const endsIn = left == null ? null : left > 0 ? `Drive ends in ${left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left} s`}` : 'Ending drive…';
   const look = {
     running: {icon: 'flash' as const, color: c.green, title: '', note: null},
-    engineOff: {icon: 'pause-circle' as const, color: c.amber, title: 'Engine off · ignition on', note: recording ? 'Drive carries on' : null},
+    engineOff: {icon: 'pause-circle' as const, color: c.amber, title: 'Engine off · ignition on', note: endsIn},
     parked: {
       icon: 'car' as const,
       color: c.textSecondary,
       title: 'Parked · ignition off',
-      note: recording && autoStop && endsIn != null ? (endsIn > 0 ? `Drive ends in ${endsIn} s` : 'Ending drive…') : null,
+      note: endsIn,
     },
   }[state];
 

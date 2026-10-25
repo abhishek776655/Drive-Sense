@@ -37,6 +37,7 @@ import {
   type MapStyle,
 } from '../../stores/preferencesStore';
 import {useActiveVehicle} from '../../stores/vehicleStore';
+import {useObdStore} from '../../stores/obdStore';
 import {withAlpha} from '../../theme/color';
 import {useAppearanceStore} from '../../theme/appearanceStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
@@ -90,6 +91,8 @@ export default function SettingsScreen() {
   const smallTitle = scrollY.interpolate({inputRange: [TITLE_SWAP - 12, TITLE_SWAP], outputRange: [0, 1], extrapolate: 'clamp'});
 
   const prefs = usePreferencesStore();
+  // The adapter's own setting only makes sense once an adapter is paired with the vehicle.
+  const hasAdapter = useObdStore((s) => s.adapter != null);
   const setPrefs = prefs.set;
   const {preference, setPreference} = useAppearanceStore();
   const logout = useAuthStore((s) => s.logout);
@@ -270,18 +273,20 @@ export default function SettingsScreen() {
             subtitle="Start recording when you drive off"
             right={<SettingsSwitch label="Auto-start" value={prefs.autoStart} onChange={(autoStart) => void setPrefs({autoStart})} />}
           />
-          <SettingsRow
-            icon="hardware-chip"
-            iconColor={c.accent}
-            title="Start with car adapter"
-            subtitle="Start recording when your paired OBD-II adapter connects"
-            right={<SettingsSwitch label="Start with car adapter" value={prefs.obdAutoStart} onChange={(obdAutoStart) => void setPrefs({obdAutoStart})} />}
-          />
+          {hasAdapter ? (
+            <SettingsRow
+              icon="hardware-chip"
+              iconColor={c.accent}
+              title="Start with car adapter"
+              subtitle="Start recording when your paired OBD-II adapter connects"
+              right={<SettingsSwitch label="Start with car adapter" value={prefs.obdAutoStart} onChange={(obdAutoStart) => void setPrefs({obdAutoStart})} />}
+            />
+          ) : null}
           <SettingsRow
             icon="stop-circle"
             iconColor={c.red}
             title="Auto-stop"
-            subtitle="End the drive once parked"
+            subtitle={hasAdapter ? 'End the drive once parked, or once the engine has been off this long' : 'End the drive once parked'}
             right={<SettingsSwitch label="Auto-stop" value={prefs.autoStop} onChange={(autoStop) => void setPrefs({autoStop})} />}
             below={
               prefs.autoStop ? (
@@ -304,7 +309,7 @@ export default function SettingsScreen() {
             icon="pause-circle"
             iconColor={c.amber}
             title="Auto-pause"
-            subtitle="Pause when the vehicle stands still, resume when you drive off"
+            subtitle={hasAdapter ? 'Pause when the vehicle stands still with the engine off, resume when you drive off or start it' : 'Pause when the vehicle stands still, resume when you drive off'}
             right={<SettingsSwitch label="Auto-pause" value={prefs.autoPause} onChange={(autoPause) => void setPrefs({autoPause})} />}
             below={
               prefs.autoPause ? (

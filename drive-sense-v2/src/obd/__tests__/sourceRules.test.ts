@@ -1,5 +1,5 @@
 import type {Sample} from '../../stores/recordingStore';
-import {adapterReading, applyAdapter, carState, engineEndAt, fillGap, lastAnswerAt} from '../sourceRules';
+import {adapterGoverns, adapterReading, applyAdapter, carState, engineEndAt, fillGap, lastActiveAt, lastAnswerAt} from '../sourceRules';
 
 const NOW = 1_000_000;
 const fix: Sample = {latitude: 28.6, longitude: 77.2, speedMps: 10, altitudeM: null, headingDeg: null, accuracyM: 5, timestamp: NOW};
@@ -36,29 +36,51 @@ describe('GPS gap fill', () => {
   });
 });
 
-describe('ignition-off drive end', () => {
-  const base = {engineOnAt: NOW, answeredAt: NOW, startedAt: NOW - 600_000, lastMovementAt: NOW - 5_000};
+describe('engine-off drive end', () => {
+  const STOP_S = 180;
+  const base = {engineOnAt: NOW, startedAt: NOW - 600_000, lastMovementAt: NOW - 5_000, idleS: STOP_S};
 
-  it('ends 60 s after the car stops answering, at the moment the engine stopped', () => {
-    expect(engineEndAt({...base, now: NOW + 59_000})).toBeNull();
-    expect(engineEndAt({...base, now: NOW + 60_000})).toBe(NOW);
+  it('ends once the engine has been off for the Auto-stop time, back-dated to when it stopped', () => {
+    expect(engineEndAt({...base, now: NOW + 179_000})).toBeNull();
+    expect(engineEndAt({...base, now: NOW + 180_000})).toBe(NOW);
+    // Shorter or longer settings follow along.
+    expect(engineEndAt({...base, idleS: 60, now: NOW + 60_000})).toBe(NOW);
   });
 
-  it('does not end at a 150 s red light with the engine off but the ignition on', () => {
-    // The computer keeps answering (RPM 0) every few seconds; the engine last ran at NOW.
-    for (let t = 10_000; t <= 150_000; t += 10_000) {
-      expect(engineEndAt({...base, answeredAt: NOW + t, now: NOW + t + 2_000})).toBeNull();
+  it('never ends while the engine runs, however long the car stands', () => {
+    // Running at a standstill: each RPM > 0 reading moves engineOnAt up to now.
+    for (let t = 60_000; t <= 1_200_000; t += 60_000) {
+      expect(engineEndAt({...base, engineOnAt: NOW + t - 1_000, now: NOW + t})).toBeNull();
     }
   });
 
+  it('does not end at a 150 s red light with start-stop (engine off, ignition on)', () => {
+    expect(engineEndAt({...base, now: NOW + 150_000})).toBeNull();
+  });
+
   it('does not end when GPS shows the car still moving (adapter dropped out)', () => {
-    expect(engineEndAt({...base, now: NOW + 90_000, lastMovementAt: NOW + 80_000})).toBeNull();
-    expect(engineEndAt({...base, now: NOW + 120_000, lastMovementAt: NOW + 80_000})).toBe(NOW);
+    expect(engineEndAt({...base, now: NOW + 200_000, lastMovementAt: NOW + 190_000})).toBeNull();
+    expect(engineEndAt({...base, now: NOW + 230_000, lastMovementAt: NOW + 190_000})).toBe(NOW);
   });
 
   it('needs the engine seen running during this drive', () => {
-    expect(engineEndAt({...base, now: NOW + 90_000, engineOnAt: null})).toBeNull();
-    expect(engineEndAt({...base, now: NOW + 90_000, startedAt: NOW + 1_000})).toBeNull();
+    expect(engineEndAt({...base, now: NOW + 400_000, engineOnAt: null})).toBeNull();
+    expect(engineEndAt({...base, now: NOW + 400_000, startedAt: NOW + 1_000})).toBeNull();
+  });
+});
+
+describe('adapter-led auto rules', () => {
+  it('lets the adapter decide once it has seen the engine run in this drive', () => {
+    expect(adapterGoverns(NOW, NOW - 1)).toBe(true);
+    expect(adapterGoverns(NOW - 10, NOW)).toBe(false);
+    expect(adapterGoverns(null, NOW)).toBe(false);
+  });
+
+  it('counts the car active while it moves or its engine runs', () => {
+    expect(lastActiveAt(NOW - 60_000, NOW - 2_000, true)).toBe(NOW - 2_000);
+    expect(lastActiveAt(NOW - 2_000, NOW - 60_000, true)).toBe(NOW - 2_000);
+    // Without the adapter in charge, only movement counts.
+    expect(lastActiveAt(NOW - 60_000, NOW - 2_000, false)).toBe(NOW - 60_000);
   });
 });
 
