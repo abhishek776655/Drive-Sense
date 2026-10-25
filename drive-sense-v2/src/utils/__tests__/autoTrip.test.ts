@@ -33,7 +33,7 @@ describe('auto trip rules (ported from mobile-expo)', () => {
 });
 
 describe('settings-driven trip rules', () => {
-  const {isShortDrive, nextSpeedAlert, shouldAutoEnd} = jest.requireActual('../autoTrip');
+  const {isEmptyDrive, isShortDrive, nextSpeedAlert, shouldAutoEnd} = jest.requireActual('../autoTrip');
   const parked = Array.from({length: 4}, (_, i) => ({latitude: 28.5, longitude: 77.1, speedMps: 0, timestamp: i * 1000}));
 
   it('waits the chosen idle time before auto-ending', () => {
@@ -43,6 +43,9 @@ describe('settings-driven trip rules', () => {
 
   it('calls a drive short when under 300 m or under a minute', () => {
     expect(isShortDrive(250, 600)).toBe(true);
+    expect(isEmptyDrive({distanceM: 0, route: []})).toBe(true);
+    expect(isEmptyDrive({distanceM: 0, route: [{}]})).toBe(true);
+    expect(isEmptyDrive({distanceM: 40, route: [{}, {}]})).toBe(false);
     expect(isShortDrive(5000, 45)).toBe(true);
     expect(isShortDrive(5000, 600)).toBe(false);
   });

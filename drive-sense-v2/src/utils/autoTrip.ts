@@ -44,6 +44,9 @@ export const SHORT_DRIVE_SECONDS = 60;
 export const isShortDrive = (distanceM: number, durationSeconds: number): boolean =>
   distanceM < SHORT_DRIVE_METERS || durationSeconds < SHORT_DRIVE_SECONDS;
 
+/** Nothing was recorded (no distance, no route): the server can't store it, so it is never offered for saving. */
+export const isEmptyDrive = (drive: {distanceM: number; route: unknown[]}): boolean => drive.distanceM < 1 && drive.route.length < 2;
+
 /** Speed alert: fires on crossing the limit, and again only after dropping below it and a minute passing. */
 export const SPEED_ALERT_REPEAT_MS = 60_000;
 export interface SpeedAlertState {

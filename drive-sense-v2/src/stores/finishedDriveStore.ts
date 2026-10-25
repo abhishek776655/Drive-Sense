@@ -1,3 +1,4 @@
+import {isAxiosError} from 'axios';
 import {create} from 'zustand';
 import {getApiErrorMessage} from '../services/apiClient';
 import {tripDetailApi, tripUploadApi, type TripDetail} from '../services/tripService';
@@ -137,7 +138,12 @@ export const useFinishedDriveStore = create<FinishedDriveState>((set, get) => ({
     try {
       await waitForSyncIdle();
       if (tripId) {
-        await tripUploadApi.remove(tripId);
+        // Already gone on the server is as good as deleted.
+        await tripUploadApi.remove(tripId).catch((error: unknown) => {
+          if (!(isAxiosError(error) && error.response?.status === 404)) {
+            throw error;
+          }
+        });
       }
       const db = getDb();
       const drive = get().drive;

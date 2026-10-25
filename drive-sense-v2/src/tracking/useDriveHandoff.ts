@@ -2,7 +2,7 @@ import {router} from 'expo-router';
 import {useEffect} from 'react';
 import {Alert} from 'react-native';
 import {usePreferencesStore} from '../stores/preferencesStore';
-import {isShortDrive} from '../utils/autoTrip';
+import {isEmptyDrive, isShortDrive} from '../utils/autoTrip';
 import {useFinishedDriveStore} from '../stores/finishedDriveStore';
 import {useRecordingStore} from '../stores/recordingStore';
 import {useActiveVehicle, useVehicleStore} from '../stores/vehicleStore';
@@ -11,8 +11,9 @@ import {useActiveVehicle, useVehicleStore} from '../stores/vehicleStore';
  * Glue between the recording session and the rest of the app:
  * - a drive that ends (End button or the 3-minute parked rule, even while backgrounded) opens its
  *   summary, which finishes it on the server; with "Ignore short drives" on, a drive under 300 m or
- *   a minute is discarded instead (its server trip deleted) and no summary opens;
- * - a summary left unsaved by a crash reopens on launch;
+ *   a minute is discarded instead (its server trip deleted) and no summary opens; a drive where nothing
+ *   was recorded is always discarded (the server can't store it, so Save could never succeed);
+ * - a summary left unsaved by a crash reopens on launch, unless nothing was recorded;
  * - auto-start uses the vehicle picked on Drive.
  */
 export function useDriveHandoff(): void {
@@ -40,6 +41,11 @@ export function useDriveHandoff(): void {
       return;
     }
     showSummary(finished);
+    if (isEmptyDrive(finished)) {
+      void useFinishedDriveStore.getState().discard();
+      Alert.alert('Drive not saved', 'No movement was recorded on this drive.');
+      return;
+    }
     if (usePreferencesStore.getState().ignoreShortDrives && isShortDrive(finished.distanceM, finished.durationSeconds)) {
       void useFinishedDriveStore.getState().discard();
       Alert.alert('Short drive not saved', 'Drives under 300 m or a minute are ignored. You can change this in Settings.');
@@ -49,8 +55,15 @@ export function useDriveHandoff(): void {
   }, [justFinished, consumeFinished, showSummary]);
 
   useEffect(() => {
-    if (useFinishedDriveStore.getState().drive) {
-      router.push('/trip-summary');
+    const restored = useFinishedDriveStore.getState().drive;
+    if (!restored) {
+      return;
     }
+    // An empty drive left from before can never be saved: drop it instead of reopening it.
+    if (isEmptyDrive(restored)) {
+      void useFinishedDriveStore.getState().discard();
+      return;
+    }
+    router.push('/trip-summary');
   }, []);
 }
