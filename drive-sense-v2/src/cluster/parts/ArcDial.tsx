@@ -3,7 +3,7 @@ import {useEffect, useMemo, useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {Easing, interpolateColor, useDerivedValue, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue} from 'react-native-reanimated';
 import {useReduceMotion} from '../../components/onboarding/motion';
-import {CLUSTER_INK} from '../accents';
+import {CLUSTER_INK, type DialStyle} from '../accents';
 import {angleAt, arcPath, fraction, polar, ticks as tickList} from '../motion';
 
 /** Sweep up and back on opening, like a real cluster's self-test. */
@@ -31,6 +31,8 @@ export interface ArcDialProps {
   display?: string;
   /** Size of the middle number against the dial (longer numbers, like RPM, need less). */
   numberScale?: number;
+  /** A glowing arc, or a needle over a faint arc; switching crossfades between them. */
+  dialStyle?: DialStyle;
 }
 
 /** One tick: grey, and lit in the accent while the arc covers it. */
@@ -46,8 +48,9 @@ function Tick({cx, cy, r, share, major, progress, accent, k}: {cx: number; cy: n
  * A cluster dial drawn on the GPU (spec 2026-10-25, cluster mode, section 4): track, ticks that
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
+ * In needle style a glowing blade sweeps over a faint arc instead.
  */
-export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21}: ArcDialProps) {
+export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
   const reduce = useReduceMotion();
   const [swept, setSwept] = useState(false);
   const ready = reduce || swept;
@@ -55,6 +58,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const trail = useSharedValue(0);
   const heat = useSharedValue(0);
   const pulse = useSharedValue(0);
+  const needle = useSharedValue(dialStyle === 'needle' ? 1 : 0);
 
   // Strokes, blur and ticks scale with the dial, so it reads the same as a card or full screen.
   const k = Math.min(1, size / 300);
@@ -89,6 +93,10 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   }, [value, max, ready, settleMs, progress, trail, reduce]);
 
   useEffect(() => {
+    needle.set(reduce ? (dialStyle === 'needle' ? 1 : 0) : withTiming(dialStyle === 'needle' ? 1 : 0, {duration: 380, easing: Easing.inOut(Easing.quad)}));
+  }, [dialStyle, needle, reduce]);
+
+  useEffect(() => {
     heat.set(withTiming(redHeat, {duration: 250}));
     pulse.set(redHeat >= 1 && !reduce ? withRepeat(withTiming(1, {duration: 250}), -1, true) : withTiming(0, {duration: 200}));
   }, [redHeat, heat, pulse, reduce]);
@@ -102,7 +110,28 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   });
   const ambientOpacity = useDerivedValue(() => 0.18 + 0.5 * progress.value + 0.25 * pulse.value * heat.value);
   const redOpacity = useDerivedValue(() => 0.32 + 0.6 * heat.value);
-  const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 : 0));
+  const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 * (1 - needle.value) : 0));
+  // Arc style lights the whole arc; needle style keeps a faint trace of it under the needle.
+  const bloomOpacity = useDerivedValue(() => 0.22 * (1 - needle.value));
+  const glowOpacity = useDerivedValue(() => 0.85 - 0.6 * needle.value);
+  const coreOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
+  const tipOpacity = useDerivedValue(() => 1 - needle.value);
+  const tipGlowOpacity = useDerivedValue(() => 0.6 * (1 - needle.value));
+  // The needle: a tapered blade from inside the ticks out past the arc, drawn pointing at 0° and
+  // turned to the value. Short, so it never crosses the numbers in the middle.
+  const blade = useMemo(() => {
+    const inner = r * 0.56;
+    const outer = r + 6 * k;
+    const w = 4.6 * k;
+    const p = Skia.Path.Make();
+    p.moveTo(cx + inner, cy - w);
+    p.lineTo(cx + outer, cy - 0.8 * k);
+    p.lineTo(cx + outer, cy + 0.8 * k);
+    p.lineTo(cx + inner, cy + w);
+    p.close();
+    return p;
+  }, [cx, cy, r, k]);
+  const needleTurn = useDerivedValue(() => [{rotate: (angleAt(progress.value) * Math.PI) / 180}]);
 
   const labelR = r - 34 * k;
   return (
@@ -131,18 +160,26 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         <Path path={full} start={0} end={trail} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={trailOpacity}>
           <BlurMask blur={5 * k} style="normal" />
         </Path>
-        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={24 * k} strokeCap="round" color={accent} opacity={0.22}>
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={24 * k} strokeCap="round" color={accent} opacity={bloomOpacity}>
           <BlurMask blur={14 * k} style="normal" />
         </Path>
-        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={0.85}>
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={glowOpacity}>
           <BlurMask blur={3 * k} style="solid" />
         </Path>
-        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={3 * Math.max(0.7, k)} strokeCap="round" color="rgba(255,255,255,0.85)" />
+        <Path path={full} start={0} end={progress} style="stroke" strokeWidth={3 * Math.max(0.7, k)} strokeCap="round" color="#FFFFFF" opacity={coreOpacity} />
         {/* The leading edge: a bright point with its own glow. */}
-        <Circle cx={tipX} cy={tipY} r={9 * k} color={accent} opacity={0.6}>
+        <Circle cx={tipX} cy={tipY} r={9 * k} color={accent} opacity={tipGlowOpacity}>
           <BlurMask blur={8 * k} style="normal" />
         </Circle>
-        <Circle cx={tipX} cy={tipY} r={3.2 * Math.max(0.7, k)} color="#FFFFFF" />
+        <Circle cx={tipX} cy={tipY} r={3.2 * Math.max(0.7, k)} color="#FFFFFF" opacity={tipOpacity} />
+        {/* Needle: glow, accent blade, bright spine. */}
+        <Group opacity={needle} transform={needleTurn} origin={vec(cx, cy)}>
+          <Path path={blade} color={accent} opacity={0.7}>
+            <BlurMask blur={9 * k} style="normal" />
+          </Path>
+          <Path path={blade} color={accent} />
+          <Line p1={vec(cx + r * 0.6, cy)} p2={vec(cx + r + 4 * k, cy)} color="#FFFFFF" strokeWidth={1.2 * Math.max(0.7, k)} strokeCap="round" opacity={0.9} />
+        </Group>
       </Canvas>
       {tickMarks
         .filter((t) => showLabels && t.major)

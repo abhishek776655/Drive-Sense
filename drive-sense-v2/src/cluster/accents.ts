@@ -30,3 +30,8 @@ export const CLUSTER_INK = {
 
 /** 'auto' follows the Drive tab's speedometer accent. */
 export const accentColor = (accent: ClusterAccent, driveAccent: string): string => (accent === 'auto' ? driveAccent : CLUSTER_ACCENTS[accent]);
+
+/** How the dials show their value: a glowing arc, or a needle sweeping over a fainter arc. */
+export const DIAL_STYLES = ['arc', 'needle'] as const;
+export type DialStyle = (typeof DIAL_STYLES)[number];
+export const DIAL_STYLE_NAMES: Record<DialStyle, string> = {arc: 'Arc', needle: 'Needle'};

@@ -38,4 +38,9 @@ describe('mapTypeFor', () => {
     expect(p).toMatchObject({fuelPrice: 105.5, currency: '€', tankLitres: {v1: 45}});
     expect(sanitizePreferences({fuelPrice: -3, currency: 'DM'})).toMatchObject({fuelPrice: null, currency: '₹', tankLitres: {}});
   });
+
+  it('keeps a known cluster dial style, else arc', () => {
+    expect(sanitizePreferences({clusterDialStyle: 'needle'}).clusterDialStyle).toBe('needle');
+    expect(sanitizePreferences({clusterDialStyle: 'tape'}).clusterDialStyle).toBe('arc');
+  });
 });

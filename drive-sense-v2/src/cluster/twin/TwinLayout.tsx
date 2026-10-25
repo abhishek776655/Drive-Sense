@@ -1,13 +1,16 @@
 import {Ionicons} from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useEffect, useState, type ReactNode} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View, type ViewStyle} from 'react-native';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
+import Animated, {useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming} from 'react-native-reanimated';
 import {useUnits} from '../../hooks/useUnits';
 import {FONT} from '../../theme/theme';
 import {economy, temperature} from '../../obd/tiles';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {kmhInUnits} from '../../utils/units';
-import {CLUSTER_INK} from '../accents';
+import {CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, type DialStyle} from '../accents';
 import type {ClusterData} from '../clusterData';
 import {dialMax, redlineHeat} from '../motion';
 import {ArcDial} from '../parts/ArcDial';
@@ -59,8 +62,40 @@ function DialInfo({items}: {items: {icon: keyof typeof Ionicons.glyphMap; text: 
 }
 
 /**
+ * A dial that changes style when swiped up or down on: the next style for both dials, a light
+ * tick, and the style's name shown briefly under it.
+ */
+function DialSwitch({style, dialStyle, onSwitch, children}: {style: ViewStyle; dialStyle: DialStyle; onSwitch: (next: DialStyle) => void; children: ReactNode}) {
+  const label = useSharedValue(0);
+  const [name, setName] = useState<string | null>(null);
+  const swipe = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetY([-18, 18])
+    .failOffsetX([-14, 14])
+    .onEnd((e) => {
+      const i = DIAL_STYLES.indexOf(dialStyle);
+      const next = DIAL_STYLES[(i + (e.translationY < 0 ? 1 : DIAL_STYLES.length - 1)) % DIAL_STYLES.length];
+      onSwitch(next);
+      setName(DIAL_STYLE_NAMES[next]);
+      void Haptics.selectionAsync().catch(() => undefined);
+      label.set(withSequence(withTiming(1, {duration: 150}), withDelay(900, withTiming(0, {duration: 400}))));
+    });
+  const labelStyle = useAnimatedStyle(() => ({opacity: label.value, transform: [{translateY: (1 - label.value) * 6}]}));
+  return (
+    <GestureDetector gesture={swipe}>
+      <View style={style}>
+        {children}
+        <Animated.View pointerEvents="none" style={[styles.switchLabel, labelStyle]}>
+          <Text style={styles.switchText}>{name}</Text>
+        </Animated.View>
+      </View>
+    </GestureDetector>
+  );
+}
+
+/**
  * "Twin" (spec 2026-10-25, cluster mode, section 3), inspired by Mercedes' twin-dial cluster: speed
- * on the left, RPM (or G without an adapter) on the right, each with small readouts inside; the
+ * on the left, RPM (or G without an adapter) on the right, each with small readouts inside (swipe up or down on one for arc or needle style); the
  * swipeable centre pages sit behind the dials with no panel and fade out under their rims; and a strip of bar gauges and warning lamps along the bottom.
  */
 export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: number; height: number; accent: string}) {
@@ -68,6 +103,9 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   const clock = useClock();
   const tempUnit = usePreferencesStore((s) => s.temperature);
   const mileage = usePreferencesStore((s) => s.mileageUnit);
+  const dialStyle = usePreferencesStore((s) => s.clusterDialStyle);
+  const setPrefs = usePreferencesStore((s) => s.set);
+  const switchDials = (next: DialStyle) => void setPrefs({clusterDialStyle: next});
   const rowH = height - STRIP_H;
   // Big dials that reach into the centre; the centre sits behind them and fades out under their rims.
   const dial = Math.min(rowH * 1.06, width * 0.43);
@@ -110,9 +148,10 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
           <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
         </View>
-        <View pointerEvents="none" style={[styles.dial, {left: groupX, top: (rowH - dial) / 2}]}>
+        <DialSwitch style={{...styles.dial, left: groupX, top: (rowH - dial) / 2}} dialStyle={dialStyle} onSwitch={switchDials}>
           <ArcDial
             size={dial}
+            dialStyle={dialStyle}
             value={speed}
             max={speedMax}
             majorStep={20}
@@ -128,11 +167,12 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
               />
             }
           />
-        </View>
-        <View pointerEvents="none" style={[styles.dial, {right: groupX, top: (rowH - dial) / 2}]}>
+        </DialSwitch>
+        <DialSwitch style={{...styles.dial, right: groupX, top: (rowH - dial) / 2}} dialStyle={dialStyle} onSwitch={switchDials}>
           {d.mode === 'adapter' ? (
             <ArcDial
               size={dial}
+              dialStyle={dialStyle}
               value={d.rpm}
               max={dialMax(8000, 1000, d.rpm)}
               majorStep={1000}
@@ -163,7 +203,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           ) : (
             <GDial size={dial} g={d.g} accent={accent} />
           )}
-        </View>
+        </DialSwitch>
       </View>
       <View style={[styles.strip, {height: STRIP_H}]}>
         <BarGauge icon="thermometer" share={coolantShare} color={d.alerts.hotCoolant ? CLUSTER_INK.red : accent} caption={null} />
@@ -191,6 +231,8 @@ const styles = StyleSheet.create({
   centre: {position: 'absolute', overflow: 'hidden'},
   fade: {position: 'absolute', top: 0, bottom: 0},
   dial: {position: 'absolute'},
+  switchLabel: {position: 'absolute', left: 0, right: 0, bottom: '9%', alignItems: 'center'},
+  switchText: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase'},
   info: {flexDirection: 'row', gap: 12, marginTop: 8},
   infoItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
   infoText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},

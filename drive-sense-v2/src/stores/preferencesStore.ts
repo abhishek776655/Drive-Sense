@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import {CURRENCIES, type Currency} from '../obd/fuel';
 import type {MileageUnit} from '../obd/tiles';
-import {CLUSTER_ACCENTS, type ClusterAccent} from '../cluster/accents';
+import {CLUSTER_ACCENTS, DIAL_STYLES, type ClusterAccent, type DialStyle} from '../cluster/accents';
 import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
 export type MapStyle = 'standard' | 'muted' | 'satellite' | 'hybrid';
@@ -40,6 +40,8 @@ export interface Preferences {
   /** Cluster mode: the chosen layout and its glow colour ('auto' follows the Drive speedometer accent). */
   clusterLayout: string;
   clusterAccent: ClusterAccent;
+  /** Cluster mode: arc or needle dials, switched by swiping up or down on a dial. */
+  clusterDialStyle: DialStyle;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -71,6 +73,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   mileageUnit: 'kmpl',
   clusterLayout: 'twin',
   clusterAccent: 'auto',
+  clusterDialStyle: 'arc',
 };
 
 export const MAX_FUEL_PRICE = 10_000;
@@ -121,6 +124,7 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     mileageUnit: oneOf(r.mileageUnit, ['kmpl', 'l100'] as const, d.mileageUnit),
     clusterLayout: typeof r.clusterLayout === 'string' ? r.clusterLayout : d.clusterLayout,
     clusterAccent: oneOf(r.clusterAccent, ['auto', ...Object.keys(CLUSTER_ACCENTS)] as ClusterAccent[], d.clusterAccent),
+    clusterDialStyle: oneOf(r.clusterDialStyle, DIAL_STYLES, d.clusterDialStyle),
   };
 };
 
