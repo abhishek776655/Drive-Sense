@@ -142,11 +142,10 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
               numberScale={0.15}
               footer={
                 <>
-                  {d.gear ? (
-                    <View style={[styles.gear, {borderColor: accent}]}>
-                      <Text style={[styles.gearText, {color: accent}]}>{d.gear}</Text>
-                    </View>
-                  ) : null}
+                  {/* Always there, so the gear has a known place; a dash until it is worked out. */}
+                  <View style={[styles.gear, {borderColor: d.gear ? accent : CLUSTER_INK.textFaint}]}>
+                    <Text style={[styles.gearText, {color: d.gear ? accent : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
+                  </View>
                   <DialInfo
                     items={[
                       {icon: 'thermometer', text: coolant ? `${coolant.value}${coolant.unit}` : null, warn: d.alerts.hotCoolant},
