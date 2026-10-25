@@ -34,7 +34,8 @@ export function useClusterData(): ClusterData {
   const fuelPrice = usePreferencesStore((s) => s.fuelPrice);
   const speedAlert = usePreferencesStore((s) => (s.speedAlert ? s.speedAlertKmh : null));
   const weatherC = useWeatherStore((s) => s.weather?.temperatureC ?? null);
-  const headingDeg = useRecordingStore((s) => s.position?.headingDeg ?? null);
+  // The smoothed direction of travel, held while stopped (a fix's own course drops out at a standstill).
+  const headingDeg = useRecordingStore((s) => s.stats.headingDeg ?? s.position?.headingDeg ?? null);
   const brakes = useRecordingStore((s) => s.stats.brakeCount);
   const accels = useRecordingStore((s) => s.stats.accelCount);
   const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);

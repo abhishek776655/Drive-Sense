@@ -149,7 +149,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   const revStyle = usePreferencesStore((s) => s.clusterRevDial);
   const gaugeStyle = usePreferencesStore((s) => s.clusterGaugeStyle);
   const phoneDial = usePreferencesStore((s) => s.clusterPhoneDial);
-  const trace = usePhoneTrace();
+  // The phone's compass only runs while its dial is showing.
+  const trace = usePhoneTrace(d.mode === 'phoneOnly' && phoneDial === 'compass');
   const setPrefs = usePreferencesStore((s) => s.set);
   const nextGauge = () => void setPrefs({clusterGaugeStyle: GAUGE_STYLES[(GAUGE_STYLES.indexOf(gaugeStyle) + 1) % GAUGE_STYLES.length]});
   const rowH = height - STRIP_H;

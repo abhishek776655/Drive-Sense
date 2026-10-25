@@ -1,4 +1,6 @@
+import * as Location from 'expo-location';
 import {useEffect, useRef, useState} from 'react';
+import {Platform} from 'react-native';
 import {useRecordingStore} from '../stores/recordingStore';
 import {haversineMeters} from '../utils/geo';
 import {gradePct, GRADE_WINDOW_M} from './motion';
@@ -14,12 +16,59 @@ export interface PhoneTrace {
   headingDeg: number | null;
 }
 
+/** Compass readings closer than this to the last one are not worth a re-render. */
+const COMPASS_STEP_DEG = 1;
+
+/**
+ * The phone's own compass (true north, else magnetic) while `on`: it points the right way standing
+ * still, which GPS course cannot. Null without a magnetometer (the simulator) or permission.
+ */
+function useCompass(on: boolean): number | null {
+  const [deg, setDeg] = useState<number | null>(null);
+  useEffect(() => {
+    if (!on || Platform.OS === 'web') {
+      return;
+    }
+    let sub: Location.LocationSubscription | null = null;
+    let cancelled = false;
+    let last = -999;
+    Location.watchHeadingAsync((h) => {
+      const next = h.trueHeading >= 0 ? h.trueHeading : h.magHeading >= 0 ? h.magHeading : null;
+      if (next == null) {
+        return;
+      }
+      const moved = Math.abs(((next - last + 540) % 360) - 180);
+      if (moved >= COMPASS_STEP_DEG) {
+        last = next;
+        setDeg(next);
+      }
+    })
+      .then((s) => {
+        if (cancelled) {
+          s.remove();
+        } else {
+          sub = s;
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      sub?.remove();
+    };
+  }, [on]);
+  return on ? deg : null;
+}
+
 /**
  * What the phone alone can say about the drive, for the cluster's phone dials: recent GPS speed,
- * altitude and the road's gradient, and the heading. Follows every fix, drive or not.
+ * altitude and the road's gradient, and the heading. Follows every fix, drive or not. With
+ * `compass` on, the heading comes from the phone's compass first, then the direction of travel
+ * (held while stopped), then the last fix's course.
  */
-export function usePhoneTrace(): PhoneTrace {
+export function usePhoneTrace(compass = false): PhoneTrace {
   const position = useRecordingStore((s) => s.position);
+  const heldHeading = useRecordingStore((s) => s.stats.headingDeg);
+  const compassDeg = useCompass(compass);
   const climb = useRef<{d: number; alt: number}[]>([]);
   const last = useRef<{latitude: number; longitude: number; d: number} | null>(null);
   const [trace, setTrace] = useState<PhoneTrace>({speed: [], altitudeM: null, gradePct: null, headingDeg: null});
@@ -51,5 +100,5 @@ export function usePhoneTrace(): PhoneTrace {
     return () => clearTimeout(id);
   }, [position]);
 
-  return trace;
+  return {...trace, headingDeg: compassDeg ?? heldHeading ?? trace.headingDeg};
 }
