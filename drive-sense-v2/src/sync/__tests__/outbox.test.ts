@@ -92,4 +92,10 @@ describe('drives saved on the phone first', () => {
     expect(isOfflineError({isAxiosError: true, response: {status: 422}})).toBe(false);
     expect(isOfflineError(new Error('x'))).toBe(false);
   });
+
+  it('treats a proxy\'s HTML 404 (tunnel up, backend down) as offline, but not the API\'s own JSON 404', () => {
+    expect(isOfflineError({isAxiosError: true, response: {status: 404, data: '<!DOCTYPE html><html>frp</html>'}})).toBe(true);
+    expect(isOfflineError({isAxiosError: true, response: {status: 404, data: {detail: 'Trip not found'}}})).toBe(false);
+    expect(isOfflineError({isAxiosError: true, response: {status: 404, data: {detail: 'Not Found'}}})).toBe(false);
+  });
 });

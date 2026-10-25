@@ -3,8 +3,20 @@ import {clearDrivePoints, deleteTrips, outboxList, outboxRemove, outboxSetProgre
 import type {SqlDb} from '../db/sql';
 import {uploadDrive, type UploadProgress} from '../services/tripUpload';
 
-/** No answer from the app server (offline, or a gateway saying it is down): try again later. */
-export const isOfflineError = (error: unknown) => isAxiosError(error) && (error.response == null || [502, 503, 504].includes(error.response.status));
+/**
+ * No answer from the app server (offline, or a gateway saying it is down): try again later. A 404
+ * whose body is not the API's JSON is the proxy/tunnel answering with nothing behind it.
+ */
+export const isOfflineError = (error: unknown) => {
+  if (!isAxiosError(error)) {
+    return false;
+  }
+  const status = error.response?.status;
+  if (status == null || [502, 503, 504].includes(status)) {
+    return true;
+  }
+  return status === 404 && typeof error.response?.data === 'string';
+};
 
 /** Uploaded: the outbox entry and the phone's stand-in Logbook row go; the server's row comes by sync. */
 export const finishOutboxItem = (db: SqlDb, id: string) => {
