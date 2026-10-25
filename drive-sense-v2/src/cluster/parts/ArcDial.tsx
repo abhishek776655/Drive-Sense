@@ -208,9 +208,12 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             </Text>
           );
         })}
-      <View style={[StyleSheet.absoluteFill, classic ? {alignItems: 'center', paddingTop: cy + r * 0.22} : styles.centre]} pointerEvents="none">
-        <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.62 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
-        <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}]}>{unit}</Text>
+      <View style={[StyleSheet.absoluteFill, classic ? {alignItems: 'center', paddingTop: cy + 16 * k} : styles.centre]} pointerEvents="none">
+        {/* Needle style: number and unit on one line, so the block fits under the hub. */}
+        <View style={classic ? styles.inline : undefined}>
+          <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.62 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
+          <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}, classic && {marginTop: 0}]}>{unit}</Text>
+        </View>
         {footer}
       </View>
     </View>
@@ -220,6 +223,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
 const styles = StyleSheet.create({
   tickLabel: {position: 'absolute', width: 40, textAlign: 'center', color: CLUSTER_INK.textDim, fontFamily: 'Nunito_700Bold', fontSize: 12, fontVariant: ['tabular-nums']},
   centre: {alignItems: 'center', justifyContent: 'center'},
+  inline: {flexDirection: 'row', alignItems: 'baseline', gap: 6},
   number: {color: CLUSTER_INK.text, fontFamily: 'Nunito_900Black', fontVariant: ['tabular-nums'], letterSpacing: -1},
   unit: {color: CLUSTER_INK.textDim, fontFamily: 'Nunito_700Bold', fontSize: 13, marginTop: -2, letterSpacing: 1},
 });

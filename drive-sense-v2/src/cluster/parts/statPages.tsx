@@ -1,17 +1,53 @@
 import {Canvas, LinearGradient, Path, Skia, vec} from '@shopify/react-native-skia';
-import {useMemo} from 'react';
+import {useEffect, useMemo} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useCarStats} from '../../hooks/useCarStats';
 import {useUnits} from '../../hooks/useUnits';
 import {economy, economyLabel, fuelVolume} from '../../obd/tiles';
+import {useHomeStore} from '../../stores/homeStore';
 import {useObdStore, type HistoryPoint} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useActiveVehicle} from '../../stores/vehicleStore';
 import {withAlpha} from '../../theme/color';
 import {FONT} from '../../theme/theme';
+import {formatDuration} from '../../utils/format';
 import {kmhInUnits} from '../../utils/units';
 import {CLUSTER_INK} from '../accents';
 import {Figure, pageStyles} from './pages';
+
+/** All-time driving totals over every recorded drive (the same figures as Home). */
+export function DrivingTotalsPage() {
+  const u = useUnits();
+  const stats = useHomeStore((s) => s.stats);
+  const load = useHomeStore((s) => s.load);
+  // Home normally loads these; opened straight into the cluster, fetch them here.
+  useEffect(() => {
+    if (useHomeStore.getState().stats == null && !useHomeStore.getState().loading) {
+      void load();
+    }
+  }, [load]);
+  if (!stats?.trip_count) {
+    return (
+      <View style={pageStyles.page}>
+        <Text style={pageStyles.title}>ALL TIME · DRIVING</Text>
+        <Text style={pageStyles.hint}>Your drives add up here</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={pageStyles.page}>
+      <Text style={pageStyles.title}>ALL TIME · DRIVING</Text>
+      <View style={pageStyles.grid}>
+        <Figure label="Distance" value={u.distance(stats.total_distance_meters)} unit={u.distanceUnit} />
+        <Figure label="Drive time" value={formatDuration(stats.drive_time_seconds)} />
+        <Figure label="Drives" value={String(stats.trip_count)} />
+        <Figure label="Top speed" value={u.speed(stats.top_speed_mps)} unit={u.speedUnit} />
+        <Figure label="Avg speed" value={u.speed(stats.avg_speed_mps)} unit={u.speedUnit} />
+        <Figure label="Avg drive" value={u.distance(stats.avg_trip_distance_meters)} unit={u.distanceUnit} />
+      </View>
+    </View>
+  );
+}
 
 /** All-time car figures for the active vehicle, from every drive the adapter has recorded. */
 export function AllTimePage() {
@@ -23,7 +59,7 @@ export function AllTimePage() {
   if (!t || t.drives === 0) {
     return (
       <View style={pageStyles.page}>
-        <Text style={pageStyles.title}>ALL TIME</Text>
+        <Text style={pageStyles.title}>ALL TIME · CAR</Text>
         <Text style={pageStyles.hint}>Drives with the adapter show up here</Text>
       </View>
     );
@@ -33,7 +69,7 @@ export function AllTimePage() {
   const fuel = t.fuelL != null ? fuelVolume(t.fuelL, u.units) : null;
   return (
     <View style={pageStyles.page}>
-      <Text style={pageStyles.title}>ALL TIME</Text>
+      <Text style={pageStyles.title}>ALL TIME · CAR</Text>
       <View style={pageStyles.grid}>
         <Figure label="Drives" value={String(t.drives)} />
         {avg ? <Figure label={`Avg ${label.toLowerCase()}`} value={avg.value} unit={avg.unit} /> : null}

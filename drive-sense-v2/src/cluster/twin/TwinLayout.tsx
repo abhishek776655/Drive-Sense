@@ -21,7 +21,7 @@ import {LoadBars} from '../parts/LoadBars';
 import {LoadMeter} from '../parts/LoadMeter';
 import {MapPage} from '../parts/MapPage';
 import {CarPage, TripPage} from '../parts/pages';
-import {AllTimePage, GraphPage} from '../parts/statPages';
+import {AllTimePage, DrivingTotalsPage, GraphPage} from '../parts/statPages';
 import {VerticalPager} from '../parts/VerticalPager';
 
 const STRIP_H = 36;
@@ -164,6 +164,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           accent={accent}
           views={[
             {key: 'drive', node: <TripPage d={d} />},
+            {key: 'totals', node: <DrivingTotalsPage />},
             {key: 'all', node: <AllTimePage />},
             {key: 'graph', node: <GraphPage width={panelW} accent={accent} />},
           ]}
