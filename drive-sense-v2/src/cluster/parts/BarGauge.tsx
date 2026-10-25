@@ -46,7 +46,7 @@ export function BarGauge({
   caption: string | null;
   /** The reading as text ("61%", "90°C"), shown by the ring and digits looks. */
   value: string | null;
-  variant?: GaugeStyle;
+  variant?: Exclude<GaugeStyle, 'arc'>;
   align?: 'left' | 'right';
 }) {
   const fill = useSharedValue(0);

@@ -78,7 +78,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   clusterAccent: 'auto',
   clusterSpeedDial: 'arc',
   clusterRevDial: 'arc',
-  clusterGaugeStyle: 'bar',
+  clusterGaugeStyle: 'arc',
 };
 
 export const MAX_FUEL_PRICE = 10_000;

@@ -17,6 +17,10 @@ const base: ClusterInput = {
   driveFuel: null,
   fuelPrice: null,
   batteryDipV: null,
+  weatherC: null,
+  headingDeg: null,
+  events: {brake: 1, accel: 2},
+  speedLimitKmh: null,
 };
 
 describe('cluster data', () => {
@@ -64,5 +68,20 @@ describe('cluster data', () => {
     });
     expect(d.cost).toBeCloseTo(56, 6);
     expect(d.alerts).toEqual({checkEngine: true, lowBattery: true, hotCoolant: true, lowFuel: false});
+  });
+
+  it('fills the extras: outside air, heading, shift hint, events while recording, the alert limit', () => {
+    const d = clusterData({
+      ...base,
+      values: {speed: v(50), rpm: v(3200), throttle: v(30), ambient: v(19)},
+      derived: {economy: null, boost: null, gear: 2},
+      weatherC: 25,
+      headingDeg: 92,
+      recording: {driveS: 60, distanceM: 900},
+      speedLimitKmh: 80,
+    });
+    expect(d).toMatchObject({outsideC: 19, heading: 'E', shiftUp: '3', events: {brake: 1, accel: 2}, speedLimitKmh: 80});
+    // No adapter: the weather stands in, and there are no car-only hints or events off a drive.
+    expect(clusterData({...base, weatherC: 25})).toMatchObject({outsideC: 25, heading: null, shiftUp: null, events: null});
   });
 });

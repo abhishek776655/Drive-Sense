@@ -1,4 +1,4 @@
-import {angleAt, arcPath, dialMax, fraction, gFrom, gPoint, isCoasting, loadHeat, particleSpeed, redlineHeat, ticks} from '../motion';
+import {angleAt, arcPath, compassPoint, dialMax, fraction, gFrom, gPoint, isCoasting, loadHeat, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
 
 describe('cluster motion maths', () => {
   it('maps values onto the 270° dial', () => {
@@ -67,5 +67,26 @@ describe('cluster motion maths', () => {
     expect(gPoint({lon: 0.5, lat: 0}, 100)).toEqual({x: 0, y: -50});
     const rim = gPoint({lon: 0, lat: 3}, 100);
     expect(Math.hypot(rim.x, rim.y)).toBeCloseTo(100, 5);
+  });
+
+  it('suggests the next gear when revving high in a low gear, not when pushing hard', () => {
+    expect(shiftUpHint(3100, '3', 'petrol', 40)).toBe('4');
+    expect(shiftUpHint(2400, '3', 'petrol', 40)).toBeNull();
+    expect(shiftUpHint(2600, '2', 'diesel', 40)).toBe('3');
+    // Flat out: the driver wants the revs.
+    expect(shiftUpHint(4500, '2', 'petrol', 90)).toBeNull();
+    // Top gear, neutral or unknown: nothing to suggest.
+    expect(shiftUpHint(3500, '6', 'petrol', 40)).toBeNull();
+    expect(shiftUpHint(3500, 'N', 'petrol', 40)).toBeNull();
+    expect(shiftUpHint(3500, null, 'petrol', 40)).toBeNull();
+  });
+
+  it('names the compass point of a heading', () => {
+    expect(compassPoint(0)).toBe('N');
+    expect(compassPoint(44)).toBe('NE');
+    expect(compassPoint(181)).toBe('S');
+    expect(compassPoint(350)).toBe('N');
+    expect(compassPoint(-1)).toBeNull();
+    expect(compassPoint(null)).toBeNull();
   });
 });

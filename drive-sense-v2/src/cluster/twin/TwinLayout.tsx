@@ -12,13 +12,14 @@ import {usePreferencesStore} from '../../stores/preferencesStore';
 import {kmhInUnits} from '../../utils/units';
 import {CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, GAUGE_STYLES, type DialStyle} from '../accents';
 import type {ClusterData} from '../clusterData';
-import {dialMax, redlineHeat} from '../motion';
+import {dialMax, gPoint, redlineHeat} from '../motion';
 import {ArcDial} from '../parts/ArcDial';
 import {BarGauge} from '../parts/BarGauge';
 import {CentrePager} from '../parts/CentrePager';
 import {GDial} from '../parts/GDial';
 import {LoadBars} from '../parts/LoadBars';
 import {LoadMeter} from '../parts/LoadMeter';
+import {SideArc} from '../parts/SideArc';
 import {MapPage} from '../parts/MapPage';
 import {CarPage, TripPage} from '../parts/pages';
 import {AllTimePage, DrivingTotalsPage, GraphPage} from '../parts/statPages';
@@ -47,19 +48,29 @@ function Lamp({icon, color}: {icon: keyof typeof Ionicons.glyphMap; color: strin
 }
 
 /** Small readouts inside a dial, under its number: an icon and a value each. */
-function DialInfo({items}: {items: {icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean}[]}) {
+function DialInfo({items, maxWidth}: {items: {icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean}[]; maxWidth?: number}) {
   const shown = items.filter((i) => i.text != null);
   if (shown.length === 0) {
     return null;
   }
   return (
-    <View style={styles.info}>
+    <View style={[styles.info, maxWidth != null && {maxWidth}]}>
       {shown.map((i) => (
         <View key={i.icon} style={styles.infoItem}>
           <Ionicons name={i.icon} size={13} color={i.warn ? CLUSTER_INK.amber : CLUSTER_INK.textDim} />
           <Text style={[styles.infoText, i.warn && {color: CLUSTER_INK.amber}]}>{i.text}</Text>
         </View>
       ))}
+    </View>
+  );
+}
+
+/** G-force as a dot in a small ring: up speeding up, down braking, sideways cornering. */
+function GDot({g, accent}: {g: {lon: number; lat: number}; accent: string}) {
+  const p = gPoint(g, 9);
+  return (
+    <View style={styles.gRing} accessibilityLabel="G-force">
+      <View style={[styles.gDot, {backgroundColor: accent, shadowColor: accent, transform: [{translateX: p.x}, {translateY: p.y}]}]} />
     </View>
   );
 }
@@ -204,6 +215,12 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   pages.push({key: 'map', node: <MapPage accent={accent} />});
 
   const coolantShare = d.coolantC == null ? null : Math.min(1, Math.max(0, (d.coolantC - COOLANT_RANGE[0]) / (COOLANT_RANGE[1] - COOLANT_RANGE[0])));
+  const outside = d.outsideC != null ? temperature(d.outsideC, tempUnit) : null;
+  const arcs = gaugeStyle === 'arc';
+  const stripGauge = gaugeStyle === 'arc' ? null : gaugeStyle;
+  const fuelColor = d.alerts.lowFuel ? CLUSTER_INK.amber : accent;
+  const coolantColor = d.alerts.hotCoolant ? CLUSTER_INK.red : accent;
+  const dialTop = (rowH - dial) / 2;
   const stateLabel = d.carState === 'engineOff' ? 'ENGINE OFF' : d.carState === 'parked' ? 'PARKED' : d.mode === 'phoneOnly' ? 'PHONE ONLY' : null;
 
   return (
@@ -214,6 +231,32 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
           <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
         </View>
+        {/* Outside air and heading, along the top between the dials. */}
+        {outside || d.heading ? (
+          <View pointerEvents="none" style={styles.topLine}>
+            {outside ? (
+              <View style={styles.infoItem}>
+                <Ionicons name="partly-sunny" size={13} color={CLUSTER_INK.textDim} />
+                <Text style={styles.topText}>
+                  {outside.value}
+                  {outside.unit}
+                </Text>
+              </View>
+            ) : null}
+            {d.heading ? (
+              <View style={styles.infoItem}>
+                <Ionicons name="navigate" size={12} color={CLUSTER_INK.textDim} />
+                <Text style={styles.topText}>{d.heading}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        {arcs ? (
+          <>
+            <SideArc size={dial} left={groupX} top={dialTop} side="left" share={coolantShare} color={coolantColor} icon="thermometer" value={coolant ? `${coolant.value}${coolant.unit}` : null} onPress={nextGauge} />
+            <SideArc size={dial} left={width - groupX - dial} top={dialTop} side="right" share={d.fuelPct == null ? null : d.fuelPct / 100} color={fuelColor} icon="color-fill" value={d.fuelPct == null ? null : `${Math.round(d.fuelPct)}%`} onPress={nextGauge} />
+          </>
+        ) : null}
         <DialSwitch style={{...styles.dial, left: groupX, top: (rowH - dial) / 2}} size={dial} dialStyle={speedStyle} onSwitch={(next) => void setPrefs({clusterSpeedDial: next})}>
           <ArcDial
             size={dial}
@@ -226,8 +269,11 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
             unit={u.speedUnit}
             footer={
               <DialInfo
+                // Needle style keeps them in the narrow space between the bottom scale labels.
+                maxWidth={speedStyle === 'needle' ? dial * 0.34 : undefined}
                 items={[
-                  {icon: 'color-fill', text: range, warn: d.alerts.lowFuel},
+                  // This drive's distance while recording, else how far the tank goes.
+                  d.distanceM != null ? {icon: 'navigate-circle', text: `${u.distance(d.distanceM)} ${u.distanceUnit}`} : {icon: 'color-fill', text: range, warn: d.alerts.lowFuel},
                   {icon: 'leaf', text: instant ? `${instant.value} ${instant.unit}` : null},
                 ]}
               />
@@ -254,15 +300,19 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
               footer={
                 <>
                   {/* Always there, so the gear has a known place; a dash until it is worked out. */}
-                  <View style={[styles.gear, {borderColor: d.gear ? accent : CLUSTER_INK.textFaint}]}>
-                    <Text style={[styles.gearText, {color: d.gear ? accent : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
+                  <View style={styles.gearRow}>
+                    <View style={[styles.gear, {borderColor: d.gear ? accent : CLUSTER_INK.textFaint}]}>
+                      <Text style={[styles.gearText, {color: d.gear ? accent : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
+                    </View>
+                    {/* Shift-up hint: high revs in a low gear. */}
+                    {d.shiftUp ? (
+                      <View style={styles.shift}>
+                        <Ionicons name="arrow-up" size={13} color={CLUSTER_INK.green} />
+                        <Text style={styles.shiftText}>{d.shiftUp}</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  <DialInfo
-                    items={[
-                      {icon: 'thermometer', text: coolant ? `${coolant.value}${coolant.unit}` : null, warn: d.alerts.hotCoolant},
-                      {icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null},
-                    ]}
-                  />
+                  <DialInfo items={[{icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null}]} />
                 </>
               }
             />
@@ -272,9 +322,28 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
         </DialSwitch>
       </View>
       <View style={[styles.strip, {height: STRIP_H}]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
-          <BarGauge icon="thermometer" share={coolantShare} color={d.alerts.hotCoolant ? CLUSTER_INK.red : accent} caption={null} value={coolant ? `${coolant.value}${coolant.unit}` : null} variant={gaugeStyle} />
-        </Pressable>
+        <View style={styles.stripSide}>
+          {stripGauge ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
+              <BarGauge icon="thermometer" share={coolantShare} color={coolantColor} caption={null} value={coolant ? `${coolant.value}${coolant.unit}` : null} variant={stripGauge} />
+            </Pressable>
+          ) : null}
+          {d.voltage != null ? (
+            <View style={styles.infoItem}>
+              <Ionicons name="battery-half" size={14} color={d.alerts.lowBattery ? CLUSTER_INK.amber : CLUSTER_INK.textDim} />
+              <Text style={styles.stripText}>{d.voltage.toFixed(1)} V</Text>
+            </View>
+          ) : null}
+          {d.events ? (
+            // Harsh brakes (down arrow) and hard accelerations (up arrow) this drive.
+            <View style={styles.infoItem} accessibilityLabel={`${d.events.brake} harsh brakes, ${d.events.accel} hard accelerations this drive`}>
+              <Ionicons name="arrow-down-circle" size={14} color={d.events.brake > 0 ? CLUSTER_INK.amber : CLUSTER_INK.textDim} />
+              <Text style={styles.stripText}>{d.events.brake}</Text>
+              <Ionicons name="arrow-up-circle" size={14} color={d.events.accel > 0 ? CLUSTER_INK.amber : CLUSTER_INK.textDim} style={styles.gapLeft} />
+              <Text style={styles.stripText}>{d.events.accel}</Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.lamps}>
           {d.alerts.checkEngine ? <Lamp icon="warning" color={CLUSTER_INK.amber} /> : null}
           {d.alerts.lowBattery ? <Lamp icon="battery-dead" color={CLUSTER_INK.amber} /> : null}
@@ -283,17 +352,20 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
           {stateLabel ? <Text style={styles.state}>{stateLabel}</Text> : null}
           <Text style={styles.clock}>{clock}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
-          <BarGauge
-            icon="color-fill"
-            share={d.fuelPct == null ? null : d.fuelPct / 100}
-            color={d.alerts.lowFuel ? CLUSTER_INK.amber : accent}
-            caption={range}
-            value={d.fuelPct == null ? null : `${Math.round(d.fuelPct)}%`}
-            variant={gaugeStyle}
-            align="right"
-          />
-        </Pressable>
+        <View style={[styles.stripSide, styles.stripRight]}>
+          {stripGauge ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
+              <BarGauge icon="color-fill" share={d.fuelPct == null ? null : d.fuelPct / 100} color={fuelColor} caption={range} value={d.fuelPct == null ? null : `${Math.round(d.fuelPct)}%`} variant={stripGauge} align="right" />
+            </Pressable>
+          ) : null}
+          {d.speedLimitKmh != null ? (
+            <View style={styles.limit} accessibilityLabel={`Speed alert at ${kmhInUnits(d.speedLimitKmh, u.units)} ${u.speedUnit}`}>
+              <Text style={styles.limitText}>{kmhInUnits(d.speedLimitKmh, u.units)}</Text>
+            </View>
+          ) : null}
+          {/* G as a dot (the G dial already shows it without the adapter). */}
+          {d.mode === 'adapter' && d.g ? <GDot g={d.g} accent={accent} /> : null}
+        </View>
       </View>
     </View>
   );
@@ -305,9 +377,22 @@ const styles = StyleSheet.create({
   dial: {position: 'absolute'},
   switchLabel: {position: 'absolute', left: 0, right: 0, bottom: '9%', alignItems: 'center'},
   switchText: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase'},
-  info: {flexDirection: 'row', gap: 12, marginTop: 8},
+  info: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 12, rowGap: 2, marginTop: 8},
   infoItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
   infoText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
+  topLine: {position: 'absolute', top: 6, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 16},
+  topText: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12, fontVariant: ['tabular-nums']},
+  gearRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  shift: {flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8, paddingHorizontal: 7, height: 24, borderRadius: 7, backgroundColor: 'rgba(52,224,122,0.14)'},
+  shiftText: {color: CLUSTER_INK.green, fontFamily: FONT.black, fontSize: 14},
+  stripSide: {flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1},
+  stripRight: {justifyContent: 'flex-end'},
+  gapLeft: {marginLeft: 6},
+  stripText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
+  limit: {width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: CLUSTER_INK.red, backgroundColor: CLUSTER_INK.text, alignItems: 'center', justifyContent: 'center'},
+  limitText: {color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 11, fontVariant: ['tabular-nums']},
+  gRing: {width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: CLUSTER_INK.tick, alignItems: 'center', justifyContent: 'center'},
+  gDot: {width: 7, height: 7, borderRadius: 4, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: {width: 0, height: 0}},
   gear: {marginTop: 8, minWidth: 34, height: 28, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8},
   gearText: {fontFamily: FONT.black, fontSize: 17},
   strip: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18},

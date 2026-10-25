@@ -103,3 +103,27 @@ export const gPoint = (g: {lon: number; lat: number}, r: number, maxG = 1) => {
   const len = Math.hypot(x, y);
   return len > r ? {x: (x / len) * r, y: (y / len) * r} : {x, y};
 };
+
+/** Revs above which a shift up is suggested (diesels pull lower), and the gears that can take one. */
+const SHIFT_RPM = {petrol: 2800, diesel: 2300} as const;
+const TOP_GEAR = 6;
+/** Above this throttle the driver is asking for the revs; no hint. */
+const HARD_THROTTLE_PCT = 70;
+
+/** The gear to shift up to, when revving high in a known low gear without pushing hard; else null. */
+export const shiftUpHint = (rpm: number | null, gear: string | null, fuel: string | null, throttlePct: number | null): string | null => {
+  const g = gear == null ? NaN : Number(gear);
+  if (rpm == null || !Number.isInteger(g) || g < 1 || g >= TOP_GEAR) {
+    return null;
+  }
+  if (throttlePct != null && throttlePct >= HARD_THROTTLE_PCT) {
+    return null;
+  }
+  return rpm >= (fuel === 'diesel' ? SHIFT_RPM.diesel : SHIFT_RPM.petrol) ? String(g + 1) : null;
+};
+
+const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+/** Eight-point compass name of a GPS heading; null when there is none (standing still reports -1). */
+export const compassPoint = (deg: number | null | undefined): string | null =>
+  deg == null || deg < 0 ? null : POINTS[Math.round((deg % 360) / 45) % 8];

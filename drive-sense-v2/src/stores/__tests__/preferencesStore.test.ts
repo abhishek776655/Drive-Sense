@@ -41,6 +41,6 @@ describe('mapTypeFor', () => {
 
   it('keeps known cluster dial and gauge styles, else the defaults', () => {
     expect(sanitizePreferences({clusterSpeedDial: 'needle', clusterRevDial: 'arc', clusterGaugeStyle: 'ring'})).toMatchObject({clusterSpeedDial: 'needle', clusterRevDial: 'arc', clusterGaugeStyle: 'ring'});
-    expect(sanitizePreferences({clusterSpeedDial: 'tape', clusterGaugeStyle: 'pie'})).toMatchObject({clusterSpeedDial: 'arc', clusterRevDial: 'arc', clusterGaugeStyle: 'bar'});
+    expect(sanitizePreferences({clusterSpeedDial: 'tape', clusterGaugeStyle: 'pie'})).toMatchObject({clusterSpeedDial: 'arc', clusterRevDial: 'arc', clusterGaugeStyle: 'arc'});
   });
 });

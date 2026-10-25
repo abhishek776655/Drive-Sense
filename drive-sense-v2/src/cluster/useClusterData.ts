@@ -3,6 +3,7 @@ import {useDriveFuel} from '../hooks/useDriveMileage';
 import {useRange} from '../hooks/useRange';
 import {useObdStore} from '../stores/obdStore';
 import {usePreferencesStore} from '../stores/preferencesStore';
+import {useWeatherStore} from '../stores/weatherStore';
 import {elapsedSeconds, useRecordingStore} from '../stores/recordingStore';
 import {useActiveVehicle} from '../stores/vehicleStore';
 import {clusterData, type ClusterData} from './clusterData';
@@ -31,6 +32,11 @@ export function useClusterData(): ClusterData {
   const pausedMs = useRecordingStore((s) => s.pausedMs);
   const pausedAt = useRecordingStore((s) => s.pausedAt);
   const fuelPrice = usePreferencesStore((s) => s.fuelPrice);
+  const speedAlert = usePreferencesStore((s) => (s.speedAlert ? s.speedAlertKmh : null));
+  const weatherC = useWeatherStore((s) => s.weather?.temperatureC ?? null);
+  const headingDeg = useRecordingStore((s) => s.position?.headingDeg ?? null);
+  const brakes = useRecordingStore((s) => s.stats.brakeCount);
+  const accels = useRecordingStore((s) => s.stats.accelCount);
   const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);
   const driveFuel = useDriveFuel();
 
@@ -69,5 +75,9 @@ export function useClusterData(): ClusterData {
     driveFuel,
     fuelPrice,
     batteryDipV: battery?.startDipV ?? null,
+    weatherC,
+    headingDeg,
+    events: {brake: brakes, accel: accels},
+    speedLimitKmh: speedAlert,
   });
 }

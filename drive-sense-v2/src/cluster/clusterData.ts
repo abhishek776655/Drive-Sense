@@ -3,7 +3,7 @@ import {fuelCost} from '../obd/fuel';
 import type {PidKey} from '../obd/pids';
 import {carState, type CarState} from '../obd/sourceRules';
 import {COOLANT_ALERT_C, VOLTAGE_LOW_RUNNING} from '../obd/tiles';
-import {isCoasting} from './motion';
+import {compassPoint, isCoasting, shiftUpHint} from './motion';
 
 /** Readings older than this are not shown (the adapter has gone quiet). */
 const STALE_MS = 15_000;
@@ -36,6 +36,16 @@ export interface ClusterData {
   cost: number | null;
   instantL100km: number | null;
   carState: CarState | null;
+  /** Outside air: the car's ambient sensor, else the weather. */
+  outsideC: number | null;
+  /** Eight-point compass heading from GPS, null standing still. */
+  heading: string | null;
+  /** The gear to shift up to, when revving high in a low gear. */
+  shiftUp: string | null;
+  /** Harsh brakes and hard accelerations this drive (null when not recording). */
+  events: {brake: number; accel: number} | null;
+  /** The speed-alert limit when the alert is on. */
+  speedLimitKmh: number | null;
   alerts: {checkEngine: boolean; lowBattery: boolean; hotCoolant: boolean; lowFuel: boolean};
 }
 
@@ -54,6 +64,10 @@ export interface ClusterInput {
   driveFuel: {l100km: number | null; fuelUsedL: number | null} | null;
   fuelPrice: number | null;
   batteryDipV: number | null;
+  weatherC: number | null;
+  headingDeg: number | null;
+  events: {brake: number; accel: number} | null;
+  speedLimitKmh: number | null;
 }
 
 /** Redlines: where most petrol engines stop pulling, diesels a good deal lower. */
@@ -100,6 +114,11 @@ export const clusterData = (i: ClusterInput): ClusterData => {
     cost: fuelCost(i.driveFuel?.fuelUsedL, i.fuelPrice),
     instantL100km: adapter ? i.derived.economy : null,
     carState: state,
+    outsideC: (adapter ? fresh('ambient') : null) ?? i.weatherC,
+    heading: compassPoint(i.headingDeg),
+    shiftUp: adapter ? shiftUpHint(rpm, gear, i.fuel, throttlePct) : null,
+    events: i.recording ? i.events : null,
+    speedLimitKmh: i.speedLimitKmh,
     alerts: {
       checkEngine: i.mil?.on ?? false,
       lowBattery: (voltage != null && (rpm ?? 0) > 0 && voltage < VOLTAGE_LOW_RUNNING) || (i.batteryDipV != null && i.batteryDipV < DIP_LOW_V),
