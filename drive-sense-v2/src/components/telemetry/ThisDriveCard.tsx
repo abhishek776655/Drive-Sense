@@ -1,8 +1,5 @@
 import {Ionicons} from '@expo/vector-icons';
-import {useEffect, useState} from 'react';
 import {View} from 'react-native';
-import {getDb} from '../../db';
-import {latestTripObd} from '../../db/obdRepos';
 import {useDriveFuel} from '../../hooks/useDriveMileage';
 import {useUnits} from '../../hooks/useUnits';
 import {formatMoney, fuelCost} from '../../obd/fuel';
@@ -12,26 +9,6 @@ import {useRecordingStore} from '../../stores/recordingStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
-
-/** The last finished drive with car data, read once when not recording. */
-function useLastDrive(recording: boolean) {
-  const [last, setLast] = useState<ReturnType<typeof latestTripObd>>(null);
-  useEffect(() => {
-    if (recording) {
-      return;
-    }
-    const id = setTimeout(() => {
-      const db = getDb();
-      try {
-        setLast(db ? latestTripObd(db) : null);
-      } catch {
-        setLast(null);
-      }
-    }, 0);
-    return () => clearTimeout(id);
-  }, [recording]);
-  return last;
-}
 
 function Stat({label, value, unit}: {label: string; value: string; unit?: string}) {
   return (
@@ -53,10 +30,7 @@ function Stat({label, value, unit}: {label: string; value: string; unit?: string
   );
 }
 
-/**
- * Mileage, fuel and cost for this drive while recording; otherwise the last drive's, labelled so.
- * Says how to get it when there is neither.
- */
+/** Mileage, fuel and cost of the drive being recorded; nothing when no drive is recording. */
 export function ThisDriveCard() {
   const c = useAppTheme().colors;
   const u = useUnits();
@@ -65,29 +39,23 @@ export function ThisDriveCard() {
   const currency = usePreferencesStore((s) => s.currency);
   const recording = useRecordingStore((s) => s.status === 'recording');
   const now = useDriveFuel();
-  const last = useLastDrive(recording);
+  if (!recording) {
+    return null;
+  }
 
-  const source = recording ? now : last ? {l100km: last.stats.avgL100km, fuelUsedL: last.stats.fuelUsedL} : null;
-  const title = recording ? 'This drive' : last ? 'Last drive' : 'This drive';
-  const when = !recording && last ? new Date(last.startedAt).toLocaleDateString([], {day: 'numeric', month: 'short'}) : null;
-  const econ = source?.l100km != null ? economy(source.l100km, u.units, mileage) : null;
-  const fuel = source?.fuelUsedL != null ? fuelVolume(source.fuelUsedL, u.units) : null;
-  const cost = fuelCost(source?.fuelUsedL, price);
+  const econ = now?.l100km != null ? economy(now.l100km, u.units, mileage) : null;
+  const fuel = now?.fuelUsedL != null ? fuelVolume(now.fuelUsedL, u.units) : null;
+  const cost = fuelCost(now?.fuelUsedL, price);
 
   return (
     <Card style={{padding: 16, gap: 12}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-        <Ionicons name={recording ? 'radio-button-on' : 'time'} size={16} color={recording ? c.red : c.textTertiary} />
+        <Ionicons name="radio-button-on" size={16} color={c.red} />
         <AppText size={15} weight="extrabold" style={{flex: 1}}>
-          {title}
+          This drive
         </AppText>
-        {when ? (
-          <AppText size={13} weight="bold" tone="secondary">
-            {when}
-          </AppText>
-        ) : null}
       </View>
-      {source ? (
+      {econ || fuel ? (
         <View style={{flexDirection: 'row', gap: 12}}>
           <Stat label={economyLabel(u.units, mileage)} value={econ?.value ?? '—'} unit={econ?.unit} />
           <Stat label="Fuel used" value={fuel?.value ?? '—'} unit={fuel?.unit} />
@@ -95,7 +63,7 @@ export function ThisDriveCard() {
         </View>
       ) : (
         <AppText size={13} weight="semibold" tone="secondary">
-          {recording ? 'Mileage shows after the first few hundred metres.' : 'Start a drive to see its mileage and fuel here.'}
+          Mileage shows after the first few hundred metres.
         </AppText>
       )}
     </Card>
