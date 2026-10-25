@@ -35,12 +35,14 @@ export interface ArcDialProps {
   dialStyle?: DialStyle;
 }
 
-/** One tick: grey, and lit in the accent while the arc covers it; plain white marks in needle style. */
-function Tick({cx, cy, r, share, major, progress, needle, accent, k}: {cx: number; cy: number; r: number; share: number; major: boolean; progress: SharedValue<number>; needle: SharedValue<number>; accent: string; k: number}) {
+/** One tick: grey, and lit in the accent while the arc covers it; plain white marks in needle style, black ink on the Classic face. */
+function Tick({cx, cy, r, share, major, progress, needle, paper, accent, k}: {cx: number; cy: number; r: number; share: number; major: boolean; progress: SharedValue<number>; needle: SharedValue<number>; paper: SharedValue<number>; accent: string; k: number}) {
   const deg = angleAt(share);
   const outer = polar(cx, cy, r, deg);
   const inner = polar(cx, cy, r - (major ? 14 : 7) * k, deg);
-  const color = useDerivedValue(() => (needle.value > 0.5 ? (major ? CLUSTER_INK.text : CLUSTER_INK.tick) : progress.value >= share - 0.002 ? accent : CLUSTER_INK.tick));
+  const color = useDerivedValue(() =>
+    paper.value > 0.5 ? (major ? CLUSTER_INK.ink : CLUSTER_INK.inkDim) : needle.value > 0.5 ? (major ? CLUSTER_INK.text : CLUSTER_INK.tick) : progress.value >= share - 0.002 ? accent : CLUSTER_INK.tick,
+  );
   return <Line p1={vec(outer.x, outer.y)} p2={vec(inner.x, inner.y)} color={color} strokeWidth={(major ? 2.4 : 1.2) * Math.max(0.7, k)} strokeCap="round" />;
 }
 
@@ -62,7 +64,8 @@ function Segment({i, cx, cy, r, k, progress, accent, redShare}: {i: number; cx: 
  * A cluster dial drawn on the GPU (spec 2026-10-25, cluster mode, section 4): track, ticks that
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
- * LED style lights a ring of separate bars instead. Needle style is a classic gauge: plain white ticks on a thin ring, and a glowing needle
+ * LED style lights a ring of separate bars instead. Classic prints a red needle gauge on an ivory
+ * face under a chrome bezel. Needle style is the same gauge on the dark face: plain white ticks on a thin ring, and a glowing needle
  * that starts out from the centre, leaving the number in the middle clear.
  */
 export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
@@ -75,6 +78,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const pulse = useSharedValue(0);
   const needle = useSharedValue(dialStyle === 'needle' ? 1 : 0);
   const segment = useSharedValue(dialStyle === 'segment' ? 1 : 0);
+  const paper = useSharedValue(dialStyle === 'classic' ? 1 : 0);
 
   // Strokes, blur and ticks scale with the dial, so it reads the same as a card or full screen.
   const k = Math.min(1, size / 300);
@@ -112,7 +116,8 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     const fade = (on: boolean) => (reduce ? (on ? 1 : 0) : withTiming(on ? 1 : 0, {duration: 380, easing: Easing.inOut(Easing.quad)}));
     needle.set(fade(dialStyle === 'needle'));
     segment.set(fade(dialStyle === 'segment'));
-  }, [dialStyle, needle, segment, reduce]);
+    paper.set(fade(dialStyle === 'classic'));
+  }, [dialStyle, needle, segment, paper, reduce]);
 
   useEffect(() => {
     heat.set(withTiming(redHeat, {duration: 250}));
@@ -126,11 +131,14 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
     const color = interpolateColor(pulse.value * heat.value, [0, 1], [accent, CLUSTER_INK.red]);
     return [color, 'transparent'];
   });
-  const ambientOpacity = useDerivedValue(() => 0.18 + 0.5 * progress.value + 0.25 * pulse.value * heat.value);
+  // A white face is lit already; its halo stays faint.
+  const ambientOpacity = useDerivedValue(() => (0.18 + 0.5 * progress.value + 0.25 * pulse.value * heat.value) * (1 - 0.8 * paper.value));
   // In LED style the bars turn red themselves, so the band behind them steps back.
   const redOpacity = useDerivedValue(() => (0.32 + 0.6 * heat.value) * (1 - 0.7 * segment.value));
   // How much of the plain arc style shows (the other styles fade it out).
-  const plain = useDerivedValue(() => (1 - needle.value) * (1 - segment.value));
+  const plain = useDerivedValue(() => (1 - needle.value) * (1 - segment.value) * (1 - paper.value));
+  // Classic is a needle gauge too, printed on a white face.
+  const needleShown = useDerivedValue(() => Math.max(needle.value, paper.value));
   const trailOpacity = useDerivedValue(() => (trail.value > progress.value + 0.003 ? 0.45 * plain.value : 0));
   // Arc style lights the arc; needle style has no lit arc at all, only the needle.
   const arcOpacity = plain;
@@ -160,7 +168,9 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const needleTurn = useDerivedValue(() => [{rotate: (angleAt(progress.value) * Math.PI) / 180}]);
 
   const labelR = r - 34 * k;
-  const classic = dialStyle === 'needle';
+  const needleLike = dialStyle === 'needle' || dialStyle === 'classic';
+  const onPaper = dialStyle === 'classic';
+  const needleColor = onPaper ? CLUSTER_INK.red : accent;
   return (
     <View style={{width: size, height: size}}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -178,6 +188,16 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         <Circle cx={cx} cy={cy} r={r + 12 * k} style="stroke" strokeWidth={1.5}>
           <LinearGradient start={vec(cx, cy - r)} end={vec(cx, cy + r)} colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.6)']} />
         </Circle>
+        {/* Classic: an ivory face under a chrome bezel, with a fine ink ring for the ticks. */}
+        <Group opacity={paper}>
+          <Circle cx={cx} cy={cy} r={r + 12 * k}>
+            <RadialGradient c={vec(cx, cy - r * 0.25)} r={r * 1.3} colors={[CLUSTER_INK.paper, CLUSTER_INK.paper, CLUSTER_INK.paperEdge]} positions={[0, 0.65, 1]} />
+          </Circle>
+          <Circle cx={cx} cy={cy} r={r + 12 * k} style="stroke" strokeWidth={6 * k}>
+            <LinearGradient start={vec(cx, cy - r)} end={vec(cx, cy + r)} colors={[CLUSTER_INK.chromeLight, CLUSTER_INK.chromeDark, CLUSTER_INK.chromeLight]} />
+          </Circle>
+          <Path path={full} style="stroke" strokeWidth={1.4 * Math.max(0.7, k)} strokeCap="round" color={CLUSTER_INK.inkFaint} />
+        </Group>
         <Path path={full} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.track} opacity={arcOpacity} />
         {/* Needle style: a thin ring for the ticks to stand on, and an inner bezel. */}
         <Group opacity={needle}>
@@ -186,7 +206,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         </Group>
         {red ? <Path path={red} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.red} opacity={redOpacity} /> : null}
         {tickMarks.map((t) => (
-          <Tick key={t.value} cx={cx} cy={cy} r={r - 10 * k} share={fraction(t.value, max)} major={t.major} progress={progress} needle={needle} accent={accent} k={k} />
+          <Tick key={t.value} cx={cx} cy={cy} r={r - 10 * k} share={fraction(t.value, max)} major={t.major} progress={progress} needle={needle} paper={paper} accent={accent} k={k} />
         ))}
         {/* Afterglow, bloom, glow, core. */}
         <Path path={full} start={0} end={trail} style="stroke" strokeWidth={10 * k} strokeCap="round" color={accent} opacity={trailOpacity}>
@@ -214,12 +234,13 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
           ))}
         </Group>
         {/* Needle: glow, accent blade, bright spine, then the hub over its root. */}
-        <Group opacity={needle}>
+        <Group opacity={needleShown}>
           <Group transform={needleTurn} origin={vec(cx, cy)}>
-            <Path path={blade} color={accent} opacity={0.75}>
+            {/* On the white face the glow would only smudge; it is kept faint there. */}
+            <Path path={blade} color={needleColor} opacity={onPaper ? 0.25 : 0.75}>
               <BlurMask blur={10 * k} style="normal" />
             </Path>
-            <Path path={blade} color={accent} />
+            <Path path={blade} color={needleColor} />
             <Line p1={vec(cx + r * 0.5, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
           </Group>
         </Group>
@@ -229,19 +250,19 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         .map((t) => {
           const p = polar(cx, cy, labelR, angleAt(fraction(t.value, max)));
           return (
-            <Text key={t.value} style={[styles.tickLabel, {left: p.x - 20, top: p.y - 8}]}>
+            <Text key={t.value} style={[styles.tickLabel, {left: p.x - 20, top: p.y - 8}, onPaper && {color: CLUSTER_INK.ink}]}>
               {label(t.value)}
             </Text>
           );
         })}
       <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
         {/* Needle style keeps the figures in the clear middle, a little smaller. */}
-        <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.78 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
-        <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}]}>{unit}</Text>
-        {classic ? null : footer}
+        <Text style={[styles.number, {fontSize: size * numberScale * (needleLike ? 0.78 : 1)}, onPaper && {color: CLUSTER_INK.ink}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
+        <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}, onPaper && {color: CLUSTER_INK.inkDim}]}>{unit}</Text>
+        {needleLike ? null : footer}
       </View>
       {/* Needle style: the gear and readouts sit below the clear middle, out of the needle's root. */}
-      {classic ? (
+      {needleLike ? (
         <View style={[styles.below, {top: cy + hubR + 4 * k}]} pointerEvents="none">
           {footer}
         </View>

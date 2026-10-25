@@ -26,15 +26,23 @@ export const CLUSTER_INK = {
   glassEdge: 'rgba(255,255,255,0.09)',
   chip: 'rgba(255,255,255,0.1)',
   onSwatch: '#000000',
+  /** The Classic dial's white face, its chrome bezel and the ink printed on it. */
+  paper: '#F6F3EC',
+  paperEdge: '#D8D2C4',
+  chromeLight: '#FFFFFF',
+  chromeDark: '#6E727A',
+  ink: '#15171C',
+  inkDim: 'rgba(21,23,28,0.62)',
+  inkFaint: 'rgba(21,23,28,0.32)',
 } as const;
 
 /** 'auto' follows the Drive tab's speedometer accent. */
 export const accentColor = (accent: ClusterAccent, driveAccent: string): string => (accent === 'auto' ? driveAccent : CLUSTER_ACCENTS[accent]);
 
-/** How the dials show their value: a glowing arc, a needle, or a ring of LED segments. */
-export const DIAL_STYLES = ['arc', 'needle', 'segment'] as const;
+/** How the dials show their value: a glowing arc, a needle, a ring of LED segments, or a white classic gauge. */
+export const DIAL_STYLES = ['arc', 'needle', 'segment', 'classic'] as const;
 export type DialStyle = (typeof DIAL_STYLES)[number];
-export const DIAL_STYLE_NAMES: Record<DialStyle, string> = {arc: 'Arc', needle: 'Needle', segment: 'LED'};
+export const DIAL_STYLE_NAMES: Record<DialStyle, string> = {arc: 'Arc', needle: 'Needle', segment: 'LED', classic: 'Classic'};
 
 /**
  * How fuel and coolant show: curved arcs hugging the dials, or in the bottom strip as a segmented

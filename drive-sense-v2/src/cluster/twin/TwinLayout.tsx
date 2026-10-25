@@ -52,7 +52,9 @@ function Lamp({icon, color}: {icon: keyof typeof Ionicons.glyphMap; color: strin
 }
 
 /** Small readouts inside a dial, under its number: an icon and a value each. */
-function DialInfo({items, maxWidth}: {items: {icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean}[]; maxWidth?: number}) {
+function DialInfo({items, maxWidth, onPaper}: {items: {icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean}[]; maxWidth?: number; onPaper?: boolean}) {
+  // On the Classic dial's white face the readouts are printed in dark ink.
+  const ink = onPaper ? CLUSTER_INK.inkDim : CLUSTER_INK.textDim;
   const shown = items.filter((i) => i.text != null);
   if (shown.length === 0) {
     return null;
@@ -61,8 +63,8 @@ function DialInfo({items, maxWidth}: {items: {icon: keyof typeof Ionicons.glyphM
     <View style={[styles.info, maxWidth != null && {maxWidth}]}>
       {shown.map((i) => (
         <View key={i.icon} style={styles.infoItem}>
-          <Ionicons name={i.icon} size={13} color={i.warn ? CLUSTER_INK.amber : CLUSTER_INK.textDim} />
-          <Text style={[styles.infoText, i.warn && {color: CLUSTER_INK.amber}]}>{i.text}</Text>
+          <Ionicons name={i.icon} size={13} color={i.warn ? CLUSTER_INK.amber : ink} />
+          <Text style={[styles.infoText, {color: ink}, i.warn && {color: CLUSTER_INK.amber}]}>{i.text}</Text>
         </View>
       ))}
     </View>
@@ -277,8 +279,9 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
             unit={u.speedUnit}
             footer={
               <DialInfo
-                // Needle style keeps them in the narrow space between the bottom scale labels.
-                maxWidth={speedStyle === 'needle' ? dial * 0.34 : undefined}
+                onPaper={speedStyle === 'classic'}
+                // Needle styles keep them in the narrow space between the bottom scale labels.
+                maxWidth={speedStyle === 'needle' || speedStyle === 'classic' ? dial * 0.34 : undefined}
                 items={[
                   // This drive's distance while recording, else how far the tank goes.
                   d.distanceM != null ? {icon: 'navigate-circle', text: `${u.distance(d.distanceM)} ${u.distanceUnit}`} : {icon: 'color-fill', text: range, warn: d.alerts.lowFuel},
@@ -309,8 +312,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
                   <>
                     {/* Always there, so the gear has a known place; a dash until it is worked out. */}
                     <View style={styles.gearRow}>
-                      <View style={[styles.gear, {borderColor: d.gear ? accent : CLUSTER_INK.textFaint}]}>
-                        <Text style={[styles.gearText, {color: d.gear ? accent : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
+                      <View style={[styles.gear, {borderColor: d.gear ? accent : revStyle === 'classic' ? CLUSTER_INK.inkFaint : CLUSTER_INK.textFaint}]}>
+                        <Text style={[styles.gearText, {color: d.gear ? accent : revStyle === 'classic' ? CLUSTER_INK.inkFaint : CLUSTER_INK.textFaint}]}>{d.gear ?? '–'}</Text>
                       </View>
                       {/* Shift-up hint: high revs in a low gear. */}
                       {d.shiftUp ? (
@@ -320,7 +323,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
                         </View>
                       ) : null}
                     </View>
-                    <DialInfo items={[{icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null}]} />
+                    <DialInfo onPaper={revStyle === 'classic'} items={[{icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null}]} />
                   </>
                 }
               />
