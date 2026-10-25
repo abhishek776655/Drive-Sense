@@ -17,6 +17,9 @@ import {FONT} from '../theme/theme';
 import {useBarometerFeed} from '../tracking/useBarometerFeed';
 import {useLocationFeed} from '../tracking/useLocationFeed';
 
+/** Space kept at the sides and for the home indicator, whatever the reported insets. */
+const SIDE_MARGIN = 20;
+const BOTTOM_MARGIN = 16;
 /** Controls show on a tap and fade away after this. */
 const CHROME_MS = 3000;
 
@@ -67,8 +70,11 @@ export default function ClusterScreen() {
 
   // Landscape: the long side is the width. Until the rotation lands, draw nothing rather than squash.
   const landscape = width > height;
-  const areaW = width - Math.max(insets.left, insets.right) * 2 - 16;
-  const areaH = height - insets.top - insets.bottom - 8;
+  // Fixed margins rather than safe-area insets: right after the rotation some builds still report
+  // portrait insets and others landscape ones, which sized the cluster differently. The dials are
+  // round and the edges dark, so the island and home indicator only ever overlap empty corners.
+  const areaW = width - SIDE_MARGIN * 2;
+  const areaH = height - BOTTOM_MARGIN - 8;
   const Layout = layout.Component;
   const nextLayout = () => {
     const i = CLUSTER_LAYOUTS.findIndex((l) => l.id === layout.id);
