@@ -1,13 +1,15 @@
-import {View} from 'react-native';
-import Svg, {Circle, G, Path, Text as SvgText} from 'react-native-svg';
+import {BlurMask, Canvas, Circle, DashPathEffect, Group, Path, Skia} from '@shopify/react-native-skia';
+import {useMemo} from 'react';
+import {StyleSheet, Text, View} from 'react-native';
 import {useUnits} from '../../hooks/useUnits';
 import type {GaugeStyle} from '../../stores/driveSettingsStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {RollingNumber} from '../RollingNumber';
 import {NeonFace, TapeFace} from './CreativeGauges';
-import {NEEDLE_THEMES, ROAD_THEMES} from '../../theme/gaugeThemes';
+import {gaugeNumberSpot, NEEDLE_THEMES, ROAD_THEMES} from '../../theme/gaugeThemes';
 import {RoadFace, ThemedNeedle} from './ThemedGauges';
-import {arcPath, GAUGE_START_DEG, valueToAngle} from '../../utils/gaugeMath';
+import {arcPath, clampFraction, GAUGE_START_DEG} from '../../utils/gaugeMath';
+import {useSpringTo} from './gaugeMotion';
 
 interface GaugeDialProps {
   /** Speed and dial full scale, both in the chosen unit (km/h or mph). */
@@ -20,56 +22,61 @@ interface GaugeDialProps {
 
 const END_DEG = GAUGE_START_DEG + 270;
 
-/** Where each style's speed number sits on the 200 grid (baseline y, size, weight). */
-type NumberSpot = {baseline: number; fontSize: number; weight: 'bold' | 'black'; color?: string};
-const BUILT_IN: Partial<Record<GaugeStyle, NumberSpot>> = {
-  arc: {baseline: 116, fontSize: 56, weight: 'black'},
-  tape: {baseline: 92, fontSize: 58, weight: 'black'},
-  neon: {baseline: 118, fontSize: 60, weight: 'black'},
-};
-/** Needle dials put the speed under the hub; road scenes, big in the sky. */
-const numberSpot = (style: GaugeStyle): NumberSpot => {
-  if (style in NEEDLE_THEMES) {
-    return {baseline: 150, fontSize: 30, weight: 'black', color: NEEDLE_THEMES[style as keyof typeof NEEDLE_THEMES].number};
-  }
-  if (style in ROAD_THEMES) {
-    return {baseline: 84, fontSize: 50, weight: 'black', color: ROAD_THEMES[style as keyof typeof ROAD_THEMES].line};
-  }
-  return BUILT_IN[style] ?? {baseline: 116, fontSize: 56, weight: 'black'};
-};
 /** Line box height as a share of the font size, and where the baseline falls inside it (Nunito). */
 const LINE = 1.2;
 const BASELINE_FROM_TOP = 0.98;
 
-/** The dial styles on one 200×200 grid (others in `CreativeGauges` and `ThemedGauges`); angle maths lives in `gaugeMath`. */
+/** The original Arc: a dotted outer ring, a soft track, and the accent arc with its glow. */
+function ArcFace({share, accent, unit, size}: {share: ReturnType<typeof useSpringTo>; accent: string; unit: string; size: number}) {
+  const theme = useAppTheme();
+  const c = theme.colors;
+  const k = size / 200;
+  const ring = useMemo(() => Skia.Path.MakeFromSVGString(arcPath(100, 100, 94, GAUGE_START_DEG, END_DEG))!, []);
+  const arc = useMemo(() => Skia.Path.MakeFromSVGString(arcPath(100, 100, 80, GAUGE_START_DEG, END_DEG))!, []);
+  return (
+    <>
+      <Canvas style={StyleSheet.absoluteFill}>
+        <Group transform={[{scale: k}]}>
+          <Circle cx={100} cy={100} r={97} color={c.card} opacity={0.35} />
+          <Circle cx={100} cy={100} r={97} style="stroke" strokeWidth={1.5} color={c.separator} />
+          <Path path={ring} style="stroke" strokeWidth={2} color={c.textSecondary} opacity={0.5}>
+            <DashPathEffect intervals={[1.2, 9.4]} />
+          </Path>
+          <Path path={arc} style="stroke" strokeWidth={14} strokeCap="round" color={c.textTertiary} opacity={0.4} />
+          <Path path={arc} start={0} end={share} style="stroke" strokeWidth={22} strokeCap="round" color={accent} opacity={0.35}>
+            <BlurMask blur={4} style="normal" />
+          </Path>
+          <Path path={arc} start={0} end={share} style="stroke" strokeWidth={14} strokeCap="round" color={accent} />
+        </Group>
+      </Canvas>
+      <Text style={[styles.unit, {top: 126 * k, fontSize: 13 * k, fontFamily: theme.font.bold, color: c.textSecondary}]}>{unit}</Text>
+    </>
+  );
+}
+
+/**
+ * The Drive speedometer in all its styles, drawn with Skia on one 200×200 grid scaled to `size`
+ * (Arc here; HUD and Neon in `CreativeGauges`; vehicle needles and road scenes in `ThemedGauges`).
+ * One spring per reading drives every face on the UI thread, so arcs, needles and the tape glide
+ * to each new speed instead of jumping.
+ */
 export function GaugeDial({speed, scale, gaugeStyle, accent, size}: GaugeDialProps) {
   const theme = useAppTheme();
   const c = theme.colors;
-  const {speedUnit, units} = useUnits();
-  const face = {speed, scale, accent, unit: speedUnit, theme, toKmh: units === 'imperial' ? 1.609344 : 1};
-  const angle = valueToAngle(speed, scale);
-  const number = numberSpot(gaugeStyle);
+  const {speedUnit} = useUnits();
+  const share = useSpringTo(clampFraction(speed, scale));
+  const value = useSpringTo(speed);
+  const number = gaugeNumberSpot(gaugeStyle);
   // The 200-unit grid scaled to the dial's size.
   const k = size / 200;
 
   return (
     <View style={{width: size, height: size}}>
-    <Svg width={size} height={size} viewBox="0 0 200 200">
-      {gaugeStyle === 'arc' && (
-        <G>
-          <Circle cx={100} cy={100} r={97} fill={c.card} fillOpacity={0.35} stroke={c.separator} strokeWidth={1.5} />
-          <Path d={arcPath(100, 100, 94, GAUGE_START_DEG, END_DEG)} fill="none" stroke={c.textSecondary} strokeOpacity={0.5} strokeWidth={2} strokeDasharray="1.2 9.4" />
-          <Path d={arcPath(100, 100, 80, GAUGE_START_DEG, END_DEG)} fill="none" stroke={c.textTertiary} strokeOpacity={0.4} strokeWidth={14} strokeLinecap="round" />
-          <Path d={arcPath(100, 100, 80, GAUGE_START_DEG, angle)} fill="none" stroke={accent} strokeOpacity={0.35} strokeWidth={22} strokeLinecap="round" />
-          <Path d={arcPath(100, 100, 80, GAUGE_START_DEG, angle)} fill="none" stroke={accent} strokeWidth={14} strokeLinecap="round" />
-          <SvgText x={100} y={138} textAnchor="middle" fontSize={13} fontFamily={theme.font.bold} fill={c.textSecondary}>{speedUnit}</SvgText>
-        </G>
-      )}
-      {gaugeStyle === 'tape' && <TapeFace {...face} />}
-      {gaugeStyle === 'neon' && <NeonFace {...face} />}
-      {gaugeStyle in NEEDLE_THEMES && <ThemedNeedle speed={speed} scale={scale} unit={speedUnit} t={NEEDLE_THEMES[gaugeStyle as keyof typeof NEEDLE_THEMES]} />}
-      {gaugeStyle in ROAD_THEMES && <RoadFace speed={speed} scale={scale} t={ROAD_THEMES[gaugeStyle as keyof typeof ROAD_THEMES]} />}
-    </Svg>
+      {gaugeStyle === 'arc' && <ArcFace share={share} accent={accent} unit={speedUnit} size={size} />}
+      {gaugeStyle === 'tape' && <TapeFace value={value} scale={scale} accent={accent} unit={speedUnit} size={size} />}
+      {gaugeStyle === 'neon' && <NeonFace share={share} accent={accent} unit={speedUnit} size={size} />}
+      {gaugeStyle in NEEDLE_THEMES && <ThemedNeedle share={share} scale={scale} unit={speedUnit} size={size} t={NEEDLE_THEMES[gaugeStyle as keyof typeof NEEDLE_THEMES]} />}
+      {gaugeStyle in ROAD_THEMES && <RoadFace share={share} speed={speed} size={size} t={ROAD_THEMES[gaugeStyle as keyof typeof ROAD_THEMES]} />}
       {/* The speed sits over the drawing as text so its digits can roll like a timer. */}
       <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: (number.baseline - number.fontSize * BASELINE_FROM_TOP) * k}}>
         <RollingNumber value={speed} size={number.fontSize * k} lineHeight={number.fontSize * LINE * k} weight={number.weight} color={number.color ?? c.textPrimary} />
@@ -77,3 +84,7 @@ export function GaugeDial({speed, scale, gaugeStyle, accent, size}: GaugeDialPro
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  unit: {position: 'absolute', left: 0, right: 0, textAlign: 'center'},
+});

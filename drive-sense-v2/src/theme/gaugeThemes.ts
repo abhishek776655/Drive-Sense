@@ -1,3 +1,5 @@
+import type {GaugeStyle} from '../stores/driveSettingsStore';
+
 /**
  * Fixed colours of the vehicle-themed speedometer dials (`ThemedGauges`). They are the dials' own
  * paint, the same in light and dark mode like a real instrument, so they live here rather than in
@@ -53,3 +55,22 @@ export const ROAD_THEMES = {
   daylightRoad: {sky: ['#3E8EE8', '#BFE2FF'], ground: ['#C9B98F', '#8E7E5A'], road: '#5A5E66', line: '#FFFFFF', light: 'sun'},
   sunsetRoad: {sky: ['#3A1C4A', '#F07A3A'], ground: ['#3A2A2E', '#1A1216'], road: '#2E2A30', line: '#FFD2A8', light: 'sunset'},
 } satisfies Record<string, RoadTheme>;
+
+/** Where each style's speed number sits on the dial's 200 grid (baseline y, size, weight). */
+export type NumberSpot = {baseline: number; fontSize: number; weight: 'bold' | 'black'; color?: string};
+const BUILT_IN_SPOTS: Record<string, NumberSpot> = {
+  arc: {baseline: 116, fontSize: 56, weight: 'black'},
+  tape: {baseline: 92, fontSize: 58, weight: 'black'},
+  neon: {baseline: 118, fontSize: 60, weight: 'black'},
+};
+
+/** Needle dials put the speed under the hub; road scenes, big in the sky. Shared by the phone dial and the car's. */
+export const gaugeNumberSpot = (style: GaugeStyle): NumberSpot => {
+  if (style in NEEDLE_THEMES) {
+    return {baseline: 150, fontSize: 30, weight: 'black', color: NEEDLE_THEMES[style as keyof typeof NEEDLE_THEMES].number};
+  }
+  if (style in ROAD_THEMES) {
+    return {baseline: 84, fontSize: 50, weight: 'black', color: ROAD_THEMES[style as keyof typeof ROAD_THEMES].line};
+  }
+  return BUILT_IN_SPOTS[style] ?? {baseline: 116, fontSize: 56, weight: 'black'};
+};

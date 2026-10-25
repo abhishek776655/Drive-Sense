@@ -50,3 +50,12 @@ export const arcPath = (cx: number, cy: number, r: number, startDeg: number, end
   const largeArc = sweep > 180 ? 1 : 0;
   return `M${fmt(a.x)} ${fmt(a.y)}A${r} ${r} 0 ${largeArc} 1 ${fmt(b.x)} ${fmt(b.y)}`;
 };
+
+/** A round step for labels: about `count` labels across the scale, at 10, 20, 25, 50 … */
+export const niceStep = (scale: number, count = 6): number => {
+  const raw = scale / count;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const unit = raw / pow;
+  const nice = unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 2.5 ? 2.5 : unit <= 5 ? 5 : 10;
+  return nice * pow;
+};

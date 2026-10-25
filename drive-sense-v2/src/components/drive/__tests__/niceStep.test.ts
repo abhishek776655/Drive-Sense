@@ -1,4 +1,4 @@
-import {niceStep} from '../CreativeGauges';
+import {niceStep} from '../../../utils/gaugeMath';
 
 describe('niceStep', () => {
   it('picks round label steps for km/h and mph scales', () => {
