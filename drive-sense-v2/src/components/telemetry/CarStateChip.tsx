@@ -1,7 +1,7 @@
 import {Ionicons} from '@expo/vector-icons';
 import {useEffect, useState} from 'react';
 import {View} from 'react-native';
-import {carState, ENGINE_OFF_END_S, lastAnswerAt} from '../../obd/sourceRules';
+import {carState, ENGINE_OFF_END_S, lastAnswerAt, type CarState} from '../../obd/sourceRules';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useRecordingStore} from '../../stores/recordingStore';
@@ -9,6 +9,22 @@ import {withAlpha} from '../../theme/color';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
+
+/** A clock ticking each second: going quiet sends no updates, so the car's state needs its own. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+/** Running, engine off with the ignition on, or parked (ignition off), kept current each second. */
+export function useCarState(): CarState {
+  const values = useObdStore((s) => s.values);
+  return carState(values, useNow());
+}
 
 /**
  * What the car is doing when it is not simply running (spec 2026-10-25, telemetry sources): engine off
@@ -20,13 +36,7 @@ export function CarStateChip() {
   const values = useObdStore((s) => s.values);
   const recording = useRecordingStore((s) => s.status === 'recording');
   const autoStop = usePreferencesStore((s) => s.autoStop);
-  const [now, setNow] = useState(() => Date.now());
-  // Going quiet sends no updates, so the chip keeps its own clock.
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
+  const now = useNow();
   const state = carState(values, now);
   const answered = lastAnswerAt(values);
   const endsIn = answered == null ? null : Math.max(0, Math.ceil(ENGINE_OFF_END_S - (now - answered) / 1000));

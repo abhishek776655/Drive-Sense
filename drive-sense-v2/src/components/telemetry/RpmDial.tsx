@@ -1,3 +1,4 @@
+import {MaterialCommunityIcons} from '@expo/vector-icons';
 import {BlurMask, Canvas, Circle, Line, Path, Skia, SweepGradient, vec} from '@shopify/react-native-skia';
 import {useEffect, useMemo} from 'react';
 import {View} from 'react-native';
@@ -25,12 +26,28 @@ function Tick({share, major, progress, lit, dim}: {share: number; major: boolean
   return <Line p1={vec(outer.x, outer.y)} p2={vec(inner.x, inner.y)} color={color} strokeWidth={major ? 2 : 1} strokeCap="round" />;
 }
 
+/** Parking or gear: lit in the accent when it is the car's state, faint otherwise. */
+function ShiftChip({icon, label, on}: {icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string | null; on: boolean}) {
+  const c = useAppTheme().colors;
+  const color = on ? c.accent : c.textTertiary;
+  return (
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, height: 28, paddingHorizontal: label ? 10 : 7, borderRadius: 14, backgroundColor: on ? c.accentTint : withAlpha(c.textPrimary, 0.06)}}>
+      <MaterialCommunityIcons name={icon} size={16} color={color} />
+      {label ? (
+        <AppText size={14} weight="black" color={color} style={{fontVariant: ['tabular-nums']}}>
+          {label}
+        </AppText>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * The Telemetry hero: RPM on a glowing arc that springs to the value (a sweep up and back when it
- * first appears), ticks that light as it passes, the redline band, speed big in the middle and the
- * guessed gear under it.
+ * first appears), ticks that light as it passes, the redline band, speed big in the middle, and
+ * under the RPM whether the car is parked or in which (guessed) gear.
  */
-export function RpmDial({rpm, speed, speedUnit, gear, redline}: {rpm: number | null; speed: string; speedUnit: string; gear: string | null; redline: number}) {
+export function RpmDial({rpm, speed, speedUnit, gear, parked, redline}: {rpm: number | null; speed: string; speedUnit: string; gear: string | null; parked: boolean; redline: number}) {
   const c = useAppTheme().colors;
   const reduce = useReduceMotion();
   const max = dialMax(8000, 1000, rpm);
@@ -73,7 +90,7 @@ export function RpmDial({rpm, speed, speedUnit, gear, redline}: {rpm: number | n
 
   return (
     <Card style={{alignItems: 'center', paddingVertical: 18}}>
-      <View style={{width: SIZE, height: SIZE * 0.9}} accessible accessibilityLabel={`${Math.round(rpm ?? 0)} RPM, ${speed} ${speedUnit}${gear ? `, gear ${gear}` : ''}`}>
+      <View style={{width: SIZE, height: SIZE * 0.9}} accessible accessibilityLabel={`${Math.round(rpm ?? 0)} RPM, ${speed} ${speedUnit}${parked ? ', parked' : gear ? `, gear ${gear}` : ''}`}>
         <Canvas style={{width: SIZE, height: SIZE}}>
           <Path path={full} style="stroke" strokeWidth={STROKE} strokeCap="round" color={withAlpha(c.textPrimary, 0.07)} />
           <Path path={red} style="stroke" strokeWidth={STROKE} strokeCap="round" color={withAlpha(c.red, hot ? 0.55 : 0.25)} />
@@ -92,27 +109,25 @@ export function RpmDial({rpm, speed, speedUnit, gear, redline}: {rpm: number | n
           </Circle>
           <Circle cx={tipX} cy={tipY} r={4} color={c.onAccent} />
         </Canvas>
-        <View style={{position: 'absolute', top: 0, left: 0, right: 0, height: SIZE, alignItems: 'center', justifyContent: 'center'}}>
-          <AppText size={64} weight="black" style={{lineHeight: 68, fontVariant: ['tabular-nums']}}>
+        {/* Starts below the top ticks; the chips sit in the open gap at the bottom of the arc. */}
+        <View style={{position: 'absolute', top: 62, left: 0, right: 0, alignItems: 'center'}}>
+          <AppText size={54} weight="black" style={{lineHeight: 58, fontVariant: ['tabular-nums']}}>
             {speed}
           </AppText>
           <AppText size={14} weight="bold" tone="secondary">
             {speedUnit}
           </AppText>
-          <View style={{flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center'}}>
+          <View style={{flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'center'}}>
             <AppText size={20} weight="black" color={hot ? c.red : c.textPrimary} style={{fontVariant: ['tabular-nums']}}>
               {rpm == null ? '—' : Math.round(rpm).toLocaleString('en-US')}
             </AppText>
             <AppText size={12} weight="bold" tone="secondary">
               RPM
             </AppText>
-            {gear ? (
-              <View style={{marginLeft: 4, minWidth: 30, height: 26, borderRadius: 8, paddingHorizontal: 8, backgroundColor: c.accentTint, alignItems: 'center', justifyContent: 'center'}}>
-                <AppText size={15} weight="black" tone="accent">
-                  {gear}
-                </AppText>
-              </View>
-            ) : null}
+          </View>
+          <View style={{flexDirection: 'row', gap: 8, marginTop: 8}}>
+            <ShiftChip icon="parking" label={parked ? 'Parked' : null} on={parked} />
+            <ShiftChip icon="car-shift-pattern" label={parked ? null : (gear ?? '–')} on={!parked && gear != null} />
           </View>
         </View>
       </View>

@@ -9,7 +9,7 @@ import {ActionButton} from '../../components/ActionButton';
 import {StickyHeaderScroll} from '../../components/StickyHeaderScroll';
 import {useTabBarInset} from '../../components/tabBarLayout';
 import {AdapterCard, LINK_TEXT} from '../../components/telemetry/AdapterCard';
-import {CarStateChip} from '../../components/telemetry/CarStateChip';
+import {CarStateChip, useCarState} from '../../components/telemetry/CarStateChip';
 import {PairSheet} from '../../components/telemetry/PairSheet';
 import {RpmDial} from '../../components/telemetry/RpmDial';
 import {CheckEngineCard} from '../../components/telemetry/CheckEngineCard';
@@ -106,6 +106,7 @@ export default function TelemetryScreen() {
   const bottomInset = useTabBarInset(live);
   const {link, adapter, values, derived, history, mil, vin, codes} = useObdStore();
   const [pairing, setPairing] = useState(false);
+  const state = useCarState();
 
   const connected = link === 'live' || link === 'engineOff';
   const tones: Record<TileTone, string> = {normal: c.textSecondary, warn: c.amber, alert: c.red};
@@ -163,6 +164,7 @@ export default function TelemetryScreen() {
           speed={speedKmh == null ? '—' : String(kmhInUnits(speedKmh, u.units))}
           speedUnit={u.speedUnit}
           gear={link === 'live' ? gearLabel(derived.gear) : null}
+          parked={state === 'parked'}
           redline={redline}
         />
         <ThisDriveCard />
