@@ -1,9 +1,10 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, Platform, StyleSheet, View} from 'react-native';
-import MapView, {Marker, Polyline} from 'react-native-maps';
+import MapView, {Circle, Marker, Polyline} from 'react-native-maps';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {DARK_MAP_STYLE} from '../../theme/mapStyle';
 import {useAppTheme} from '../../theme/ThemeProvider';
+import {withAlpha} from '../../theme/color';
 import {haversineMeters} from '../../utils/geo';
 import {routeRegion} from '../../utils/routeRegion';
 import {buildReplay, MAP_POINTS, replayAt, speedSegments, thin, type ReplayFrame} from '../../utils/tripAnalysis';
@@ -20,7 +21,7 @@ import {useMapType} from '../../hooks/useMapType';
 const FOCUS_DELTA = 0.0035;
 
 /** The trip's route coloured by speed, with start/end flags and event markers. */
-export function TripRouteMap({points, events, mode = 'speed', interactive = false, focus = null, legendStyle = {left: 12, top: 12}, showEvents = true, onExpand}: TripRouteMapProps) {
+export function TripRouteMap({points, events, mode = 'speed', interactive = false, focus = null, legendStyle = {left: 12, top: 12}, showEvents = true, onExpand, roughSpots = []}: TripRouteMapProps) {
   const mapType = useMapType();
   const theme = useAppTheme();
   const c = theme.colors;
@@ -28,7 +29,7 @@ export function TripRouteMap({points, events, mode = 'speed', interactive = fals
   const mapRef = useRef<MapView>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Slide-up + fade animation for the event card.
-  const cardAnim = useRef(new Animated.Value(0)).current;
+  const [cardAnim] = useState(() => new Animated.Value(0));
   const isFirstSelect = useRef(true);
 
   useEffect(() => {
@@ -170,6 +171,17 @@ export function TripRouteMap({points, events, mode = 'speed', interactive = fals
         ) : null}
         {lines.map((line) => (
           <Polyline key={line.key} coordinates={line.coords} strokeColor={line.color} strokeWidth={5} lineCap="round" lineJoin="round" zIndex={2} />
+        ))}
+        {roughSpots.map((spot, i) => (
+          <Circle
+            key={`rough${i}`}
+            center={spot}
+            radius={14}
+            fillColor={withAlpha(spot.level === 'rough' ? c.red : c.amber, 0.6)}
+            strokeColor={withAlpha(spot.level === 'rough' ? c.red : c.amber, 0.9)}
+            strokeWidth={1}
+            zIndex={3}
+          />
         ))}
         {(showEvents && interactive ? pins : []).map((pin) => (
           <Marker

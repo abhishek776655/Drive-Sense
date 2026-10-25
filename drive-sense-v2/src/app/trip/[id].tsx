@@ -27,6 +27,8 @@ import {TripWeatherCard} from '../../components/trip/TripWeatherCard';
 import {GlassButton} from '../../components/GlassButton';
 import {SectionTitle} from '../../components/trip/SectionTitle';
 import {CarSection} from '../../components/trip/CarSection';
+import {RoadSection} from '../../components/trip/RoadSection';
+import {useTripSensors} from '../../hooks/useTripSensors';
 import {SpeedChart} from '../../components/trip/SpeedChart';
 import {StopsCard} from '../../components/trip/StopsCard';
 import {TimeAtSpeedCard} from '../../components/trip/TimeAtSpeedCard';
@@ -139,6 +141,12 @@ export default function TripDetailScreen() {
   const detail = entry?.detail ?? null;
   const analysis = useMemo(() => (detail ? analyseTrip(detail.location_points) : null), [detail]);
   const breakdown = useMemo(() => (detail ? eventBreakdown(detail.events) : null), [detail]);
+  // This phone's own sensor summary of the drive (corners, road, phone use), when it recorded one.
+  const sensors = useTripSensors(detail?.start_time ?? null);
+  const roughSpots = useMemo(
+    () => (sensors?.road.segments ?? []).flatMap((s) => (s.level === 'smooth' ? [] : [{latitude: s.latitude, longitude: s.longitude, level: s.level}])),
+    [sensors],
+  );
   // Located events for the map; the title and description show when a marker is tapped.
   const events: TripRouteMapProps['events'] = useMemo(() => {
     const list: TripRouteMapProps['events'] = (breakdown?.list ?? []).flatMap((e) => {
@@ -256,7 +264,7 @@ export default function TripDetailScreen() {
       <View style={{gap: theme.space.cardGap}}>
         <Card style={{overflow: 'hidden'}}>
           <View style={{height: 260}}>
-            <TripRouteMap points={analysis.points} events={events} onExpand={() => setFullscreen({open: true, focus: null})} />
+            <TripRouteMap points={analysis.points} events={events} roughSpots={roughSpots} onExpand={() => setFullscreen({open: true, focus: null})} />
           </View>
         </Card>
         {analysis.points.length > 1 ? (
@@ -311,7 +319,7 @@ export default function TripDetailScreen() {
           </View>
         </View>
         <TurnsCard left={detail.left_turns} right={detail.right_turns} />
-        <GForceSummaryCard maxG={maxG} approximate={sensorG == null && maxG != null} accelG={peakAccel} brakeG={peakBrake} />
+        <GForceSummaryCard maxG={maxG} approximate={sensorG == null && maxG != null} accelG={peakAccel} brakeG={peakBrake} corner={sensors?.corners.hardest?.peakG ?? null} />
 
         <SectionTitle icon="ribbon" color={c.green} title="Score" />
         <ScoreEventsCard detail={detail} pending={false} phoneEventCount={detail.events.length} showEvents={false} />
@@ -338,6 +346,8 @@ export default function TripDetailScreen() {
             <TimeAtSpeedCard bands={analysis.bands} />
           </>
         ) : null}
+
+        <RoadSection sensors={sensors} />
 
         <CarSection startTime={detail.start_time} />
 
@@ -433,6 +443,7 @@ export default function TripDetailScreen() {
           onClose={() => setFullscreen({open: false, focus: null})}
           points={analysis.points}
           events={events}
+          roughSpots={roughSpots}
           focus={fullscreen.focus}
           showEvents={showEvents}
           onToggleEvents={toggleEvents}

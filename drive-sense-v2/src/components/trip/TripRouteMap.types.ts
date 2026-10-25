@@ -19,4 +19,6 @@ export interface TripRouteMapProps {
   legendStyle?: {top?: number; bottom?: number; left?: number};
   /** Shows the expand button when set. */
   onExpand?: () => void;
+  /** Rough stretches of road the phone felt (phone sensors), drawn as small amber / red spots. */
+  roughSpots?: (LatLng & {level: 'fair' | 'rough'})[];
 }

@@ -14,13 +14,14 @@ interface RouteFullscreenProps {
   onClose: () => void;
   points: TripRouteMapProps['points'];
   events: TripRouteMapProps['events'];
+  roughSpots?: TripRouteMapProps['roughSpots'];
   focus?: LatLng | null;
   showEvents: boolean;
   onToggleEvents: () => void;
 }
 
 /** Full-screen route: pan and zoom, a heatmap (speed colours) toggle and Events on / off, as in Rovy. */
-export function RouteFullscreen({visible, onClose, points, events, focus = null, showEvents, onToggleEvents}: RouteFullscreenProps) {
+export function RouteFullscreen({visible, onClose, points, events, roughSpots, focus = null, showEvents, onToggleEvents}: RouteFullscreenProps) {
   const theme = useAppTheme();
   const c = theme.colors;
   const insets = useSafeAreaInsets();
@@ -29,7 +30,7 @@ export function RouteFullscreen({visible, onClose, points, events, focus = null,
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={{flex: 1, backgroundColor: c.canvas}}>
-        <TripRouteMap points={points} events={events} mode={heatmap ? 'speed' : 'plain'} interactive focus={focus} legendStyle={{left: 16, bottom: insets.bottom + 44}} showEvents={showEvents} />
+        <TripRouteMap points={points} events={events} mode={heatmap ? 'speed' : 'plain'} interactive focus={focus} legendStyle={{left: 16, bottom: insets.bottom + 44}} showEvents={showEvents} roughSpots={roughSpots} />
         <View style={{position: 'absolute', top: insets.top + 8, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8}}>
           <MapButton icon="close" label="Close map" onPress={onClose} size={44} />
           <View style={{alignItems: 'flex-end', gap: 12}}>

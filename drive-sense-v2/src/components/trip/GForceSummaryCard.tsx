@@ -20,8 +20,8 @@ function Part({icon, color, value, label}: {icon: keyof typeof Ionicons.glyphMap
   );
 }
 
-/** Rovy-style G-Force card: the trip's biggest G, then acceleration and braking peaks. */
-export function GForceSummaryCard({maxG, approximate, accelG, brakeG}: {maxG: number | null; approximate: boolean; accelG: number | null; brakeG: number | null}) {
+/** Rovy-style G-Force card: the trip's biggest G, then acceleration and braking peaks, and the hardest corner when the phone measured it. */
+export function GForceSummaryCard({maxG, approximate, accelG, brakeG, corner}: {maxG: number | null; approximate: boolean; accelG: number | null; brakeG: number | null; corner?: number | null}) {
   const c = useAppTheme().colors;
   return (
     <Card style={{padding: 16, gap: 12}}>
@@ -45,6 +45,7 @@ export function GForceSummaryCard({maxG, approximate, accelG, brakeG}: {maxG: nu
       <View style={{flexDirection: 'row', gap: 8}}>
         <Part icon="arrow-up" color={c.green} value={accelG != null ? formatG(accelG) : DASH} label="Acceleration" />
         <Part icon="arrow-down" color={c.red} value={brakeG != null ? formatG(brakeG) : DASH} label="Braking" />
+        {corner != null ? <Part icon="return-up-forward" color={c.cyan} value={formatG(corner)} label="Hardest corner" /> : null}
       </View>
     </Card>
   );
