@@ -32,7 +32,7 @@ export function TripPage({ d }: { d: ClusterData }) {
     return (
       <View style={pageStyles.page}>
         <Text style={pageStyles.title}>NOT RECORDING</Text>
-        {now ? <Figure label={`${label} now`} value={now.value} unit={now.unit} big /> : <Text style={pageStyles.hint}>Start a drive to see this trip here</Text>}
+        {now ? <Figure label={`${label} now`} value={now.value} unit={now.unit} big /> : <Text style={pageStyles.hint}>Start a drive to view</Text>}
       </View>
     );
   }
