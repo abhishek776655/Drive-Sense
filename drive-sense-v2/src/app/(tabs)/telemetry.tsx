@@ -17,7 +17,6 @@ import {Sparkline} from '../../components/telemetry/Sparkline';
 import {ThisDriveCard} from '../../components/telemetry/ThisDriveCard';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
-import {setSimEngine, setSimIgnition, simControls, simulateDropout, SIM_DEVICE_ID} from '../../obd/simAdapter';
 import {fuelFlow, gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -55,39 +54,6 @@ function Banner({icon, color, text}: {icon: keyof typeof Ionicons.glyphMap; colo
         {text}
       </AppText>
     </Card>
-  );
-}
-
-/** Development builds with the simulated adapter: engine, ignition, and a Bluetooth dropout. */
-function SimEngineSwitch() {
-  const c = useAppTheme().colors;
-  const [on, setOn] = useState(simControls.engineOn);
-  const [ignition, setIgnition] = useState(simControls.ignitionOn);
-  const toggle = () => {
-    setSimEngine(!on);
-    setOn(!on);
-  };
-  const toggleIgnition = () => {
-    setSimIgnition(!ignition);
-    setIgnition(!ignition);
-    setOn(simControls.engineOn);
-  };
-  const chip = (icon: keyof typeof Ionicons.glyphMap, color: string, label: string, onPress: () => void) => (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({pressed}) => ({opacity: pressed ? 0.6 : 1})}>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: c.control}}>
-        <Ionicons name={icon} size={16} color={color} />
-        <AppText size={13} weight="extrabold" tone="secondary">
-          {label}
-        </AppText>
-      </View>
-    </Pressable>
-  );
-  return (
-    <View style={{alignItems: 'center', gap: 8}}>
-      {ignition ? chip(on ? 'power' : 'flash', on ? c.red : c.green, `Simulator: ${on ? 'engine off (ignition on)' : 'start engine'}`, toggle) : null}
-      {chip('key', ignition ? c.amber : c.green, `Simulator: ${ignition ? 'ignition off (park)' : 'ignition on'}`, toggleIgnition)}
-      {chip('bluetooth', c.blue, 'Simulator: adapter dropout 6 s', () => simulateDropout(6))}
-    </View>
   );
 }
 
@@ -194,7 +160,6 @@ export default function TelemetryScreen() {
           ))}
         </View>
         <AdapterCard vehicleId={vehicle.id} onPair={() => setPairing(true)} />
-        {__DEV__ && adapter.deviceId === SIM_DEVICE_ID ? <SimEngineSwitch /> : null}
       </>
     );
   };

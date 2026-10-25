@@ -4,7 +4,6 @@ import {ActivityIndicator, Modal, Pressable, ScrollView, View} from 'react-nativ
 import {getDb} from '../../db';
 import {putAdapter} from '../../db/obdRepos';
 import {bleStatus, ensureBlePermission, scanAdapters, type FoundAdapter} from '../../obd/bleTransport';
-import {SIM_DEVICE_ID, SIM_DEVICE_NAME} from '../../obd/simAdapter';
 import {useObdStore} from '../../stores/obdStore';
 import {withAlpha} from '../../theme/color';
 import {useAppTheme} from '../../theme/ThemeProvider';
@@ -14,9 +13,6 @@ import {GlassButton} from '../GlassButton';
 
 type Phase = 'starting' | 'scanning' | 'blocked';
 
-/** Development builds list a pretend adapter first, so the whole flow runs without Bluetooth. */
-const DEV_ADAPTERS: FoundAdapter[] = __DEV__ ? [{id: SIM_DEVICE_ID, name: SIM_DEVICE_NAME}] : [];
-
 /**
  * Finds nearby OBD-II adapters and pairs the one tapped with the vehicle. Pairing only remembers it:
  * the link connects by itself (now, or once the car is switched on) and reads the VIN then.
@@ -25,7 +21,7 @@ export function PairSheet({vehicleId, vehicleName, onClose}: {vehicleId: string;
   const c = useAppTheme().colors;
   const [phase, setPhase] = useState<Phase>('starting');
   const [problem, setProblem] = useState<string | null>(null);
-  const [found, setFound] = useState<FoundAdapter[]>(DEV_ADAPTERS);
+  const [found, setFound] = useState<FoundAdapter[]>([]);
 
   useEffect(() => {
     let stop: (() => void) | null = null;
