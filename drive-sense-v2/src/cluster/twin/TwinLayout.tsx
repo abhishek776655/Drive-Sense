@@ -105,7 +105,7 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   return (
     <View style={{width, height}}>
       <View style={{height: rowH}}>
-        <View style={[styles.centre, {left: (width - layerW) / 2, top: (rowH - panelH) / 2, width: layerW, height: panelH}]}>
+        <View style={[styles.centre, {left: (width - layerW) / 2, top: (rowH - panelH) / 2 + rowH * 0.06, width: layerW, height: panelH}]}>
           <CentrePager pages={pages} width={layerW} height={panelH - 10} accent={accent} />
           <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
           <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
