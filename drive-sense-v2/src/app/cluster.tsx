@@ -14,6 +14,7 @@ import {useDriveSettingsStore} from '../stores/driveSettingsStore';
 import {usePreferencesStore} from '../stores/preferencesStore';
 import {useRecordingStore} from '../stores/recordingStore';
 import {FONT} from '../theme/theme';
+import {useBarometerFeed} from '../tracking/useBarometerFeed';
 import {useLocationFeed} from '../tracking/useLocationFeed';
 
 /** Controls show on a tap and fade away after this. */
@@ -29,6 +30,7 @@ export default function ClusterScreen() {
   // speed, and so a drive can auto-start from here. A live drive already has its own feed.
   const live = useRecordingStore((s) => s.status !== 'ready');
   useLocationFeed(!live);
+  useBarometerFeed(!live);
   const insets = useSafeAreaInsets();
   const {width, height} = useWindowDimensions();
   const d = useClusterData();

@@ -8,6 +8,7 @@ import {haversineMeters} from '../utils/geo';
 import {MOVING_MPS, resolveHeading} from '../utils/heading';
 import {liveScore} from '../utils/liveScore';
 import {smoothnessFor, toG, type Smoothness} from '../utils/motion';
+import {fuseAltitude, pressureToAltitudeM, stepElevation, type ElevationState} from '../tracking/sensors/barometer';
 
 export type RecordingStatus = 'ready' | 'recording' | 'paused';
 export type LocationPermission = 'unknown' | 'granted' | 'denied';
@@ -39,6 +40,11 @@ const RECENT_FIXES = 4;
 const FRESH_FIX_MS = 15_000;
 /** Consecutive fast fixes needed to auto-start, so one bad fix cannot start a drive. */
 const AUTO_START_FIXES = 2;
+/** The barometer counts as live while its last reading is this recent; otherwise GPS altitude takes over. */
+const BARO_LIVE_MS = 5000;
+/** After this long without a reading the barometer re-anchors to GPS altitude when it comes back. */
+const BARO_REBASE_MS = 60_000;
+const EMPTY_ELEVATION: ElevationState = {refM: null, gainM: 0, lossM: 0};
 
 export interface Sample {
   latitude: number;
@@ -61,6 +67,8 @@ export interface LiveStats {
   distanceM: number;
   topSpeedMps: number | null;
   altitudeM: number | null;
+  /** Where the altitude comes from: the barometer (laid onto GPS height) when it reads, else GPS. */
+  altitudeSource: 'gps' | 'baro';
   elevationGainM: number;
   /** Smoothed direction of travel, held while stopped; null until the car has moved. */
   headingDeg: number | null;
@@ -83,6 +91,7 @@ export const EMPTY_STATS: LiveStats = {
   distanceM: 0,
   topSpeedMps: null,
   altitudeM: null,
+  altitudeSource: 'gps',
   elevationGainM: 0,
   headingDeg: null,
   moving: false,
@@ -139,6 +148,11 @@ export interface RecordingState {
   defaultVehicle: DriveVehicle | null;
   position: Sample | null;
   lastAltitudeRef: number | null;
+  /**
+   * Barometer elevation (spec 2026-10-25, telemetry sources, section 3): the GPS height it was laid
+   * onto, its last reading, and the drive's climb from it. The base outlives drives.
+   */
+  baro: {base: {baroM: number; gpsM: number} | null; lastAt: number | null; elevation: ElevationState};
   lastEvent: {kind: DriveEventKind; at: number} | null;
   permission: LocationPermission;
   /** Server trip for the live drive. */
@@ -177,6 +191,8 @@ export interface RecordingState {
   ingest: (sample: Sample) => void;
   /** Peak horizontal acceleration (m/s², gravity removed) over the last motion window. */
   ingestMotion: (accelMps2: number) => void;
+  /** Air pressure (hPa) from the phone's barometer, read at `at` (ms). */
+  ingestPressure: (hPa: number, at: number) => void;
   markTripStarted: (tripId: string) => void;
   /** Removes the first `count` pending fixes (they are being uploaded). */
   takePending: (count: number) => Sample[];
@@ -233,6 +249,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   defaultVehicle: null,
   position: null,
   lastAltitudeRef: null,
+  baro: {base: null, lastAt: null, elevation: EMPTY_ELEVATION},
   permission: 'unknown',
   backgroundActive: false,
   justFinished: null,
@@ -251,8 +268,10 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       syncState: vehicle ? 'syncing' : 'local',
       // The idle clock starts now, whatever time the drive is backdated to.
       lastMovementAt: Math.max(startedAt, Date.now()),
-      stats: {...EMPTY_STATS, headingDeg: get().stats.headingDeg, accuracyM: get().stats.accuracyM},
+      // Altitude carries over (the barometer needs it to anchor to); the climb starts from zero.
+      stats: {...EMPTY_STATS, headingDeg: get().stats.headingDeg, accuracyM: get().stats.accuracyM, altitudeM: get().stats.altitudeM, altitudeSource: get().stats.altitudeSource},
       lastAltitudeRef: null,
+      baro: {...get().baro, elevation: EMPTY_ELEVATION},
     });
   },
   pause: () => {
@@ -321,12 +340,15 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       nativeHeading: sample.headingDeg,
       stepMeters: prevFix ? haversineMeters(prevFix, sample) : 0,
     });
+    // While the barometer reads, it owns altitude and climb; GPS altitude is the fallback.
+    const baroLive = state.baro.lastAt != null && Math.abs(sample.timestamp - state.baro.lastAt) <= BARO_LIVE_MS;
     // Altitude is shown at Ready and while paused too (the map's elevation chip), not only when recording.
     const fix = {
       headingDeg,
       moving: speed >= MOVING_MPS,
       accuracyM: sample.accuracyM,
-      altitudeM: sample.altitudeM ?? state.stats.altitudeM,
+      altitudeM: baroLive ? state.stats.altitudeM : (sample.altitudeM ?? state.stats.altitudeM),
+      altitudeSource: baroLive ? ('baro' as const) : ('gps' as const),
     };
 
     const prefs = usePreferencesStore.getState();
@@ -413,7 +435,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       }
     }
     let lastAltitudeRef = state.lastAltitudeRef;
-    if (sample.altitudeM != null) {
+    if (!baroLive && sample.altitudeM != null) {
       stats.altitudeM = sample.altitudeM;
       if (lastAltitudeRef == null) {
         lastAltitudeRef = sample.altitudeM;
@@ -426,7 +448,8 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     }
     const lastMovementAt = fix.moving ? sample.timestamp : state.lastMovementAt;
     const recentFixes = [...state.recentFixes, sample].slice(-RECENT_FIXES);
-    const recorded = {...sample, peakG: state.motionPeakG};
+    // Saved routes carry the barometer's altitude while it reads, so Trip Detail's elevation uses it too.
+    const recorded = {...sample, peakG: state.motionPeakG, altitudeM: baroLive ? stats.altitudeM : sample.altitudeM};
     const alert = prefs.speedAlert && fresh ? nextSpeedAlert(state.speedAlert, speed * 3.6, prefs.speedAlertKmh, sample.timestamp).state : state.speedAlert;
     set({
       speedAlert: alert,
@@ -463,6 +486,26 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
         maxG: Math.max(state.stats.maxG ?? 0, g),
         smoothness: smoothnessFor(accelMps2),
       },
+    });
+  },
+  ingestPressure: (hPa, at) => {
+    const state = get();
+    const baroM = pressureToAltitudeM(hPa);
+    // Anchored to GPS height the first time (and after a long silence); needs a GPS altitude to anchor to.
+    const stale = state.baro.lastAt != null && at - state.baro.lastAt > BARO_REBASE_MS;
+    let base = stale ? null : state.baro.base;
+    if (!base) {
+      if (state.stats.altitudeM == null) {
+        return;
+      }
+      base = {baroM, gpsM: state.stats.altitudeM};
+    }
+    const altitudeM = fuseAltitude(base, baroM);
+    const recording = state.status === 'recording';
+    const elevation = recording ? stepElevation(state.baro.elevation, altitudeM) : state.baro.elevation;
+    set({
+      baro: {base, lastAt: at, elevation},
+      stats: {...state.stats, altitudeM, altitudeSource: 'baro', ...(recording ? {elevationGainM: elevation.gainM} : {})},
     });
   },
   markTripStarted: (tripId) => set({tripId}),

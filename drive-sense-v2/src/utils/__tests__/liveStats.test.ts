@@ -8,6 +8,7 @@ const stats: LiveStats = {
   distanceM: 4200,
   topSpeedMps: 21.7,
   altitudeM: 241,
+  altitudeSource: 'gps',
   elevationGainM: 12,
   headingDeg: 90,
   moving: true,

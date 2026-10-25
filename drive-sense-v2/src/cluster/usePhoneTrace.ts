@@ -80,8 +80,10 @@ export function usePhoneTrace(compass = false): PhoneTrace {
     const prev = last.current;
     const d = prev ? prev.d + haversineMeters(prev, position) : 0;
     last.current = {latitude: position.latitude, longitude: position.longitude, d};
-    if (position.altitudeM != null) {
-      climb.current = [...climb.current.filter((p) => p.d >= d - GRADE_WINDOW_M * 2), {d, alt: position.altitudeM}];
+    // The barometer-refined altitude when the phone has one, else GPS (the store picks), as of this fix.
+    const alt = useRecordingStore.getState().stats.altitudeM ?? position.altitudeM;
+    if (alt != null) {
+      climb.current = [...climb.current.filter((p) => p.d >= d - GRADE_WINDOW_M * 2), {d, alt}];
     }
     const at = position.timestamp;
     const kmh = position.speedMps != null && position.speedMps >= 0 ? position.speedMps * 3.6 : null;
@@ -91,7 +93,7 @@ export function usePhoneTrace(compass = false): PhoneTrace {
       () =>
         setTrace((t) => ({
           speed: kmh == null ? t.speed : [...t.speed.filter((p) => at - p.at <= SPEED_TRACE_MS), {at, kmh}],
-          altitudeM: position.altitudeM ?? t.altitudeM,
+          altitudeM: alt ?? t.altitudeM,
           gradePct: grade,
           headingDeg: position.headingDeg != null && position.headingDeg >= 0 ? position.headingDeg : t.headingDeg,
         })),

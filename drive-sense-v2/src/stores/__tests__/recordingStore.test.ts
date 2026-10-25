@@ -389,5 +389,31 @@ describe('recordingStore', () => {
       now.mockRestore();
     });
   });
-});
 
+  it('uses the barometer for altitude and climb once it has a GPS base', () => {
+    const s = useRecordingStore.getState();
+    s.ingest(sample({altitudeM: 50, timestamp: 0}));
+    s.start({id: 'v1', name: 'Citigo'}, 0);
+    s.ingestPressure(1013.25, 100); // base: barometer 0 m ↔ GPS 50 m
+    s.ingestPressure(1012.25, 1100); // ≈ +8.3 m
+    expect(useRecordingStore.getState().stats.altitudeM).toBeCloseTo(58.3, 0);
+    expect(useRecordingStore.getState().stats.elevationGainM).toBeCloseTo(8.3, 0);
+    expect(useRecordingStore.getState().stats.altitudeSource).toBe('baro');
+    // A GPS fix while the barometer is live neither moves altitude nor adds climb…
+    s.ingest(sample({altitudeM: 90, timestamp: 2000, latitude: 28.6002}));
+    expect(useRecordingStore.getState().stats.altitudeM).toBeCloseTo(58.3, 0);
+    expect(useRecordingStore.getState().stats.elevationGainM).toBeCloseTo(8.3, 0);
+    // …and the recorded point carries the fused altitude.
+    expect(useRecordingStore.getState().pending.at(-1)?.altitudeM).toBeCloseTo(58.3, 0);
+  });
+
+  it('falls back to GPS altitude when the barometer goes quiet', () => {
+    const s = useRecordingStore.getState();
+    s.ingest(sample({altitudeM: 50, timestamp: 0}));
+    s.start({id: 'v1', name: 'Citigo'}, 0);
+    s.ingestPressure(1013.25, 0);
+    s.ingest(sample({altitudeM: 60, timestamp: 10_000, latitude: 28.6003}));
+    expect(useRecordingStore.getState().stats.altitudeSource).toBe('gps');
+    expect(useRecordingStore.getState().stats.altitudeM).toBe(60);
+  });
+});

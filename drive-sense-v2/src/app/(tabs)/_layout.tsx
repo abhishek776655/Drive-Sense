@@ -4,6 +4,7 @@ import {useObdLink} from '../../obd/useObdLink';
 import {useRecordingStore} from '../../stores/recordingStore';
 import {useLocationFeed} from '../../tracking/useLocationFeed';
 import {useMotionFeed} from '../../tracking/useMotionFeed';
+import {useBarometerFeed} from '../../tracking/useBarometerFeed';
 import {useBackgroundLocation} from '../../tracking/backgroundLocation';
 import {useDriveHandoff} from '../../tracking/useDriveHandoff';
 import {useSpeedAlertFeedback} from '../../tracking/useSpeedAlertFeedback';
@@ -15,6 +16,8 @@ export default function TabsLayout() {
   const recording = useRecordingStore((s) => s.status === 'recording');
   // GPS runs while Drive is open or a drive is live, so other tabs never hold the radio idle.
   useLocationFeed(pathname === '/drive' || live);
+  // The barometer follows GPS: it refines the same altitude.
+  useBarometerFeed(pathname === '/drive' || live);
   useMotionFeed(recording);
   useBackgroundLocation();
   useTripSync();
