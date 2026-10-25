@@ -1,6 +1,6 @@
 import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
-import {useEffect, useState} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useUnits} from '../../hooks/useUnits';
 import {FONT} from '../../theme/theme';
@@ -76,7 +76,11 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   const panelW = Math.max(200, (width - dial * 2 + overlap * 2) * 0.88);
   const groupX = (width - (dial * 2 + panelW - overlap * 2)) / 2;
   const panelH = rowH * 0.78;
-  const fadeW = overlap + 40;
+  // The centre layer runs on under the dials by this much; only the map uses it, other pages are
+  // padded back to the visible gap.
+  const under = dial * 0.28;
+  const layerW = panelW + under * 2;
+  const fadeW = under + overlap + 40;
   const imperial = u.units === 'imperial';
   const speed = d.speedKmh == null ? null : kmhInUnits(d.speedKmh, u.units);
   const speedMax = dialMax(imperial ? 140 : 220, 20, speed);
@@ -84,13 +88,14 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   const instant = d.instantL100km != null ? economy(d.instantL100km, u.units, mileage) : null;
   const coolant = d.coolantC != null ? temperature(d.coolantC, tempUnit) : null;
 
-  const pages = [{key: 'trip', node: <TripPage d={d} />}];
+  const inset = (node: ReactNode) => <View style={{flex: 1, paddingHorizontal: under}}>{node}</View>;
+  const pages = [{key: 'trip', node: inset(<TripPage d={d} />)}];
   if (d.mode === 'adapter') {
     pages.push({
       key: 'engine',
-      node: <LoadMeter width={panelW} height={panelH - 14} loadPct={d.loadPct} throttlePct={d.throttlePct} coasting={d.coasting} boostKpa={d.boostKpa} accent={accent} />,
+      node: inset(<LoadMeter width={panelW} height={panelH - 14} loadPct={d.loadPct} throttlePct={d.throttlePct} coasting={d.coasting} boostKpa={d.boostKpa} accent={accent} />),
     });
-    pages.push({key: 'car', node: <CarPage d={d} />});
+    pages.push({key: 'car', node: inset(<CarPage d={d} />)});
   }
   pages.push({key: 'map', node: <MapPage accent={accent} />});
 
@@ -100,8 +105,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
   return (
     <View style={{width, height}}>
       <View style={{height: rowH}}>
-        <View style={[styles.centre, {left: (width - panelW) / 2, top: (rowH - panelH) / 2, width: panelW, height: panelH}]}>
-          <CentrePager pages={pages} width={panelW} height={panelH - 10} accent={accent} />
+        <View style={[styles.centre, {left: (width - layerW) / 2, top: (rowH - panelH) / 2, width: layerW, height: panelH}]}>
+          <CentrePager pages={pages} width={layerW} height={panelH - 10} accent={accent} />
           <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
           <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
         </View>
