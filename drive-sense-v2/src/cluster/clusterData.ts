@@ -120,7 +120,8 @@ export const clusterData = (i: ClusterInput): ClusterData => {
     events: i.recording ? i.events : null,
     speedLimitKmh: i.speedLimitKmh,
     alerts: {
-      checkEngine: i.mil?.on ?? false,
+      // Only while the car answers: a light remembered from earlier is not the car now.
+      checkEngine: adapter && (i.mil?.on ?? false),
       lowBattery: (voltage != null && (rpm ?? 0) > 0 && voltage < VOLTAGE_LOW_RUNNING) || (i.batteryDipV != null && i.batteryDipV < DIP_LOW_V),
       hotCoolant: coolantC != null && coolantC >= COOLANT_ALERT_C,
       lowFuel: fuelPct != null && fuelPct < LOW_FUEL_PCT,

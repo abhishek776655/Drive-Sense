@@ -83,5 +83,7 @@ describe('cluster data', () => {
     expect(d).toMatchObject({outsideC: 19, heading: 'E', shiftUp: '3', events: {brake: 1, accel: 2}, speedLimitKmh: 80});
     // No adapter: the weather stands in, and there are no car-only hints or events off a drive.
     expect(clusterData({...base, weatherC: 25})).toMatchObject({outsideC: 25, heading: null, shiftUp: null, events: null});
+    // A check-engine light remembered from the adapter doesn't show once the car stops answering.
+    expect(clusterData({...base, mil: {on: true}}).alerts.checkEngine).toBe(false);
   });
 });

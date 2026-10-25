@@ -62,7 +62,8 @@ export function GDial({size, g, accent}: {size: number; g: {lon: number; lat: nu
         <Circle cx={dotX} cy={dotY} r={2.5} color="#FFFFFF" />
       </Canvas>
       <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
-        <Text style={[styles.number, {marginTop: size * 0.42}]}>{total.toFixed(2)}</Text>
+        {/* Between the middle rings at the bottom, so the dot (which rests at the centre) never covers it. */}
+        <Text style={[styles.number, {marginTop: cy + r * 0.5}]}>{total.toFixed(2)}</Text>
         <Text style={styles.unit}>G</Text>
       </View>
     </View>

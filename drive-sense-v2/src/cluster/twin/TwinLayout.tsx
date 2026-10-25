@@ -216,8 +216,10 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
 
   const coolantShare = d.coolantC == null ? null : Math.min(1, Math.max(0, (d.coolantC - COOLANT_RANGE[0]) / (COOLANT_RANGE[1] - COOLANT_RANGE[0])));
   const outside = d.outsideC != null ? temperature(d.outsideC, tempUnit) : null;
-  const arcs = gaugeStyle === 'arc';
-  const stripGauge = gaugeStyle === 'arc' ? null : gaugeStyle;
+  // Fuel and coolant are the car's: without the adapter there is nothing to show.
+  const carGauges = d.mode === 'adapter';
+  const arcs = carGauges && gaugeStyle === 'arc';
+  const stripGauge = !carGauges || gaugeStyle === 'arc' ? null : gaugeStyle;
   const fuelColor = d.alerts.lowFuel ? CLUSTER_INK.amber : accent;
   const coolantColor = d.alerts.hotCoolant ? CLUSTER_INK.red : accent;
   const dialTop = (rowH - dial) / 2;
