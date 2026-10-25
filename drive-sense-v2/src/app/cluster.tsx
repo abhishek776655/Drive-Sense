@@ -12,7 +12,9 @@ import {CLUSTER_LAYOUTS, layoutById} from '../cluster/layouts';
 import {useClusterData} from '../cluster/useClusterData';
 import {useDriveSettingsStore} from '../stores/driveSettingsStore';
 import {usePreferencesStore} from '../stores/preferencesStore';
+import {useRecordingStore} from '../stores/recordingStore';
 import {FONT} from '../theme/theme';
+import {useLocationFeed} from '../tracking/useLocationFeed';
 
 /** Controls show on a tap and fade away after this. */
 const CHROME_MS = 3000;
@@ -23,6 +25,10 @@ const CHROME_MS = 3000;
  */
 export default function ClusterScreen() {
   useKeepAwake();
+  // The tabs only run GPS on Drive or while a drive is live; the cluster needs it for its map and
+  // speed, and so a drive can auto-start from here. A live drive already has its own feed.
+  const live = useRecordingStore((s) => s.status !== 'ready');
+  useLocationFeed(!live);
   const insets = useSafeAreaInsets();
   const {width, height} = useWindowDimensions();
   const d = useClusterData();
