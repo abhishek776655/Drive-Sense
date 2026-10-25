@@ -238,8 +238,8 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
               redline={d.redline}
               redHeat={redlineHeat(d.rpm, d.redline)}
               settleMs={180}
-              display={d.rpm == null ? '–' : Math.round(d.rpm).toLocaleString('en-US')}
-              numberScale={0.15}
+              // In thousands, like the scale: 2.9 for 2,900 rpm.
+              display={d.rpm == null ? '–' : (d.rpm / 1000).toFixed(1)}
               footer={
                 <>
                   {/* Always there, so the gear has a known place; a dash until it is worked out. */}

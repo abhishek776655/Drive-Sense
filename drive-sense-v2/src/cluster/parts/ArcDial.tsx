@@ -48,8 +48,8 @@ function Tick({cx, cy, r, share, major, progress, needle, accent, k}: {cx: numbe
  * A cluster dial drawn on the GPU (spec 2026-10-25, cluster mode, section 4): track, ticks that
  * light as the arc passes, the lit arc as a sharp core, glow and bloom, an afterglow that fades
  * when the value drops, a red band that heats near the redline, and ambient light behind the dial.
- * Needle style is a classic gauge instead: plain white ticks on a thin ring, a long glowing needle
- * on a lit hub, and the number moved down below the hub.
+ * Needle style is a classic gauge instead: plain white ticks on a thin ring, and a glowing needle
+ * turning around a lit centre ring with the number inside it.
  */
 export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, label = (v) => String(v), redline, redHeat = 0, settleMs = 300, footer, display, numberScale = 0.21, dialStyle = 'arc'}: ArcDialProps) {
   const reduce = useReduceMotion();
@@ -119,24 +119,24 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
   const coreOpacity = useDerivedValue(() => 0.85 * (1 - needle.value));
   const tipOpacity = useDerivedValue(() => 1 - needle.value);
   const tipGlowOpacity = useDerivedValue(() => 0.6 * (1 - needle.value));
-  // The needle: a long tapered blade from a short tail behind the hub to the ticks, drawn pointing
-  // at 0° and turned to the value.
+  // The needle: a tapered blade from the edge of the centre ring out to the ticks, drawn pointing
+  // at 0° and turned to the value; the number sits inside the ring, clear of it.
+  const hubR = r * 0.44;
   const blade = useMemo(() => {
-    const tail = r * 0.16;
+    const root = r * 0.47;
     const tip = r - 4 * k;
     const w = 5 * k;
     const p = Skia.Path.Make();
-    p.moveTo(cx - tail, cy - w * 0.8);
+    p.moveTo(cx + root, cy - w * 0.8);
     p.lineTo(cx + tip, cy - 0.9 * k);
     p.lineTo(cx + tip, cy + 0.9 * k);
-    p.lineTo(cx - tail, cy + w * 0.8);
+    p.lineTo(cx + root, cy + w * 0.8);
     p.close();
     return p;
   }, [cx, cy, r, k]);
   const needleTurn = useDerivedValue(() => [{rotate: (angleAt(progress.value) * Math.PI) / 180}]);
 
   const labelR = r - 34 * k;
-  // Needle style moves the figures below the hub, out of the needle's way.
   const classic = dialStyle === 'needle';
   return (
     <View style={{width: size, height: size}}>
@@ -159,7 +159,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
         {/* Needle style: a thin ring for the ticks to stand on, and an inner bezel. */}
         <Group opacity={needle}>
           <Path path={full} style="stroke" strokeWidth={1.6 * Math.max(0.7, k)} strokeCap="round" color={CLUSTER_INK.tick} />
-          <Circle cx={cx} cy={cy} r={r * 0.6} style="stroke" strokeWidth={1} color={CLUSTER_INK.track} />
+          <Circle cx={cx} cy={cy} r={r * 0.62} style="stroke" strokeWidth={1} color={CLUSTER_INK.track} />
         </Group>
         {red ? <Path path={red} style="stroke" strokeWidth={10 * k} strokeCap="round" color={CLUSTER_INK.red} opacity={redOpacity} /> : null}
         {tickMarks.map((t) => (
@@ -188,14 +188,13 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
               <BlurMask blur={10 * k} style="normal" />
             </Path>
             <Path path={blade} color={accent} />
-            <Line p1={vec(cx + r * 0.1, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
+            <Line p1={vec(cx + r * 0.5, cy)} p2={vec(cx + r - 6 * k, cy)} color="#FFFFFF" strokeWidth={1.3 * Math.max(0.7, k)} strokeCap="round" opacity={0.85} />
           </Group>
-          <Circle cx={cx} cy={cy} r={14 * k} color={accent} opacity={0.45}>
+          {/* The centre ring the needle turns around, softly lit in the accent. */}
+          <Circle cx={cx} cy={cy} r={hubR} style="stroke" strokeWidth={6 * k} color={accent} opacity={0.35}>
             <BlurMask blur={8 * k} style="normal" />
           </Circle>
-          <Circle cx={cx} cy={cy} r={11 * k} color={CLUSTER_INK.faceEdge} />
-          <Circle cx={cx} cy={cy} r={11 * k} style="stroke" strokeWidth={2 * k} color={accent} />
-          <Circle cx={cx} cy={cy} r={3.5 * k} color={accent} />
+          <Circle cx={cx} cy={cy} r={hubR} style="stroke" strokeWidth={1.6 * Math.max(0.7, k)} color={accent} />
         </Group>
       </Canvas>
       {tickMarks
@@ -208,14 +207,18 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
             </Text>
           );
         })}
-      <View style={[StyleSheet.absoluteFill, classic ? {alignItems: 'center', paddingTop: cy + 16 * k} : styles.centre]} pointerEvents="none">
-        {/* Needle style: number and unit on one line, so the block fits under the hub. */}
-        <View style={classic ? styles.inline : undefined}>
-          <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.62 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
-          <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}, classic && {marginTop: 0}]}>{unit}</Text>
-        </View>
-        {footer}
+      <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
+        {/* Needle style keeps the figures inside the centre ring, a little smaller. */}
+        <Text style={[styles.number, {fontSize: size * numberScale * (classic ? 0.78 : 1)}]}>{display ?? (value == null ? '–' : String(Math.round(value)))}</Text>
+        <Text style={[styles.unit, {fontSize: 13 * Math.max(0.8, k)}]}>{unit}</Text>
+        {classic ? null : footer}
       </View>
+      {/* Needle style: the gear and readouts sit just below the centre ring, not across it. */}
+      {classic ? (
+        <View style={[styles.below, {top: cy + hubR + 4 * k}]} pointerEvents="none">
+          {footer}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -223,7 +226,7 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
 const styles = StyleSheet.create({
   tickLabel: {position: 'absolute', width: 40, textAlign: 'center', color: CLUSTER_INK.textDim, fontFamily: 'Nunito_700Bold', fontSize: 12, fontVariant: ['tabular-nums']},
   centre: {alignItems: 'center', justifyContent: 'center'},
-  inline: {flexDirection: 'row', alignItems: 'baseline', gap: 6},
+  below: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
   number: {color: CLUSTER_INK.text, fontFamily: 'Nunito_900Black', fontVariant: ['tabular-nums'], letterSpacing: -1},
   unit: {color: CLUSTER_INK.textDim, fontFamily: 'Nunito_700Bold', fontSize: 13, marginTop: -2, letterSpacing: 1},
 });
