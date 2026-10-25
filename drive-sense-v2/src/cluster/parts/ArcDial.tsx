@@ -110,8 +110,9 @@ export function ArcDial({size, value, max, majorStep, minorStep, accent, unit, l
       <Canvas style={StyleSheet.absoluteFill}>
         {/* Ambient light behind the dial, following the value (red pulse at the redline). */}
         <Group opacity={ambientOpacity}>
-          <Circle cx={cx} cy={cy} r={size * 0.62}>
-            <RadialGradient c={vec(cx, cy)} r={size * 0.62} colors={ambientColors} />
+          {/* Fades out inside the canvas, so its square edge never shows. */}
+          <Circle cx={cx} cy={cy} r={size / 2}>
+            <RadialGradient c={vec(cx, cy)} r={size / 2} colors={ambientColors} />
           </Circle>
         </Group>
         {/* Face with a vignette, and a bevelled rim: light along the top, dark along the bottom. */}

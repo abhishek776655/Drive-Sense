@@ -1,9 +1,11 @@
 import {Ionicons} from '@expo/vector-icons';
-import {BlurView} from 'expo-blur';
+import {LinearGradient} from 'expo-linear-gradient';
 import {useEffect, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useUnits} from '../../hooks/useUnits';
 import {FONT} from '../../theme/theme';
+import {economy, temperature} from '../../obd/tiles';
+import {usePreferencesStore} from '../../stores/preferencesStore';
 import {kmhInUnits} from '../../utils/units';
 import {CLUSTER_INK} from '../accents';
 import type {ClusterData} from '../clusterData';
@@ -16,7 +18,7 @@ import {LoadMeter} from '../parts/LoadMeter';
 import {MapPage} from '../parts/MapPage';
 import {CarPage, TripPage} from '../parts/pages';
 
-const STRIP_H = 44;
+const STRIP_H = 36;
 const COOLANT_RANGE = [40, 130];
 
 /** Local time, refreshed each minute, for the strip. */
@@ -38,20 +40,47 @@ function Lamp({icon, color}: {icon: keyof typeof Ionicons.glyphMap; color: strin
   );
 }
 
+/** Small readouts inside a dial, under its number: an icon and a value each. */
+function DialInfo({items}: {items: {icon: keyof typeof Ionicons.glyphMap; text: string | null; warn?: boolean}[]}) {
+  const shown = items.filter((i) => i.text != null);
+  if (shown.length === 0) {
+    return null;
+  }
+  return (
+    <View style={styles.info}>
+      {shown.map((i) => (
+        <View key={i.icon} style={styles.infoItem}>
+          <Ionicons name={i.icon} size={13} color={i.warn ? CLUSTER_INK.amber : CLUSTER_INK.textDim} />
+          <Text style={[styles.infoText, i.warn && {color: CLUSTER_INK.amber}]}>{i.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * "Twin" (spec 2026-10-25, cluster mode, section 3), inspired by Mercedes' twin-dial cluster: speed
- * on the left, RPM (or G without an adapter) on the right, a frosted centre panel of swipeable
- * pages between them, and a strip of bar gauges and warning lamps along the bottom.
+ * on the left, RPM (or G without an adapter) on the right, each with small readouts inside; the
+ * swipeable centre pages sit behind the dials with no panel and fade out under their rims; and a strip of bar gauges and warning lamps along the bottom.
  */
 export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: number; height: number; accent: string}) {
   const u = useUnits();
   const clock = useClock();
-  const dial = Math.min((height - STRIP_H) * 0.96, width * 0.34);
-  const panelW = Math.max(220, width - dial * 2 - 24);
-  const panelH = (height - STRIP_H) * 0.82;
+  const tempUnit = usePreferencesStore((s) => s.temperature);
+  const mileage = usePreferencesStore((s) => s.mileageUnit);
+  const rowH = height - STRIP_H;
+  // Big dials that reach into the centre; the centre sits behind them and fades out under their rims.
+  const dial = Math.min(rowH * 1.06, width * 0.43);
+  const overlap = dial * 0.1;
+  const panelW = Math.max(200, width - dial * 2 + overlap * 2);
+  const panelH = rowH * 0.78;
+  const fadeW = overlap + 40;
   const imperial = u.units === 'imperial';
   const speed = d.speedKmh == null ? null : kmhInUnits(d.speedKmh, u.units);
   const speedMax = dialMax(imperial ? 140 : 220, 20, speed);
+  const range = d.rangeKm != null ? `${Math.round(u.distanceValue(d.rangeKm * 1000) ?? 0)} ${u.distanceUnit}` : null;
+  const instant = d.instantL100km != null ? economy(d.instantL100km, u.units, mileage) : null;
+  const coolant = d.coolantC != null ? temperature(d.coolantC, tempUnit) : null;
 
   const pages = [{key: 'trip', node: <TripPage d={d} />}];
   if (d.mode === 'adapter') {
@@ -68,38 +97,67 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
 
   return (
     <View style={{width, height}}>
-      <View style={styles.row}>
-        <ArcDial size={dial} value={speed} max={speedMax} majorStep={20} minorStep={10} accent={accent} unit={u.speedUnit} />
-        <View style={[styles.panel, {width: panelW, height: panelH}]}>
-          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={{height: rowH}}>
+        <View style={[styles.centre, {left: (width - panelW) / 2, top: (rowH - panelH) / 2, width: panelW, height: panelH}]}>
           <CentrePager pages={pages} width={panelW} height={panelH - 10} accent={accent} />
+          <LinearGradient pointerEvents="none" colors={[CLUSTER_INK.background, 'transparent']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {left: 0, width: fadeW}]} />
+          <LinearGradient pointerEvents="none" colors={['transparent', CLUSTER_INK.background]} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={[styles.fade, {right: 0, width: fadeW}]} />
         </View>
-        {d.mode === 'adapter' ? (
+        <View pointerEvents="none" style={[styles.dial, {left: 0, top: (rowH - dial) / 2}]}>
           <ArcDial
             size={dial}
-            value={d.rpm}
-            max={dialMax(8000, 1000, d.rpm)}
-            majorStep={1000}
-            minorStep={500}
+            value={speed}
+            max={speedMax}
+            majorStep={20}
+            minorStep={10}
             accent={accent}
-            unit="× 1000 rpm"
-            label={(v) => String(v / 1000)}
-            redline={d.redline}
-            redHeat={redlineHeat(d.rpm, d.redline)}
-            settleMs={180}
-            display={d.rpm == null ? '–' : Math.round(d.rpm).toLocaleString('en-US')}
-            numberScale={0.15}
+            unit={u.speedUnit}
             footer={
-              d.gear ? (
-                <View style={[styles.gear, {borderColor: accent}]}>
-                  <Text style={[styles.gearText, {color: accent}]}>{d.gear}</Text>
-                </View>
-              ) : null
+              <DialInfo
+                items={[
+                  {icon: 'color-fill', text: range, warn: d.alerts.lowFuel},
+                  {icon: 'leaf', text: instant ? `${instant.value} ${instant.unit}` : null},
+                ]}
+              />
             }
           />
-        ) : (
-          <GDial size={dial} g={d.g} accent={accent} />
-        )}
+        </View>
+        <View pointerEvents="none" style={[styles.dial, {right: 0, top: (rowH - dial) / 2}]}>
+          {d.mode === 'adapter' ? (
+            <ArcDial
+              size={dial}
+              value={d.rpm}
+              max={dialMax(8000, 1000, d.rpm)}
+              majorStep={1000}
+              minorStep={500}
+              accent={accent}
+              unit="× 1000 rpm"
+              label={(v) => String(v / 1000)}
+              redline={d.redline}
+              redHeat={redlineHeat(d.rpm, d.redline)}
+              settleMs={180}
+              display={d.rpm == null ? '–' : Math.round(d.rpm).toLocaleString('en-US')}
+              numberScale={0.15}
+              footer={
+                <>
+                  {d.gear ? (
+                    <View style={[styles.gear, {borderColor: accent}]}>
+                      <Text style={[styles.gearText, {color: accent}]}>{d.gear}</Text>
+                    </View>
+                  ) : null}
+                  <DialInfo
+                    items={[
+                      {icon: 'thermometer', text: coolant ? `${coolant.value}${coolant.unit}` : null, warn: d.alerts.hotCoolant},
+                      {icon: 'speedometer', text: d.loadPct != null ? `${Math.round(d.loadPct)}%` : null},
+                    ]}
+                  />
+                </>
+              }
+            />
+          ) : (
+            <GDial size={dial} g={d.g} accent={accent} />
+          )}
+        </View>
       </View>
       <View style={[styles.strip, {height: STRIP_H}]}>
         <BarGauge icon="thermometer" share={coolantShare} color={d.alerts.hotCoolant ? CLUSTER_INK.red : accent} caption={null} />
@@ -124,18 +182,12 @@ export function TwinLayout({d, width, height, accent}: {d: ClusterData; width: n
 }
 
 const styles = StyleSheet.create({
-  row: {flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-  panel: {
-    borderRadius: 26,
-    overflow: 'hidden',
-    backgroundColor: CLUSTER_INK.glass,
-    borderWidth: 1,
-    borderColor: CLUSTER_INK.glassEdge,
-    shadowColor: '#000000',
-    shadowOpacity: 0.8,
-    shadowRadius: 24,
-    shadowOffset: {width: 0, height: 12},
-  },
+  centre: {position: 'absolute', overflow: 'hidden'},
+  fade: {position: 'absolute', top: 0, bottom: 0},
+  dial: {position: 'absolute'},
+  info: {flexDirection: 'row', gap: 12, marginTop: 8},
+  infoItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
+  infoText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
   gear: {marginTop: 8, minWidth: 34, height: 28, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8},
   gearText: {fontFamily: FONT.black, fontSize: 17},
   strip: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18},
