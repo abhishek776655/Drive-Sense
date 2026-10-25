@@ -3,7 +3,7 @@
     "name": "DriveSense",
     "slug": "drive-sense-v2",
     "version": "2.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "drivesensev2",
@@ -97,7 +97,16 @@
       ],
       "expo-sqlite",
       "./plugins/withoutPushEntitlement",
-      "./plugins/withSceneLifecycle"
+      "./plugins/withSceneLifecycle",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "DriveSense connects to your OBD-II adapter to show and save your car's engine data, including while the phone is locked during a drive."
+        }
+      ]
     ]
   }
 }
