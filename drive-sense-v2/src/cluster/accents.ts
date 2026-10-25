@@ -57,3 +57,7 @@ export type GaugeStyle = (typeof GAUGE_STYLES)[number];
 export const PHONE_DIALS = ['g', 'climb', 'compass', 'speed'] as const;
 export type PhoneDial = (typeof PHONE_DIALS)[number];
 export const PHONE_DIAL_NAMES: Record<PhoneDial, string> = {g: 'G-force', climb: 'Climb', compass: 'Compass', speed: 'Speed'};
+
+/** What a cluster dial shows, swiped through left and right: its own gauge, or one of the phone views. */
+export const DIAL_VIEWS = ['main', ...PHONE_DIALS] as const;
+export type DialView = (typeof DIAL_VIEWS)[number];

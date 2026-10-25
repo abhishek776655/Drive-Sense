@@ -44,6 +44,7 @@ describe('mapTypeFor', () => {
     expect(sanitizePreferences({clusterSpeedDial: 'tape', clusterGaugeStyle: 'pie'})).toMatchObject({clusterSpeedDial: 'arc', clusterRevDial: 'arc', clusterGaugeStyle: 'arc'});
     expect(sanitizePreferences({clusterPhoneDial: 'compass'}).clusterPhoneDial).toBe('compass');
     expect(sanitizePreferences({clusterRevDial: 'segment'}).clusterRevDial).toBe('segment');
+    expect(sanitizePreferences({clusterLeftView: 'compass', clusterRightView: 'warp'})).toMatchObject({clusterLeftView: 'compass', clusterRightView: 'main'});
     expect(sanitizePreferences({clusterPhoneDial: 'radar'}).clusterPhoneDial).toBe('g');
   });
 });

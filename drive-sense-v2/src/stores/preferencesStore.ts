@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import {CURRENCIES, type Currency} from '../obd/fuel';
 import type {MileageUnit} from '../obd/tiles';
-import {CLUSTER_ACCENTS, DIAL_STYLES, GAUGE_STYLES, PHONE_DIALS, type ClusterAccent, type DialStyle, type GaugeStyle, type PhoneDial} from '../cluster/accents';
+import {CLUSTER_ACCENTS, DIAL_STYLES, DIAL_VIEWS, GAUGE_STYLES, PHONE_DIALS, type ClusterAccent, type DialStyle, type DialView, type GaugeStyle, type PhoneDial} from '../cluster/accents';
 import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
 export type MapStyle = 'standard' | 'muted' | 'satellite' | 'hybrid';
@@ -47,6 +47,9 @@ export interface Preferences {
   clusterGaugeStyle: GaugeStyle;
   /** Cluster mode without the adapter: what the right dial shows. */
   clusterPhoneDial: PhoneDial;
+  /** Cluster mode: what each dial shows (its gauge, or a phone view), swiped through left and right. */
+  clusterLeftView: DialView;
+  clusterRightView: DialView;
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -82,6 +85,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   clusterRevDial: 'arc',
   clusterGaugeStyle: 'arc',
   clusterPhoneDial: 'g',
+  clusterLeftView: 'main',
+  clusterRightView: 'main',
 };
 
 export const MAX_FUEL_PRICE = 10_000;
@@ -136,6 +141,8 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     clusterRevDial: oneOf(r.clusterRevDial, DIAL_STYLES, d.clusterRevDial),
     clusterGaugeStyle: oneOf(r.clusterGaugeStyle, GAUGE_STYLES, d.clusterGaugeStyle),
     clusterPhoneDial: oneOf(r.clusterPhoneDial, PHONE_DIALS, d.clusterPhoneDial),
+    clusterLeftView: oneOf(r.clusterLeftView, DIAL_VIEWS, d.clusterLeftView),
+    clusterRightView: oneOf(r.clusterRightView, DIAL_VIEWS, d.clusterRightView),
   };
 };
 
