@@ -113,6 +113,26 @@ describe('poll loop', () => {
     expect(onSupportedCodes).toHaveBeenCalledWith(expect.arrayContaining(['04', '05', '0C', '0D', '10', '11', '1F', '2F', '33']));
   });
 
+  it('follows the bitmaps past 0x80 and reads fuel rate from 9D when the car has no 5E', async () => {
+    // 0160 lists 0x80 (its last bit); 0180 lists 9D (byte 3, bit 4) and A0; 01A0 lists nothing more.
+    const car = {
+      ...CAR,
+      '0120': '41 20 00 02 20 01',
+      '0140': '41 40 00 00 00 01',
+      '0160': '41 60 00 00 00 01',
+      '0180': '41 80 00 00 00 09',
+      '01A0': '41 A0 00 00 00 00',
+      '019D': '41 9D 00 0E 00 0E',
+    };
+    const {transport, sent} = fakeAdapter(car);
+    const h = handlers();
+    const loop = createPollLoop(transport, {...h, onValue: (k, v, at) => (h.onValue(k, v, at), h.values.length >= 30 && loop.stop())}, {sleep: never});
+    await loop.start();
+    expect(sent).toEqual(expect.arrayContaining(['0180', '01A0']));
+    expect(h.values).toContainEqual(['fuelRateGs', 0.28]);
+    expect(sent).not.toContain('015E');
+  });
+
   it('asks 0100 again when the first try gets no answer', async () => {
     let tries = 0;
     const {transport, sent} = fakeAdapter({...CAR, '0100': () => (++tries === 1 ? null : '41 00 98 19 80 03')});

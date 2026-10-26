@@ -78,6 +78,21 @@ describe('derived values', () => {
     expect(fuelFlowLph({}, 'diesel')).toBeNull();
   });
 
+  it("turns the car's fuel rate in g/s (PID 9D) into L/h, after 5E and before air flow", () => {
+    // 0.28 g/s of petrol (745 g/L) is 1.35 L/h, as Car Scanner showed for the test car.
+    expect(fuelFlowLph({fuelRateGs: 0.28}, 'petrol')).toBeCloseTo(1.353, 2);
+    expect(fuelFlowLph({fuelRateGs: 0.28}, 'diesel')).toBeCloseTo(1.212, 2);
+    expect(fuelFlowLph({fuelRate: 4, fuelRateGs: 0.28, maf: 10}, 'petrol')).toBe(4);
+    expect(fuelFlowLph({fuelRateGs: 0.28, maf: 10}, 'petrol')).toBeCloseTo(1.353, 2);
+    expect(fuelFlowLph({fuelRateGs: 0.28}, 'electric')).toBeNull();
+  });
+
+  it('decodes PID 9D engine fuel rate', () => {
+    // 0x000E = 14 → 14 / 50 = 0.28 g/s; bytes C, D are the vehicle rate, ignored.
+    expect(PIDS.fuelRateGs.decode([0x00, 0x0e, 0x00, 0x0e])).toBeCloseTo(0.28);
+    expect(PIDS.fuelRateGs.code).toBe('9D');
+  });
+
   it('gives no economy at a crawl', () => {
     expect(economyL100(3, 4)).toBeNull();
     expect(economyL100(6, 60)).toBe(10);

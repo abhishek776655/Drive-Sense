@@ -81,7 +81,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
 
   const derive = () => {
     const v = store().values;
-    const flow = fuelFlowLph({fuelRate: v.fuelRate?.v, maf: v.maf?.v}, fuel);
+    const flow = fuelFlowLph({fuelRate: v.fuelRate?.v, fuelRateGs: v.fuelRateGs?.v, maf: v.maf?.v}, fuel);
     store().setDerived({
       fuelFlow: flow,
       economy: economyL100(flow, v.speed?.v ?? null),
@@ -119,7 +119,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
         } else if (key === 'rpm') {
           battery.rpm(value, at);
         }
-        if (key === 'speed' || key === 'maf' || key === 'fuelRate') {
+        if (key === 'speed' || key === 'maf' || key === 'fuelRate' || key === 'fuelRateGs') {
           derive();
         }
       },

@@ -13,18 +13,24 @@ const FUEL: Partial<Record<FuelType, {afr: number; gPerL: number}>> = {
 export const ECONOMY_MIN_KMH = 5;
 
 /**
- * Fuel flow in L/h: the car's own fuel rate (PID 5E) when it has one, else worked out from air flow
- * (PID 10). Null for fuels where air flow says nothing useful (CNG, electric).
+ * Fuel flow in L/h: the car's own fuel rate (PID 5E, L/h, or 9D, g/s) when it has one, else worked
+ * out from air flow (PID 10). Null for fuels where neither says anything useful (CNG, electric).
  */
-export const fuelFlowLph = ({fuelRate, maf}: {fuelRate?: number | null; maf?: number | null}, fuel: FuelType): number | null => {
+export const fuelFlowLph = (
+  {fuelRate, fuelRateGs, maf}: {fuelRate?: number | null; fuelRateGs?: number | null; maf?: number | null},
+  fuel: FuelType,
+): number | null => {
   if (fuelRate != null) {
     return fuelRate;
   }
   const f = FUEL[fuel];
-  if (maf == null || !f) {
+  if (!f) {
     return null;
   }
-  return (maf / f.afr / f.gPerL) * 3600;
+  if (fuelRateGs != null) {
+    return (fuelRateGs * 3600) / f.gPerL;
+  }
+  return maf == null ? null : (maf / f.afr / f.gPerL) * 3600;
 };
 
 export const economyL100 = (flowLph: number | null, kmh: number | null): number | null =>

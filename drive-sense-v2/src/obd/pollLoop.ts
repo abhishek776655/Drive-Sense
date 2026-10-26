@@ -43,7 +43,7 @@ const ENGINE_OFF_POLL_MS = 10_000;
 const ENGINE_STOPPED_POLL_MS = 250;
 /** Keep reading voltage every round this long after the engine catches (the dip's tail). */
 const AFTER_START_MS = 3000;
-const SUPPORTED_BASES = ['00', '20', '40', '60'];
+const SUPPORTED_BASES = ['00', '20', '40', '60', '80', 'A0'];
 /** How long the first 0100 may take while the adapter finds the car's protocol, and how often it is tried. */
 const PROTOCOL_SEARCH_MS = 12_000;
 const FIRST_REQUEST_ATTEMPTS = 3;
@@ -216,8 +216,9 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       cycle += 1;
       const plan: PidKey[] = (['speed', 'rpm', 'throttle', 'load'] as PidKey[]).filter(has);
       if (cycle % 2 === 0) {
-        const flow: PidKey = has('fuelRate') ? 'fuelRate' : 'maf';
-        if (has(flow)) {
+        // The car's own fuel figure first (L/h, then g/s), air flow last.
+        const flow = (['fuelRate', 'fuelRateGs', 'maf'] as PidKey[]).find(has);
+        if (flow) {
           plan.push(flow);
         }
       }

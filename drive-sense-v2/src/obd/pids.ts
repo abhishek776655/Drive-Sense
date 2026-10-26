@@ -17,6 +17,7 @@ export type PidKey =
   | 'ambient'
   | 'oilTemp'
   | 'fuelRate'
+  | 'fuelRateGs'
   | 'status'
   | 'runTime'
   | 'distSinceClear';
@@ -42,6 +43,8 @@ export const PIDS: Record<PidKey, PidDef> = {
   load: {code: '04', bytes: 1, tier: 'fast', decode: percent},
   maf: {code: '10', bytes: 2, tier: 'flow', decode: (b) => word(b) / 100},
   fuelRate: {code: '5E', bytes: 2, tier: 'flow', decode: (b) => word(b) / 20},
+  // Engine fuel rate in g/s (bytes C, D are the whole vehicle's; one engine, same value).
+  fuelRateGs: {code: '9D', bytes: 4, tier: 'flow', decode: (b) => word(b) / 50},
   coolant: {code: '05', bytes: 1, tier: 'slow', decode: celsius},
   intakeTemp: {code: '0F', bytes: 1, tier: 'slow', decode: celsius},
   map: {code: '0B', bytes: 1, tier: 'slow', decode: (b) => b[0]},
