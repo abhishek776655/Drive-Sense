@@ -2,7 +2,7 @@ import {createPollLoop, type PollHandlers, type Transport} from '../pollLoop';
 import type {PidKey} from '../pids';
 
 /** An adapter that answers each command from a table (default `NO DATA`), one reply per write. */
-function fakeAdapter(answers: Record<string, string | (() => string)>) {
+function fakeAdapter(answers: Record<string, string | (() => string | null)>) {
   const sent: string[] = [];
   let listener: ((chunk: string) => void) | null = null;
   const transport: Transport = {
@@ -11,6 +11,9 @@ function fakeAdapter(answers: Record<string, string | (() => string)>) {
       sent.push(command);
       const answer = answers[command];
       const reply = typeof answer === 'function' ? answer() : (answer ?? (command.startsWith('AT') ? 'OK' : 'NO DATA'));
+      if (reply === null) {
+        return; // the adapter says nothing (still searching for the car's protocol)
+      }
       // Split in two chunks, like BLE notifications do.
       void Promise.resolve().then(() => {
         listener?.(reply.slice(0, 3));
@@ -84,6 +87,32 @@ describe('poll loop', () => {
     const count = (k: PidKey) => h.values.filter(([key]) => key === k).length;
     expect(count('maf')).toBeLessThan(count('speed'));
     expect(count('maf')).toBeGreaterThan(0);
+  });
+
+  it('gives the first request time for the adapter to find the car\'s protocol', async () => {
+    const {transport, sent} = fakeAdapter(CAR);
+    const waits: Record<string, number> = {};
+    const loop = createPollLoop(transport, handlers({onValue: () => loop.stop()}), {
+      sleep: (ms) => {
+        waits[sent[sent.length - 1]] ??= ms;
+        return never();
+      },
+    });
+    await loop.start();
+    // ATSP0 makes the first 0100 search protocols, which takes seconds; later requests are quick.
+    expect(waits['0100']).toBeGreaterThanOrEqual(10_000);
+    expect(waits['0120']).toBeLessThan(5_000);
+  });
+
+  it('asks 0100 again when the first try gets no answer', async () => {
+    let tries = 0;
+    const {transport, sent} = fakeAdapter({...CAR, '0100': () => (++tries === 1 ? null : '41 00 98 19 80 03')});
+    const h = handlers();
+    // A reply timeout fires only for the silent first try.
+    const loop = createPollLoop(transport, {...h, onValue: () => loop.stop()}, {sleep: () => (tries === 1 ? Promise.resolve() : never())});
+    await loop.start();
+    expect(sent.filter((c) => c === '0100')).toHaveLength(2);
+    expect(h.onSupported).toHaveBeenCalledWith(expect.arrayContaining(['speed', 'rpm']));
   });
 
   it('stops asking for a PID after three empty replies', async () => {

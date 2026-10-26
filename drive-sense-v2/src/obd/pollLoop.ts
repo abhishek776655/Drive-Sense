@@ -42,6 +42,9 @@ const ENGINE_STOPPED_POLL_MS = 250;
 /** Keep reading voltage every round this long after the engine catches (the dip's tail). */
 const AFTER_START_MS = 3000;
 const SUPPORTED_BASES = ['00', '20', '40', '60'];
+/** How long the first 0100 may take while the adapter finds the car's protocol, and how often it is tried. */
+const PROTOCOL_SEARCH_MS = 12_000;
+const FIRST_REQUEST_ATTEMPTS = 3;
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -94,10 +97,25 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
     }
   };
 
+  /**
+   * The first request after `ATSP0` makes the adapter search for the car's protocol, which can take
+   * several seconds (longer on pre-CAN cars) and sometimes fails once while the car wakes up. Give it
+   * time and another go before concluding the car has no Mode 01.
+   */
+  const askFirstSupported = async (): Promise<number[] | null> => {
+    for (let attempt = 0; attempt < FIRST_REQUEST_ATTEMPTS && running; attempt++) {
+      const bytes = parseReply(await ask(pidRequest(SUPPORTED_BASES[0]), PROTOCOL_SEARCH_MS), SUPPORTED_BASES[0], 4);
+      if (bytes) {
+        return bytes;
+      }
+    }
+    return null;
+  };
+
   const readSupported = async (): Promise<PidKey[]> => {
     const codes: string[] = [];
     for (const base of SUPPORTED_BASES) {
-      const bytes = parseReply(await ask(pidRequest(base)), base, 4);
+      const bytes = base === SUPPORTED_BASES[0] ? await askFirstSupported() : parseReply(await ask(pidRequest(base)), base, 4);
       if (!bytes) {
         break;
       }
