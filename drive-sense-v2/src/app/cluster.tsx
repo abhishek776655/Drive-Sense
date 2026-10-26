@@ -7,7 +7,7 @@ import {Pressable, StyleSheet, Text, useWindowDimensions, View} from 'react-nati
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {accentColor, CLUSTER_ACCENTS, CLUSTER_INK, type ClusterAccent} from '../cluster/accents';
+import {accentColor, CLUSTER_INK} from '../cluster/accents';
 import {CLUSTER_LAYOUTS, layoutById} from '../cluster/layouts';
 import {useClusterData} from '../cluster/useClusterData';
 import {useDriveSettingsStore} from '../stores/driveSettingsStore';
@@ -95,27 +95,6 @@ export default function ClusterScreen() {
           <Ionicons name="grid" size={14} color={CLUSTER_INK.textDim} />
           <Text style={styles.chipText}>{layout.name}</Text>
         </Pressable>
-        <View style={styles.accents}>
-          {(['auto', ...Object.keys(CLUSTER_ACCENTS)] as ClusterAccent[]).map((id) => {
-            const color = accentColor(id, driveAccent);
-            const on = id === accentId;
-            return (
-              <Pressable
-                key={id}
-                accessibilityRole="button"
-                accessibilityLabel={id === 'auto' ? 'Accent: same as speedometer' : `Accent ${id}`}
-                accessibilityState={{selected: on}}
-                onPress={() => {
-                  void setPrefs({clusterAccent: id});
-                  showChrome();
-                }}
-                hitSlop={6}
-                style={[styles.swatch, {backgroundColor: color, borderColor: on ? CLUSTER_INK.text : 'transparent'}]}>
-                {id === 'auto' ? <Text style={styles.auto}>A</Text> : null}
-              </Pressable>
-            );
-          })}
-        </View>
       </Animated.View>
     </GestureHandlerRootView>
   );
@@ -129,7 +108,4 @@ const styles = StyleSheet.create({
   chip: {height: 34, minWidth: 34, borderRadius: 17, backgroundColor: CLUSTER_INK.chip, alignItems: 'center', justifyContent: 'center'},
   layoutChip: {flexDirection: 'row', gap: 6, paddingHorizontal: 14},
   chipText: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 13},
-  accents: {flexDirection: 'row', gap: 10, marginLeft: 'auto'},
-  swatch: {width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center'},
-  auto: {color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 11},
 });

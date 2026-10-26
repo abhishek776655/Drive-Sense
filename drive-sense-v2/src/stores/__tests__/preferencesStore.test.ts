@@ -25,6 +25,20 @@ describe('preferences', () => {
   });
 });
 
+describe('cluster stat choices', () => {
+  it('lists every stat until a choice is made', () => {
+    const p = sanitizePreferences({});
+    expect(p.clusterCarStats).toContain('odometer');
+    expect(p.clusterDriveStats).toContain('avgSpeed');
+  });
+
+  it('keeps a stored choice, dropping unknown keys', () => {
+    const p = sanitizePreferences({clusterCarStats: ['fuel', 'warp'], clusterDriveStats: []});
+    expect(p.clusterCarStats).toEqual(['fuel']);
+    expect(p.clusterDriveStats).toEqual([]);
+  });
+});
+
 describe('mapTypeFor', () => {
   const {mapTypeFor} = jest.requireActual('../../hooks/useMapType');
   it('uses the muted map on iOS only', () => {

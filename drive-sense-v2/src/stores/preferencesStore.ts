@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {create} from 'zustand';
 import {CURRENCIES, type Currency} from '../obd/fuel';
 import type {MileageUnit} from '../obd/tiles';
+import {CAR_STATS, DRIVE_STATS, sanitizeStatKeys} from '../cluster/settings';
 import {CLUSTER_ACCENTS, DIAL_STYLES, DIAL_VIEWS, GAUGE_STYLES, PHONE_DIALS, type ClusterAccent, type DialStyle, type DialView, type GaugeStyle, type PhoneDial} from '../cluster/accents';
 import type {TemperatureUnit, UnitSystem} from '../utils/units';
 
@@ -50,6 +51,9 @@ export interface Preferences {
   /** Cluster mode: what each dial shows (its gauge, or a phone view), swiped through left and right. */
   clusterLeftView: DialView;
   clusterRightView: DialView;
+  /** Which stats the cluster's Car and This drive pages list (keys from cluster/settings). */
+  clusterCarStats: string[];
+  clusterDriveStats: string[];
 }
 
 export const AUTO_STOP_MINUTES = [1, 3, 5, 10];
@@ -87,6 +91,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   clusterPhoneDial: 'g',
   clusterLeftView: 'main',
   clusterRightView: 'main',
+  clusterCarStats: CAR_STATS.map((o) => o.key),
+  clusterDriveStats: DRIVE_STATS.map((o) => o.key),
 };
 
 export const MAX_FUEL_PRICE = 10_000;
@@ -143,6 +149,8 @@ export const sanitizePreferences = (raw: unknown): Preferences => {
     clusterPhoneDial: oneOf(r.clusterPhoneDial, PHONE_DIALS, d.clusterPhoneDial),
     clusterLeftView: oneOf(r.clusterLeftView, DIAL_VIEWS, d.clusterLeftView),
     clusterRightView: oneOf(r.clusterRightView, DIAL_VIEWS, d.clusterRightView),
+    clusterCarStats: sanitizeStatKeys(r.clusterCarStats, CAR_STATS),
+    clusterDriveStats: sanitizeStatKeys(r.clusterDriveStats, DRIVE_STATS),
   };
 };
 

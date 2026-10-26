@@ -7,6 +7,7 @@ import { FONT } from '../../theme/theme';
 import { formatClock } from '../../utils/format';
 import { CLUSTER_INK } from '../accents';
 import type { ClusterData } from '../clusterData';
+import { shows } from '../settings';
 
 /** One figure on a page: small caps label, value, unit. */
 export function Figure({ label, value, unit, big }: { label: string; value: string; unit?: string; big?: boolean }) {
@@ -26,6 +27,7 @@ export function TripPage({ d }: { d: ClusterData }) {
   const u = useUnits();
   const mileage = usePreferencesStore((s) => s.mileageUnit);
   const currency = usePreferencesStore((s) => s.currency);
+  const chosen = usePreferencesStore((s) => s.clusterDriveStats);
   const label = economyLabel(u.units, mileage);
   if (!d.recording) {
     const now = d.instantL100km != null ? economy(d.instantL100km, u.units, mileage) : null;
@@ -38,16 +40,18 @@ export function TripPage({ d }: { d: ClusterData }) {
   }
   const drive = d.driveL100km != null ? economy(d.driveL100km, u.units, mileage) : null;
   const fuel = d.fuelUsedL != null ? fuelVolume(d.fuelUsedL, u.units) : null;
+  // Settings decides which of these this page lists.
+  const on = (key: string) => shows(chosen, key);
   return (
     <View style={pageStyles.page}>
       <Text style={pageStyles.title}>THIS DRIVE</Text>
       <View style={pageStyles.grid}>
-        <Figure label="Time" value={formatClock(Math.round(d.driveS ?? 0))} big />
-        <Figure label="Distance" value={u.distance(d.distanceM)} unit={u.distanceUnit} big />
-        {drive ? <Figure label={label} value={drive.value} unit={drive.unit} /> : null}
-        {fuel ? <Figure label="Fuel used" value={fuel.value} unit={fuel.unit} /> : null}
-        {d.cost != null ? <Figure label="Cost" value={formatMoney(d.cost, currency)} /> : null}
-        {d.avgSpeedMps != null ? <Figure label="Avg speed" value={u.speed(d.avgSpeedMps)} unit={u.speedUnit} /> : null}
+        {on('time') ? <Figure label="Time" value={formatClock(Math.round(d.driveS ?? 0))} big /> : null}
+        {on('distance') ? <Figure label="Distance" value={u.distance(d.distanceM)} unit={u.distanceUnit} big /> : null}
+        {on('mileage') && drive ? <Figure label={label} value={drive.value} unit={drive.unit} /> : null}
+        {on('fuelUsed') && fuel ? <Figure label="Fuel used" value={fuel.value} unit={fuel.unit} /> : null}
+        {on('cost') && d.cost != null ? <Figure label="Cost" value={formatMoney(d.cost, currency)} /> : null}
+        {on('avgSpeed') && d.avgSpeedMps != null ? <Figure label="Avg speed" value={u.speed(d.avgSpeedMps)} unit={u.speedUnit} /> : null}
       </View>
     </View>
   );
@@ -57,31 +61,32 @@ export function TripPage({ d }: { d: ClusterData }) {
 export function CarPage({ d }: { d: ClusterData }) {
   const u = useUnits();
   const unit = usePreferencesStore((s) => s.temperature);
+  const chosen = usePreferencesStore((s) => s.clusterCarStats);
   const rows: { label: string; value: string; unit?: string; warn?: boolean }[] = [];
-  if (d.coolantC != null) {
+  if (shows(chosen, 'engineTemp') && d.coolantC != null) {
     rows.push({ label: 'Engine temp', ...temperature(d.coolantC, unit), warn: d.alerts.hotCoolant });
   }
-  if (d.voltage != null) {
+  if (shows(chosen, 'battery') && d.voltage != null) {
     rows.push({ label: 'Battery', value: d.voltage.toFixed(1), unit: 'V', warn: d.alerts.lowBattery });
   }
-  if (d.boostKpa != null) {
+  if (shows(chosen, 'boost') && d.boostKpa != null) {
     rows.push({ label: 'Boost', ...pressure(d.boostKpa, u.units) });
   }
-  if (d.intakeC != null) {
+  if (shows(chosen, 'intake') && d.intakeC != null) {
     rows.push({ label: 'Intake air', ...temperature(d.intakeC, unit) });
   }
-  if (d.oilC != null) {
+  if (shows(chosen, 'oil') && d.oilC != null) {
     rows.push({ label: 'Oil', ...temperature(d.oilC, unit) });
   }
-  if (d.fuelPct != null) {
+  if (shows(chosen, 'fuel') && d.fuelPct != null) {
     // Litres beside the percent when the tank size is known, as on the Telemetry tile.
     const left = d.fuelLitres != null ? fuelVolume(d.fuelLitres, u.units) : null;
     rows.push({ label: 'Fuel', value: String(Math.round(d.fuelPct)), unit: left ? `% · ${left.value} ${left.unit}` : '%', warn: d.alerts.lowFuel });
   }
-  if (d.rangeKm != null) {
+  if (shows(chosen, 'range') && d.rangeKm != null) {
     rows.push({ label: 'Range', value: `≈${Math.round(u.distanceValue(d.rangeKm * 1000) ?? 0)}`, unit: u.distanceUnit });
   }
-  if (d.odometerKm != null) {
+  if (shows(chosen, 'odometer') && d.odometerKm != null) {
     rows.push({ label: 'Odometer', value: Math.round(u.distanceValue(d.odometerKm * 1000) ?? 0).toLocaleString('en-US'), unit: u.distanceUnit });
   }
   return (

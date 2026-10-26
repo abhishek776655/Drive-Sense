@@ -26,6 +26,7 @@ import { usePhoneTrace } from '../usePhoneTrace';
 import { LoadBars } from '../parts/LoadBars';
 import { LoadMeter } from '../parts/LoadMeter';
 import { MapPage } from '../parts/MapPage';
+import { SettingsPage } from '../parts/SettingsPage';
 import { CarPage, TripPage } from '../parts/pages';
 import { AllTimePage, DrivingTotalsPage, DualGraphPage, EngineGraphPage, GraphPage } from '../parts/statPages';
 import { VerticalPager } from '../parts/VerticalPager';
@@ -306,6 +307,8 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
     });
   }
   pages.push({ key: 'map', node: <MapPage accent={accent} /> });
+  // Last: the cluster's own settings (look, colour, which stats the Car and Drive pages list).
+  pages.push({ key: 'settings', node: inset(<SettingsPage accent={accent} />) });
 
   const coolantShare = d.coolantC == null ? null : Math.min(1, Math.max(0, (d.coolantC - COOLANT_RANGE[0]) / (COOLANT_RANGE[1] - COOLANT_RANGE[0])));
   const outside = d.outsideC != null ? temperature(d.outsideC, tempUnit) : null;
