@@ -229,6 +229,84 @@ export function EngineGraphPage({
   );
 }
 
+/** One of the two lines on the combined graph, with its own scale (the units differ). */
+interface DualLine {
+  label: string;
+  value: string;
+  unit: string;
+  pick: (p: HistoryPoint) => number | null;
+  step: number;
+  color: string;
+}
+
+/**
+ * Power and torque together: both figures on top, both lines over the last minute, each scaled to
+ * its own peak so the shapes line up (torque leads, power follows the revs).
+ */
+export function DualGraphPage({title, first, second, clearWidth}: {title: string; first: DualLine; second: DualLine; clearWidth: number}) {
+  const history = useObdStore((s) => s.history);
+  const w = Math.max(120, clearWidth);
+  const h = 84;
+  const graph = useMemo(() => {
+    if (history.length < 2) {
+      return null;
+    }
+    const from = history[0].at;
+    const span = Math.max(1, history[history.length - 1].at - from);
+    const draw = (l: DualLine) => {
+      const points = series(history, l.pick);
+      if (points.length < 2) {
+        return null;
+      }
+      const top = Math.max(...points.map((p) => p.y), 0);
+      return linePath(points, w, h, Math.max(l.step, Math.ceil(top / l.step) * l.step), from, span, false);
+    };
+    const firstPoints = series(history, first.pick);
+    const firstTop = Math.max(...firstPoints.map((p) => p.y), 0);
+    const firstMax = Math.max(first.step, Math.ceil(firstTop / first.step) * first.step);
+    return {
+      fill: firstPoints.length < 2 ? null : linePath(firstPoints, w, h, firstMax, from, span, true),
+      first: draw(first),
+      second: draw(second),
+    };
+    // The lines' looks, not their figures: those change every reading and need no new paths.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, first.pick, first.step, first.color, second.pick, second.step, second.color, w]);
+
+  return (
+    <View style={pageStyles.page}>
+      <Text style={pageStyles.title}>{title}</Text>
+      <View style={pageStyles.grid}>
+        <Figure label={first.label} value={first.value} unit={first.unit} big />
+        <Figure label={second.label} value={second.value} unit={second.unit} big />
+      </View>
+      {graph && (graph.first || graph.second) ? (
+        <>
+          <Canvas style={{width: w, height: h, marginTop: 8}}>
+            {graph.fill ? (
+              <Path path={graph.fill}>
+                <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[withAlpha(first.color, 0.35), withAlpha(CLUSTER_INK.background, 0)]} />
+              </Path>
+            ) : null}
+            {graph.first ? <Path path={graph.first} style="stroke" strokeWidth={2.4} strokeJoin="round" color={first.color} /> : null}
+            {graph.second ? <Path path={graph.second} style="stroke" strokeWidth={1.8} strokeJoin="round" color={second.color} /> : null}
+          </Canvas>
+          <View style={styles.legend}>
+            {[first, second].map((l) => (
+              <View key={l.label} style={styles.key}>
+                <View style={[styles.swatch, {backgroundColor: l.color}]} />
+                <Text style={styles.keyText}>{l.label}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : (
+        <Text style={pageStyles.hint}>Drive to fill the graph</Text>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   legend: {flexDirection: 'row', gap: 16, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center'},
   key: {flexDirection: 'row', alignItems: 'center', gap: 6},

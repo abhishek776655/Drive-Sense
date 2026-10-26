@@ -27,7 +27,7 @@ import { LoadBars } from '../parts/LoadBars';
 import { LoadMeter } from '../parts/LoadMeter';
 import { MapPage } from '../parts/MapPage';
 import { CarPage, TripPage } from '../parts/pages';
-import { AllTimePage, DrivingTotalsPage, EngineGraphPage, GraphPage } from '../parts/statPages';
+import { AllTimePage, DrivingTotalsPage, DualGraphPage, EngineGraphPage, GraphPage } from '../parts/statPages';
 import { VerticalPager } from '../parts/VerticalPager';
 
 const STRIP_H = 36;
@@ -210,7 +210,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
 
   const power = d.powerKw != null ? powerUnits(d.powerKw, u.units) : null;
   const torque = d.torqueNm != null ? torqueUnits(d.torqueNm, u.units) : null;
-  // Power and torque, one graph each, swiping up from the CAR page.
+  // Power and torque in the Engine page's views (cars that report torque): each alone, then together.
   const engineGraphs = [
     {
       key: 'power',
@@ -239,6 +239,17 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           step={50}
           clearWidth={clearW}
           color={accent}
+        />
+      ),
+    },
+    {
+      key: 'powerTorque',
+      node: (
+        <DualGraphPage
+          title="POWER & TORQUE"
+          first={{ label: 'Power', value: power?.value ?? '–', unit: powerUnits(0, u.units).unit, pick: pickPower, step: 10, color: accent }}
+          second={{ label: 'Torque', value: torque?.value ?? '–', unit: torqueUnits(0, u.units).unit, pick: pickTorque, step: 50, color: CLUSTER_INK.text }}
+          clearWidth={clearW}
         />
       ),
     },
@@ -275,6 +286,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
             { key: 'arc', node: <LoadMeter width={panelW} height={panelH - 14} clearWidth={clearW} {...engine} /> },
             { key: 'bars', node: <LoadBars width={panelW} height={panelH - 30} vertical={false} {...engine} /> },
             { key: 'columns', node: <LoadBars width={panelW} height={panelH - 30} vertical {...engine} /> },
+            ...(d.powerKw != null || d.torqueNm != null ? engineGraphs : []),
           ]}
         />,
       ),
@@ -287,8 +299,6 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           accent={accent}
           views={[
             { key: 'now', node: <CarPage d={d} /> },
-            // Power and torque, one swipe up, for cars that report torque.
-            ...(d.powerKw != null || d.torqueNm != null ? engineGraphs : []),
             { key: 'all', node: <AllTimePage /> },
           ]}
         />,
