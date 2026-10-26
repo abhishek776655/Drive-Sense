@@ -16,6 +16,8 @@ import {useBrandIntroStore} from '../stores/brandIntroStore';
 import {hydrateRecording} from '../stores/recordingPersistence';
 // Registers the OS background-location task at startup, before any screen mounts.
 import '../tracking/backgroundLocation';
+// Creates the Bluetooth manager at startup when an adapter is paired (iOS relaunch for the adapter).
+import '../obd/bleLaunch';
 import {useDriveSettingsStore} from '../stores/driveSettingsStore';
 import {usePreferencesStore} from '../stores/preferencesStore';
 import {useAppearanceStore} from '../theme/appearanceStore';

@@ -1,5 +1,6 @@
-import {PermissionsAndroid, Platform} from 'react-native';
+import {AppState, PermissionsAndroid, Platform} from 'react-native';
 import {BleManager, State, type Characteristic, type Device, type Subscription} from 'react-native-ble-plx';
+import {logBle} from './bleLog';
 import type {Transport} from './pollLoop';
 
 /** Serial-over-BLE services ELM327 adapters use (Vgate/clones FFF0 and FFE0, OBDLink 18F0). */
@@ -24,7 +25,27 @@ export interface AdapterLink extends Transport {
 }
 
 let manager: BleManager | null = null;
-const ble = () => (manager ??= new BleManager({restoreStateIdentifier: RESTORE_ID, restoreStateFunction: () => undefined}));
+const ble = () =>
+  (manager ??= new BleManager({
+    restoreStateIdentifier: RESTORE_ID,
+    // iOS calls this when it relaunched the app for the adapter (null: nothing was connected).
+    restoreStateFunction: (restored) =>
+      void logBle(
+        restored == null
+          ? 'iOS restored the app: no connected adapter'
+          : `iOS restored the app: ${restored.connectedPeripherals.length} connected adapter(s)`,
+      ),
+  }));
+
+/**
+ * Creates the Bluetooth manager now, at app start. iOS only hands back a relaunch's connection if
+ * the manager with the restore id exists soon after launch; otherwise it would wait for the Telemetry
+ * tab to mount, behind the sign-in and settings loading.
+ */
+export const startBle = () => {
+  void logBle(`App launched (${AppState.currentState})`);
+  ble();
+};
 
 const short = (uuid: string) => {
   const u = uuid.toLowerCase();
@@ -109,9 +130,11 @@ const decode = (base64: string) => atob(base64);
  * is how the phone reconnects by itself when the car starts.
  */
 export const connectAdapter = async (id: string): Promise<AdapterLink> => {
+  void logBle('Connecting to the adapter');
   const device = await ble().connectToDevice(id, {autoConnect: Platform.OS === 'android'});
   await device.discoverAllServicesAndCharacteristics();
   const {write, notify} = await findPipe(device);
+  void logBle('Adapter connected');
   const listeners = new Set<(chunk: string) => void>();
   const monitor: Subscription = notify.monitor((error, c) => {
     if (!error && c?.value) {
@@ -137,6 +160,7 @@ export const connectAdapter = async (id: string): Promise<AdapterLink> => {
     },
     onDisconnect: (cb) => {
       const sub = ble().onDeviceDisconnected(id, () => {
+        void logBle('Adapter disconnected');
         monitor.remove();
         cb();
       });

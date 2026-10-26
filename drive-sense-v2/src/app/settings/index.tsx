@@ -16,6 +16,7 @@ import {ReliabilityTile} from '../../components/settings/ReliabilityTile';
 import {SelectMenu} from '../../components/settings/SelectMenu';
 import {PillChoice, SettingsGroup, SettingsLabel, SettingsRow, SettingsSwitch} from '../../components/settings/SettingsRows';
 import {requestNotificationPermission} from '../../notifications/driveNotifications';
+import {clearBleLog, readBleLog} from '../../obd/bleLog';
 import {CURRENCIES, priceInUnits, pricePerLitreFrom, priceUnit} from '../../obd/fuel';
 import {MapButton} from '../../components/trip/MapButton';
 import {PRIVACY_POLICY_URL, SUPPORT_EMAIL} from '../../config/links';
@@ -73,6 +74,19 @@ const readPermissions = async (): Promise<Permissions> => {
   } catch {
     return null;
   }
+};
+
+/** The adapter link's recent events (newest last) in an alert, with a way to clear them. */
+const showAdapterLog = async () => {
+  const log = (await readBleLog()).slice(-14);
+  const lines = log.map((e) => {
+    const at = new Date(e.at).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+    return `${at}  ${e.event}`;
+  });
+  Alert.alert('Adapter log', lines.length > 0 ? lines.join('\n') : 'Nothing logged yet.', [
+    {text: 'Clear', style: 'destructive', onPress: () => void clearBleLog()},
+    {text: 'Close', style: 'cancel'},
+  ]);
 };
 
 /**
@@ -274,13 +288,22 @@ export default function SettingsScreen() {
             right={<SettingsSwitch label="Auto-start" value={prefs.autoStart} onChange={(autoStart) => void setPrefs({autoStart})} />}
           />
           {hasAdapter ? (
-            <SettingsRow
-              icon="hardware-chip"
-              iconColor={c.accent}
-              title="Start with car adapter"
-              subtitle="Start recording when your paired OBD-II adapter connects"
-              right={<SettingsSwitch label="Start with car adapter" value={prefs.obdAutoStart} onChange={(obdAutoStart) => void setPrefs({obdAutoStart})} />}
-            />
+            <>
+              <SettingsRow
+                icon="hardware-chip"
+                iconColor={c.accent}
+                title="Start with car adapter"
+                subtitle="Start recording when your paired OBD-II adapter connects"
+                right={<SettingsSwitch label="Start with car adapter" value={prefs.obdAutoStart} onChange={(obdAutoStart) => void setPrefs({obdAutoStart})} />}
+              />
+              <SettingsRow
+                icon="document-text"
+                iconColor={c.textTertiary}
+                title="Adapter log"
+                subtitle="What happened when the app woke for your adapter"
+                onPress={() => void showAdapterLog()}
+              />
+            </>
           ) : null}
           <SettingsRow
             icon="stop-circle"

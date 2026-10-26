@@ -6,6 +6,7 @@ import {usePreferencesStore} from '../stores/preferencesStore';
 import {useRecordingStore} from '../stores/recordingStore';
 import {useActiveVehicle} from '../stores/vehicleStore';
 import type {FuelType} from '../services/vehicleService';
+import {logBle} from './bleLog';
 import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink, type BleStatus} from './bleTransport';
 import {BatteryWatch} from './battery';
 import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
@@ -234,6 +235,7 @@ export function useObdLink() {
       useObdStore.subscribe((next, prev) => {
         const recording = useRecordingStore.getState();
         if (next.link === 'live' && prev.link !== 'live' && usePreferencesStore.getState().obdAutoStart && recording.status === 'ready' && vehicle) {
+          void logBle('Adapter live: starting the drive');
           recording.start({id: vehicle.id, name: vehicle.display_name});
         }
       }),

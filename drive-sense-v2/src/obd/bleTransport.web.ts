@@ -29,3 +29,4 @@ export const connectAdapter = async (_id: string): Promise<AdapterLink> => {
   throw new Error('Bluetooth is not available here.');
 };
 export const cancelConnect = async (_id: string) => {};
+export const startBle = () => {};
