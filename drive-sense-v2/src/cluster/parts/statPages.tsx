@@ -168,7 +168,7 @@ export function GraphPage({width, accent}: {width: number; accent: string}) {
 }
 
 /**
- * One minute of one engine value, full width, styled like the Speed dial's graph: the figure big on
+ * One minute of one engine value, as wide as the Speed graph and styled like it: the figure big on
  * top, faint grid lines, the area fading down under a glowing line, and the minute's average and top
  * below. Cars that report torque get POWER and TORQUE in the Engine page's views.
  */
@@ -179,7 +179,7 @@ export function EngineGraphPage({
   format,
   pick,
   step,
-  clearWidth,
+  width,
   color,
 }: {
   title: string;
@@ -190,11 +190,12 @@ export function EngineGraphPage({
   pick: (p: HistoryPoint) => number | null;
   /** The scale rounds its top up to a multiple of this. */
   step: number;
-  clearWidth: number;
+  /** The centre panel's width; the graph spans it like the Speed graph (GraphPage). */
+  width: number;
   color: string;
 }) {
   const history = useObdStore((s) => s.history);
-  const w = Math.max(120, clearWidth);
+  const w = Math.max(120, width - 48);
   const h = 84;
   const graph = useMemo(() => {
     const points = series(history, pick);
@@ -253,9 +254,9 @@ interface DualLine {
  * Power and torque together: both figures on top, both lines over the last minute, each scaled to
  * its own peak so the shapes line up (torque leads, power follows the revs).
  */
-export function DualGraphPage({title, first, second, clearWidth}: {title: string; first: DualLine; second: DualLine; clearWidth: number}) {
+export function DualGraphPage({title, first, second, width}: {title: string; first: DualLine; second: DualLine; width: number}) {
   const history = useObdStore((s) => s.history);
-  const w = Math.max(120, clearWidth);
+  const w = Math.max(120, width - 48);
   const h = 84;
   const graph = useMemo(() => {
     if (history.length < 2) {

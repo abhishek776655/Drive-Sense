@@ -222,7 +222,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           format={(n) => powerUnits(n, u.units).value}
           pick={pickPower}
           step={10}
-          clearWidth={clearW}
+          width={panelW}
           color={accent}
         />
       ),
@@ -237,7 +237,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           format={(n) => torqueUnits(n, u.units).value}
           pick={pickTorque}
           step={50}
-          clearWidth={clearW}
+          width={panelW}
           color={accent}
         />
       ),
@@ -249,7 +249,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           title="POWER & TORQUE"
           first={{ label: 'Power', value: power?.value ?? '–', unit: powerUnits(0, u.units).unit, pick: pickPower, step: 10, color: accent }}
           second={{ label: 'Torque', value: torque?.value ?? '–', unit: torqueUnits(0, u.units).unit, pick: pickTorque, step: 50, color: CLUSTER_INK.text }}
-          clearWidth={clearW}
+          width={panelW}
         />
       ),
     },
