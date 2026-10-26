@@ -13,6 +13,7 @@ const base: ClusterInput = {
   gpsSpeedMps: 10,
   g: {lon: 0.1, lat: 0},
   rangeKm: null,
+  tankLitres: null,
   recording: null,
   driveFuel: null,
   fuelPrice: null,
@@ -43,6 +44,21 @@ describe('cluster data', () => {
     });
     expect(d).toMatchObject({mode: 'adapter', speedKmh: 72, rpm: 2400, gear: '4', redline: 4500, loadPct: 45, coasting: false, boostKpa: 30, carState: 'running'});
     expect(d.alerts.lowFuel).toBe(true);
+  });
+
+  it('carries power, torque, odometer, fuel litres and average speed while the car answers', () => {
+    const d = clusterData({
+      ...base,
+      values: {speed: v(50), rpm: v(2000), fuelLevel: v(28.63), odometer: v(22120.8)},
+      derived: {economy: null, boost: null, gear: null, torqueNm: 120, powerKw: 40},
+      tankLitres: 50,
+      recording: {driveS: 600, distanceM: 5000, avgSpeedMps: 9},
+    });
+    expect(d).toMatchObject({powerKw: 40, torqueNm: 120, odometerKm: 22120.8, avgSpeedMps: 9});
+    expect(d.fuelLitres).toBeCloseTo(14.3, 1);
+    // Phone-only: no live power or fuel, but the last odometer reading still holds.
+    const off = clusterData({...base, values: {odometer: v(22120.8, 60_000)}, tankLitres: 50});
+    expect(off).toMatchObject({powerKw: null, torqueNm: null, fuelLitres: null, odometerKm: 22120.8});
   });
 
   it('shows coasting with the throttle closed while rolling', () => {

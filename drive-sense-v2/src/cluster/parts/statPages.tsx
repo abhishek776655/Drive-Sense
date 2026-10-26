@@ -3,7 +3,7 @@ import {useEffect, useMemo} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useCarStats} from '../../hooks/useCarStats';
 import {useUnits} from '../../hooks/useUnits';
-import {economy, economyLabel, fuelVolume} from '../../obd/tiles';
+import {economy, economyLabel, fuelVolume, powerUnits, torqueUnits} from '../../obd/tiles';
 import {useHomeStore} from '../../stores/homeStore';
 import {useObdStore, type HistoryPoint} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
@@ -163,6 +163,75 @@ export function GraphPage({width, accent}: {width: number; accent: string}) {
       ) : (
         <Text style={pageStyles.hint}>Drive to fill the graph</Text>
       )}
+    </View>
+  );
+}
+
+/** Torque at a history point, back from its power and RPM (T = P / ω), so history needs no torque field. */
+const torqueAt = (p: HistoryPoint) => (p.power != null && p.rpm ? (p.power * 60_000) / (2 * Math.PI * p.rpm) : null);
+
+/**
+ * One swipe up from the CAR page (cars that report torque): power big with torque beside it, and the
+ * last minute of both. Kept to `clearWidth`, the part of the centre the dials don't cover.
+ */
+export function PowerPage({clearWidth, accent, powerKw, torqueNm}: {clearWidth: number; accent: string; powerKw: number | null; torqueNm: number | null}) {
+  const u = useUnits();
+  const history = useObdStore((s) => s.history);
+  const w = Math.max(120, clearWidth);
+  const h = 70;
+  const graph = useMemo(() => {
+    const power = series(history, (p) => p.power);
+    const torque = series(history, torqueAt);
+    if (power.length < 2) {
+      return null;
+    }
+    const from = history[0].at;
+    const span = Math.max(1, history[history.length - 1].at - from);
+    const topPower = Math.max(...power.map((p) => p.y), 0);
+    const topTorque = Math.max(...torque.map((p) => p.y), 0);
+    return {
+      powerFill: linePath(power, w, h, Math.max(10, Math.ceil(topPower / 10) * 10), from, span, true),
+      powerLine: linePath(power, w, h, Math.max(10, Math.ceil(topPower / 10) * 10), from, span, false),
+      torqueLine: linePath(torque, w, h, Math.max(50, Math.ceil(topTorque / 50) * 50), from, span, false),
+      topPower,
+      topTorque,
+    };
+  }, [history, w]);
+  const p = powerKw != null ? powerUnits(powerKw, u.units) : null;
+  const t = torqueNm != null ? torqueUnits(torqueNm, u.units) : null;
+
+  return (
+    <View style={pageStyles.page}>
+      <Text style={pageStyles.title}>POWER</Text>
+      <View style={pageStyles.grid}>
+        <Figure label="Power" value={p?.value ?? '–'} unit={p?.unit ?? powerUnits(0, u.units).unit} big />
+        <Figure label="Torque" value={t?.value ?? '–'} unit={t?.unit ?? torqueUnits(0, u.units).unit} />
+      </View>
+      {graph ? (
+        <>
+          <Canvas style={{width: w, height: h, marginTop: 10}}>
+            <Path path={graph.powerFill}>
+              <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[withAlpha(accent, 0.45), withAlpha(CLUSTER_INK.background, 0)]} />
+            </Path>
+            <Path path={graph.powerLine} style="stroke" strokeWidth={2.4} strokeJoin="round" color={accent} />
+            <Path path={graph.torqueLine} style="stroke" strokeWidth={1.4} strokeJoin="round" color={CLUSTER_INK.textDim} />
+          </Canvas>
+          <View style={styles.legend}>
+            <View style={styles.key}>
+              <View style={[styles.swatch, {backgroundColor: accent}]} />
+              <Text style={styles.keyText}>
+                Power · top {powerUnits(graph.topPower, u.units).value} {powerUnits(0, u.units).unit}
+              </Text>
+            </View>
+            <View style={styles.key}>
+              <View style={[styles.swatch, {backgroundColor: CLUSTER_INK.textDim}]} />
+              <Text style={styles.keyText}>
+                Torque · top {torqueUnits(graph.topTorque, u.units).value} {torqueUnits(0, u.units).unit}
+              </Text>
+            </View>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }

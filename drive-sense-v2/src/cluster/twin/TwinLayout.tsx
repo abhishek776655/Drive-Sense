@@ -26,7 +26,7 @@ import { LoadMeter } from '../parts/LoadMeter';
 import { SideArc } from '../parts/SideArc';
 import { MapPage } from '../parts/MapPage';
 import { CarPage, TripPage } from '../parts/pages';
-import { AllTimePage, DrivingTotalsPage, GraphPage } from '../parts/statPages';
+import { AllTimePage, DrivingTotalsPage, GraphPage, PowerPage } from '../parts/statPages';
 import { VerticalPager } from '../parts/VerticalPager';
 
 const STRIP_H = 36;
@@ -248,6 +248,8 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           accent={accent}
           views={[
             { key: 'now', node: <CarPage d={d} /> },
+            // Power and torque, one swipe up, for cars that report torque.
+            ...(d.powerKw != null || d.torqueNm != null ? [{ key: 'power', node: <PowerPage clearWidth={clearW} accent={accent} powerKw={d.powerKw} torqueNm={d.torqueNm} /> }] : []),
             { key: 'all', node: <AllTimePage /> },
           ]}
         />,

@@ -35,6 +35,15 @@ export interface ClusterData {
   fuelUsedL: number | null;
   cost: number | null;
   instantL100km: number | null;
+  /** From the car's torque PIDs; null without them or with the car not answering. */
+  torqueNm: number | null;
+  powerKw: number | null;
+  /** The car's odometer: its last reading, kept with the engine off. */
+  odometerKm: number | null;
+  /** Fuel left in litres: the car's percent × the tank size, when one is set. */
+  fuelLitres: number | null;
+  /** This drive's distance over moving time (null when not recording). */
+  avgSpeedMps: number | null;
   carState: CarState | null;
   /** Outside air: the car's ambient sensor, else the weather. */
   outsideC: number | null;
@@ -52,7 +61,7 @@ export interface ClusterData {
 export interface ClusterInput {
   now: number;
   values: Partial<Record<PidKey, {v: number; at: number}>>;
-  derived: {economy: number | null; boost: number | null; gear: number | null};
+  derived: {economy: number | null; boost: number | null; gear: number | null; torqueNm?: number | null; powerKw?: number | null};
   mil: {on: boolean} | null;
   /** Lowest throttle seen this session, the closed-throttle reading. */
   closedThrottle: number | null;
@@ -60,7 +69,8 @@ export interface ClusterInput {
   gpsSpeedMps: number | null;
   g: {lon: number; lat: number} | null;
   rangeKm: number | null;
-  recording: {driveS: number; distanceM: number} | null;
+  tankLitres: number | null;
+  recording: {driveS: number; distanceM: number; avgSpeedMps?: number | null} | null;
   driveFuel: {l100km: number | null; fuelUsedL: number | null} | null;
   fuelPrice: number | null;
   batteryDipV: number | null;
@@ -113,6 +123,12 @@ export const clusterData = (i: ClusterInput): ClusterData => {
     fuelUsedL: i.driveFuel?.fuelUsedL ?? null,
     cost: fuelCost(i.driveFuel?.fuelUsedL, i.fuelPrice),
     instantL100km: adapter ? i.derived.economy : null,
+    torqueNm: adapter ? (i.derived.torqueNm ?? null) : null,
+    powerKw: adapter ? (i.derived.powerKw ?? null) : null,
+    // The odometer stays true with the engine off: the last reading, however old.
+    odometerKm: i.values.odometer?.v ?? null,
+    fuelLitres: fuelPct != null && i.tankLitres != null ? (fuelPct / 100) * i.tankLitres : null,
+    avgSpeedMps: i.recording?.avgSpeedMps ?? null,
     carState: state,
     outsideC: (adapter ? fresh('ambient') : null) ?? i.weatherC,
     heading: compassPoint(i.headingDeg),

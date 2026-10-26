@@ -4,7 +4,7 @@ import {useRange} from '../hooks/useRange';
 import {useObdStore} from '../stores/obdStore';
 import {usePreferencesStore} from '../stores/preferencesStore';
 import {useWeatherStore} from '../stores/weatherStore';
-import {elapsedSeconds, useRecordingStore} from '../stores/recordingStore';
+import {avgSpeedMps, elapsedSeconds, useRecordingStore} from '../stores/recordingStore';
 import {useActiveVehicle} from '../stores/vehicleStore';
 import {clusterData, type ClusterData} from './clusterData';
 import {gFrom} from './motion';
@@ -27,6 +27,7 @@ export function useClusterData(): ClusterData {
   const position = useRecordingStore((s) => s.position);
   const speedMps = useRecordingStore((s) => s.stats.speedMps);
   const distanceM = useRecordingStore((s) => s.stats.distanceM);
+  const movingSeconds = useRecordingStore((s) => s.stats.movingSeconds);
   const status = useRecordingStore((s) => s.status);
   const startedAt = useRecordingStore((s) => s.startedAt);
   const pausedMs = useRecordingStore((s) => s.pausedMs);
@@ -72,7 +73,8 @@ export function useClusterData(): ClusterData {
     gpsSpeedMps: speedMps,
     g,
     rangeKm: range.km,
-    recording: status === 'ready' ? null : {driveS: elapsedSeconds({startedAt, pausedMs, pausedAt}, now), distanceM},
+    tankLitres: range.tankLitres,
+    recording: status === 'ready' ? null : {driveS: elapsedSeconds({startedAt, pausedMs, pausedAt}, now), distanceM, avgSpeedMps: avgSpeedMps(distanceM, movingSeconds)},
     driveFuel,
     fuelPrice,
     batteryDipV: battery?.startDipV ?? null,

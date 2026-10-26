@@ -47,6 +47,7 @@ export function TripPage({ d }: { d: ClusterData }) {
         {drive ? <Figure label={label} value={drive.value} unit={drive.unit} /> : null}
         {fuel ? <Figure label="Fuel used" value={fuel.value} unit={fuel.unit} /> : null}
         {d.cost != null ? <Figure label="Cost" value={formatMoney(d.cost, currency)} /> : null}
+        {d.avgSpeedMps != null ? <Figure label="Avg speed" value={u.speed(d.avgSpeedMps)} unit={u.speedUnit} /> : null}
       </View>
     </View>
   );
@@ -58,7 +59,7 @@ export function CarPage({ d }: { d: ClusterData }) {
   const unit = usePreferencesStore((s) => s.temperature);
   const rows: { label: string; value: string; unit?: string; warn?: boolean }[] = [];
   if (d.coolantC != null) {
-    rows.push({ label: 'Coolant', ...temperature(d.coolantC, unit), warn: d.alerts.hotCoolant });
+    rows.push({ label: 'Engine temp', ...temperature(d.coolantC, unit), warn: d.alerts.hotCoolant });
   }
   if (d.voltage != null) {
     rows.push({ label: 'Battery', value: d.voltage.toFixed(1), unit: 'V', warn: d.alerts.lowBattery });
@@ -73,10 +74,15 @@ export function CarPage({ d }: { d: ClusterData }) {
     rows.push({ label: 'Oil', ...temperature(d.oilC, unit) });
   }
   if (d.fuelPct != null) {
-    rows.push({ label: 'Fuel', value: String(Math.round(d.fuelPct)), unit: '%', warn: d.alerts.lowFuel });
+    // Litres beside the percent when the tank size is known, as on the Telemetry tile.
+    const left = d.fuelLitres != null ? fuelVolume(d.fuelLitres, u.units) : null;
+    rows.push({ label: 'Fuel', value: String(Math.round(d.fuelPct)), unit: left ? `% · ${left.value} ${left.unit}` : '%', warn: d.alerts.lowFuel });
   }
   if (d.rangeKm != null) {
     rows.push({ label: 'Range', value: `≈${Math.round(u.distanceValue(d.rangeKm * 1000) ?? 0)}`, unit: u.distanceUnit });
+  }
+  if (d.odometerKm != null) {
+    rows.push({ label: 'Odometer', value: Math.round(u.distanceValue(d.odometerKm * 1000) ?? 0).toLocaleString('en-US'), unit: u.distanceUnit });
   }
   return (
     <View style={pageStyles.page}>
