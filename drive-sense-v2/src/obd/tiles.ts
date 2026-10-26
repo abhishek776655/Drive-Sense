@@ -55,6 +55,10 @@ export const fuelVolume = (litres: number, units: UnitSystem) => {
   return litres < 1 ? {value: String(Math.round(litres * 1000)), unit: 'mL'} : {value: fixed(litres, litres < 10 ? 2 : 1), unit: 'L'};
 };
 
+/** Fuel flow in L/h, or US gal/h in imperial. */
+export const fuelFlowUnits = (lph: number, units: UnitSystem) =>
+  units === 'imperial' ? {value: fixed(lph / L_PER_US_GAL, 2), unit: 'gal/h'} : {value: fixed(lph, 1), unit: 'L/h'};
+
 /** Torque in Nm, or lb-ft in imperial. */
 export const torqueUnits = (nm: number, units: UnitSystem) => (units === 'imperial' ? {value: String(Math.round(nm * 0.737562)), unit: 'lb-ft'} : {value: String(Math.round(nm)), unit: 'Nm'});
 

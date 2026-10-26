@@ -22,8 +22,8 @@ import {useRange} from '../../hooks/useRange';
 import {todayFuel} from '../../stats/todayFuel';
 import {useSyncStore} from '../../sync/syncStore';
 import {useUnits} from '../../hooks/useUnits';
-import {gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
-import {useObdStore} from '../../stores/obdStore';
+import {fuelFlowUnits, gearLabel, obdTiles, powerUnits, type TileTone} from '../../obd/tiles';
+import {useObdStore, type HistoryPoint} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useRecordingStore} from '../../stores/recordingStore';
 import {useActiveVehicle} from '../../stores/vehicleStore';
@@ -114,11 +114,30 @@ export default function TelemetryScreen() {
       }),
     [values, derived, u.units, temperatureUnit, link, range.km, range.tankLitres, mileage, today],
   );
-  const spark = (pick: (p: (typeof history)[number]) => number | null) =>
+  const spark = (pick: (p: HistoryPoint) => number | null) =>
     history.flatMap((p) => {
       const y = pick(p);
       return y == null ? [] : [{x: p.at, y}];
     });
+
+  // The last minute as small graphs: RPM always, the others once the car has given that value.
+  const seen = (pick: (p: HistoryPoint) => number | null) => history.some((p) => pick(p) != null);
+  const power = derived.powerKw != null ? powerUnits(derived.powerKw, u.units) : null;
+  const flow = derived.fuelFlow != null ? fuelFlowUnits(derived.fuelFlow, u.units) : null;
+  const graphs = [
+    {key: 'rpm', label: 'RPM', value: values.rpm ? String(Math.round(values.rpm.v)) : '—', unit: 'rpm', pick: (p: HistoryPoint) => p.rpm, color: c.accent, show: true},
+    {key: 'power', label: 'Power', value: power?.value ?? '—', unit: powerUnits(0, u.units).unit, pick: (p: HistoryPoint) => p.power, color: c.purple, show: seen((p) => p.power)},
+    {key: 'flow', label: 'Fuel flow', value: flow?.value ?? '—', unit: fuelFlowUnits(0, u.units).unit, pick: (p: HistoryPoint) => p.fuelFlow, color: c.cyan, show: seen((p) => p.fuelFlow)},
+    {
+      key: 'accel',
+      label: 'Acceleration',
+      value: derived.accelMps2 != null ? derived.accelMps2.toFixed(1) : '—',
+      unit: 'm/s²',
+      pick: (p: HistoryPoint) => p.accel,
+      color: c.green,
+      show: seen((p) => p.accel),
+    },
+  ].filter((g) => g.show);
 
   const speedKmh = values.speed?.v ?? null;
   const redline = vehicle?.fuel_type === 'diesel' ? REDLINE.diesel : REDLINE.petrol;
@@ -167,8 +186,12 @@ export default function TelemetryScreen() {
           redline={redline}
         />
         <ThisDriveCard />
-        <View style={{flexDirection: 'row', gap: theme.space.cardGap}}>
-          <Sparkline label="RPM" value={values.rpm ? String(Math.round(values.rpm.v)) : '—'} unit="rpm" points={spark((p) => p.rpm)} color={c.accent} />
+        <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
+          {graphs.map((g) => (
+            <View key={g.key} style={{flexBasis: '48%', flexGrow: 1}}>
+              <Sparkline label={g.label} value={g.value} unit={g.unit} points={spark(g.pick)} color={g.color} />
+            </View>
+          ))}
         </View>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
           {tiles.map((t) => (

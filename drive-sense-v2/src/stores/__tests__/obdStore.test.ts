@@ -21,6 +21,13 @@ describe('obdStore', () => {
     expect(useObdStore.getState().values.rpm).toEqual({v: 1500, at: 2});
   });
 
+  it('keeps power and acceleration in each history point', () => {
+    const s = useObdStore.getState();
+    s.setDerived({fuelFlow: 2, economy: null, boost: null, gear: null, torqueNm: 100, powerKw: 30, accelMps2: 1.2});
+    s.putValue('speed', 40, 1000);
+    expect(useObdStore.getState().history.at(-1)).toMatchObject({power: 30, accel: 1.2, fuelFlow: 2});
+  });
+
   it('adds a history point per speed reading and keeps 60 s', () => {
     const s = useObdStore.getState();
     s.putValue('rpm', 2000, 0);
