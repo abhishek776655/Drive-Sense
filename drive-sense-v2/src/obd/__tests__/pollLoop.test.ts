@@ -147,6 +147,25 @@ describe('poll loop', () => {
     expect(sent.filter((c) => c === '0162').length).toBeLessThan(speeds);
   });
 
+  it('reads the odometer once on connect', async () => {
+    // 01A0 lists A6 (byte 0, bit 5).
+    const car = {
+      ...CAR,
+      '0120': '41 20 00 02 20 01',
+      '0140': '41 40 00 00 00 01',
+      '0160': '41 60 00 00 00 01',
+      '0180': '41 80 00 00 00 01',
+      '01A0': '41 A0 04 00 00 00',
+      '01A6': '41 A6 00 03 60 18',
+    };
+    const {transport, sent} = fakeAdapter(car);
+    const h = handlers();
+    const loop = createPollLoop(transport, {...h, onValue: (k, v, at) => (h.onValue(k, v, at), h.values.length >= 30 && loop.stop())}, {sleep: never});
+    await loop.start();
+    expect(sent.filter((c) => c === '01A6')).toHaveLength(1);
+    expect(h.values.find(([k]) => k === 'odometer')?.[1]).toBeCloseTo(22120.8);
+  });
+
   it('asks 0100 again when the first try gets no answer', async () => {
     let tries = 0;
     const {transport, sent} = fakeAdapter({...CAR, '0100': () => (++tries === 1 ? null : '41 00 98 19 80 03')});

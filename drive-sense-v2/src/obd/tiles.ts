@@ -27,6 +27,9 @@ export const VOLTAGE_LOW_OFF = 12.0;
 export const VOLTAGE_LOW_RUNNING = 13.2;
 
 const fixed = (n: number, places: number) => n.toFixed(places);
+const MI_PER_KM = 0.621371;
+/** "22,120.8": thousands separated, one decimal. */
+const oneDecimal = (n: number) => n.toLocaleString('en-US', {minimumFractionDigits: 1, maximumFractionDigits: 1});
 
 export const temperature = (c: number, unit: TemperatureUnit) => ({value: String(Math.round(unit === 'f' ? (c * 9) / 5 + 32 : c)), unit: unit === 'f' ? '°F' : '°C'});
 
@@ -98,6 +101,10 @@ export const obdTiles = (
   if (derived.powerKw != null) {
     tiles.push({id: 'power', label: 'Power', ...powerUnits(derived.powerKw, opts.units), icon: 'flash', tone: 'normal'});
   }
+  if (derived.accelMps2 != null) {
+    const a = derived.accelMps2;
+    tiles.push({id: 'accel', label: 'Acceleration', value: `${a < 0 ? '−' : ''}${Math.abs(a).toFixed(1)}`, unit: 'm/s²', icon: 'trending-up', tone: 'normal'});
+  }
   if (derived.economy != null) {
     tiles.push({id: 'economy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} now`, ...economy(derived.economy, opts.units, opts.mileage), icon: 'leaf', tone: 'normal'});
   }
@@ -131,6 +138,11 @@ export const obdTiles = (
   const ambient = v('ambient');
   if (ambient != null) {
     tiles.push({id: 'ambient', label: 'Outside', ...temperature(ambient, opts.temperature), icon: 'partly-sunny', tone: 'normal'});
+  }
+  const odo = v('odometer');
+  if (odo != null) {
+    const imperial = opts.units === 'imperial';
+    tiles.push({id: 'odometer', label: 'Odometer', value: oneDecimal(imperial ? odo * MI_PER_KM : odo), unit: imperial ? 'mi' : 'km', icon: 'speedometer-outline', tone: 'normal'});
   }
   return tiles;
 };

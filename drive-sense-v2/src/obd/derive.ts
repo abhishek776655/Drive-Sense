@@ -44,6 +44,34 @@ export const torqueNm = (pct: number | null | undefined, refNm: number | null | 
 export const powerKw = (nm: number | null | undefined, rpm: number | null | undefined): number | null =>
   nm == null || rpm == null ? null : (nm * rpm * 2 * Math.PI) / 60 / 1000;
 
+/** Speed readings this far back count toward acceleration (km/h steps are too coarse for two readings). */
+const ACCEL_WINDOW_MS = 1000;
+const ACCEL_MIN_SPAN_MS = 800;
+const ACCEL_MAX_GAP_MS = 3000;
+
+/** Acceleration in m/s² from the adapter's speed: the slope over the last second of readings. */
+export class AccelEstimator {
+  private points: {t: number; v: number}[] = [];
+
+  add(kmh: number, at: number): number | null {
+    const last = this.points[this.points.length - 1];
+    if (last && at - last.t > ACCEL_MAX_GAP_MS) {
+      this.points = [];
+    }
+    this.points = [...this.points.filter((p) => at - p.t <= ACCEL_WINDOW_MS), {t: at, v: kmh / 3.6}];
+    const n = this.points.length;
+    if (n < 3 || at - this.points[0].t < ACCEL_MIN_SPAN_MS) {
+      return null;
+    }
+    // Least-squares slope, so one rounded reading can't swing it.
+    const mt = this.points.reduce((s, p) => s + p.t, 0) / n;
+    const mv = this.points.reduce((s, p) => s + p.v, 0) / n;
+    const num = this.points.reduce((s, p) => s + (p.t - mt) * (p.v - mv), 0);
+    const den = this.points.reduce((s, p) => s + (p.t - mt) ** 2, 0);
+    return den === 0 ? null : (num / den) * 1000;
+  }
+}
+
 /** Turbo boost in kPa (manifold above outside pressure); null when there is none to show. */
 export const boostKpa = (map: number | null | undefined, baro: number | null | undefined): number | null => {
   if (map == null || baro == null) {

@@ -1,6 +1,6 @@
 import {economy, economyLabel, fuelVolume, gearLabel, obdTiles} from '../tiles';
 
-const NONE = {fuelFlow: null, economy: null, boost: null, gear: null, torqueNm: null, powerKw: null};
+const NONE = {fuelFlow: null, economy: null, boost: null, gear: null, torqueNm: null, powerKw: null, accelMps2: null};
 const metric = {units: 'metric' as const, temperature: 'c' as const, engineRunning: true};
 
 describe('OBD tiles', () => {
@@ -19,6 +19,14 @@ describe('OBD tiles', () => {
     expect(imp.find((t) => t.id === 'torque')).toMatchObject({value: '111', unit: 'lb-ft'});
     expect(imp.find((t) => t.id === 'power')).toMatchObject({value: '67', unit: 'hp'});
     expect(obdTiles({}, NONE, metric).map((t) => t.id)).not.toContain('torque');
+  });
+
+  it('shows acceleration signed and the odometer in the chosen units', () => {
+    const t = obdTiles({odometer: {v: 22120.8}}, {...NONE, accelMps2: -1.24}, metric);
+    expect(t.find((x) => x.id === 'accel')).toMatchObject({value: '−1.2', unit: 'm/s²'});
+    expect(t.find((x) => x.id === 'odometer')).toMatchObject({value: '22,120.8', unit: 'km'});
+    const imp = obdTiles({odometer: {v: 22120.8}}, NONE, {...metric, units: 'imperial'});
+    expect(imp.find((x) => x.id === 'odometer')).toMatchObject({value: '13,745.2', unit: 'mi'});
   });
 
   it('has no fuel flow tile: it only feeds mileage and fuel used', () => {

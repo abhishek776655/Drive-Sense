@@ -17,6 +17,8 @@ export interface ObdDerived {
   gear: number | null;
   torqueNm: number | null;
   powerKw: number | null;
+  /** From the adapter's speed; negative when slowing. */
+  accelMps2: number | null;
 }
 
 export interface HistoryPoint {
@@ -31,7 +33,7 @@ export const HISTORY_MS = 60_000;
 /** Speed readings further apart than this don't count toward distance (the link dropped). */
 const MAX_DISTANCE_STEP_S = 5;
 
-const EMPTY_DERIVED: ObdDerived = {fuelFlow: null, economy: null, boost: null, gear: null, torqueNm: null, powerKw: null};
+const EMPTY_DERIVED: ObdDerived = {fuelFlow: null, economy: null, boost: null, gear: null, torqueNm: null, powerKw: null, accelMps2: null};
 
 interface ObdState {
   link: ObdLink;

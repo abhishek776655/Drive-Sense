@@ -1,4 +1,4 @@
-import {boostKpa, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from '../derive';
+import {AccelEstimator, boostKpa, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from '../derive';
 import {isNoAnswer, parseReply, parseVin} from '../elm327';
 import {decodeStatus, keyForCode, PIDS} from '../pids';
 import {decodeSupported, SupportTracker} from '../supported';
@@ -97,6 +97,36 @@ describe('derived values', () => {
     expect(powerKw(100, 3000)).toBeCloseTo(31.416, 2);
     expect(powerKw(null, 3000)).toBeNull();
     expect(powerKw(100, null)).toBeNull();
+  });
+
+  it('estimates acceleration from adapter speed over about a second, not two readings', () => {
+    const a = new AccelEstimator();
+    // Steady 50 km/h: 0.
+    [0, 250, 500, 750, 1000].forEach((t) => a.add(50, t));
+    expect(a.add(50, 1250)).toBeCloseTo(0, 1);
+    // +3.6 km/h per second = +1 m/s².
+    const b = new AccelEstimator();
+    let last: number | null = null;
+    for (let t = 0; t <= 1500; t += 250) last = b.add(20 + (t / 1000) * 3.6, t);
+    expect(last).toBeCloseTo(1, 1);
+    // Braking reads negative.
+    const c = new AccelEstimator();
+    for (let t = 0; t <= 1500; t += 250) last = c.add(60 - (t / 1000) * 18, t);
+    expect(last).toBeCloseTo(-5, 1);
+    // Too little history, or a gap over 3 s, says nothing.
+    const d = new AccelEstimator();
+    expect(d.add(30, 0)).toBeNull();
+    d.add(30, 250);
+    d.add(31, 500);
+    expect(d.add(40, 5000)).toBeNull();
+  });
+
+  it("decodes the car's gear (A4) and odometer (A6)", () => {
+    expect(PIDS.gearCar.decode([0x01, 0x00, 0x30, 0x00])).toBe(3);
+    expect(PIDS.gearCar.decode([0x01, 0x00, 0x00, 0x00])).toBe(0);
+    expect(PIDS.gearCar.decode([0x00, 0x00, 0x30, 0x00])).toBe(-1);
+    // 221208 tenths = 22120.8 km, as Car Scanner showed.
+    expect(PIDS.odometer.decode([0x00, 0x03, 0x60, 0x18])).toBeCloseTo(22120.8);
   });
 
   it('decodes PID 9D engine fuel rate', () => {

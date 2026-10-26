@@ -185,7 +185,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       return;
     }
     let answeredOnce = false;
-    for (const key of ['baro', 'runTime', 'distSinceClear', 'torqueRef', 'status'] as PidKey[]) {
+    for (const key of ['baro', 'runTime', 'distSinceClear', 'torqueRef', 'odometer', 'status'] as PidKey[]) {
       if (running && has(key)) {
         answeredOnce = (await read(key)) != null || answeredOnce;
       }
@@ -225,12 +225,16 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
           plan.push('torquePct');
         }
       }
-      const slow = (['coolant', 'intakeTemp', 'map', 'fuelLevel', 'voltage', 'ambient', 'oilTemp'] as PidKey[]).filter(has);
+      const slow = (['coolant', 'intakeTemp', 'map', 'fuelLevel', 'voltage', 'ambient', 'oilTemp', 'gearCar'] as PidKey[]).filter(has);
       if (slow.length > 0) {
         plan.push(slow[slowIndex++ % slow.length]);
       }
       if (cycle % STATUS_EVERY === 0 && has('status')) {
         plan.push('status');
+      }
+      // The odometer again now and then, so a long drive's last reading is fresh.
+      if (cycle % STATUS_EVERY === 0 && has('odometer')) {
+        plan.push('odometer');
       }
 
       let rpm: number | null = null;

@@ -332,7 +332,7 @@ git commit -m "feat(v2): torque and power from the car's torque PIDs (62, 63)"
     expect(t.find((x) => x.id === 'accel')).toMatchObject({value: '−1.2', unit: 'm/s²'});
     expect(t.find((x) => x.id === 'odometer')).toMatchObject({value: '22,120.8', unit: 'km'});
     const imp = obdTiles({odometer: {v: 22120.8}}, NONE, {...metric, units: 'imperial'});
-    expect(imp.find((x) => x.id === 'odometer')).toMatchObject({value: '13,745.0', unit: 'mi'});
+    expect(imp.find((x) => x.id === 'odometer')).toMatchObject({value: '13,745.2', unit: 'mi'});
   });
 ```
 `pollLoop.test.ts`:
