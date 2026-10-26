@@ -140,7 +140,8 @@ const styles = StyleSheet.create({
   title: {alignSelf: 'stretch', textAlign: 'center', color: CLUSTER_INK.textFaint, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 2, marginBottom: 10},
   header: {flexDirection: 'row', alignItems: 'center', marginBottom: 10},
   back: {width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center'},
-  headerTitle: {flex: 1, marginBottom: 0},
+  // `title` stretches; in the header row it must centre on the back button instead.
+  headerTitle: {flex: 1, marginBottom: 0, alignSelf: 'center'},
   theme: {width: 160, height: 36, borderRadius: 17, borderWidth: 1.5, borderColor: CLUSTER_INK.glassEdge, alignItems: 'center', justifyContent: 'center'},
   themeText: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12},
   row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: CLUSTER_INK.glassEdge},
