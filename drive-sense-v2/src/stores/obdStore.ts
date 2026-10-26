@@ -27,6 +27,7 @@ export interface HistoryPoint {
   speed: number | null;
   fuelFlow: number | null;
   power: number | null;
+  torque: number | null;
   accel: number | null;
 }
 
@@ -94,8 +95,8 @@ export const useObdStore = create<ObdState>((set, get) => ({
     const prev = before.speed;
     const stepS = prev ? (at - prev.at) / 1000 : 0;
     const distanceM = get().distanceM + (stepS > 0 && stepS <= MAX_DISTANCE_STEP_S ? (((prev?.v ?? 0) + value) / 2 / 3.6) * stepS : 0);
-    const {fuelFlow, powerKw, accelMps2} = get().derived;
-    const point: HistoryPoint = {at, rpm: values.rpm?.v ?? null, speed: value, fuelFlow, power: powerKw, accel: accelMps2};
+    const {fuelFlow, powerKw, torqueNm, accelMps2} = get().derived;
+    const point: HistoryPoint = {at, rpm: values.rpm?.v ?? null, speed: value, fuelFlow, power: powerKw, torque: torqueNm, accel: accelMps2};
     set({values, distanceM, history: [...get().history.filter((p) => at - p.at <= HISTORY_MS), point]});
   },
   setDerived: (derived) => set({derived}),

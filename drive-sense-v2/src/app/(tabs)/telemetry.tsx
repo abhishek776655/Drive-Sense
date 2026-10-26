@@ -22,7 +22,7 @@ import {useRange} from '../../hooks/useRange';
 import {todayFuel} from '../../stats/todayFuel';
 import {useSyncStore} from '../../sync/syncStore';
 import {useUnits} from '../../hooks/useUnits';
-import {fuelFlowUnits, gearLabel, obdTiles, powerUnits, type TileTone} from '../../obd/tiles';
+import {fuelFlowUnits, gearLabel, obdTiles, powerUnits, torqueUnits, type TileTone} from '../../obd/tiles';
 import {useObdStore, type HistoryPoint} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useRecordingStore} from '../../stores/recordingStore';
@@ -124,9 +124,36 @@ export default function TelemetryScreen() {
   const seen = (pick: (p: HistoryPoint) => number | null) => history.some((p) => pick(p) != null);
   const power = derived.powerKw != null ? powerUnits(derived.powerKw, u.units) : null;
   const flow = derived.fuelFlow != null ? fuelFlowUnits(derived.fuelFlow, u.units) : null;
+  const torque = derived.torqueNm != null ? torqueUnits(derived.torqueNm, u.units) : null;
+  const peak = (pick: (p: HistoryPoint) => number | null, format: (n: number) => {value: string; unit: string}) => {
+    const top = Math.max(...history.map((p) => pick(p) ?? -Infinity));
+    return Number.isFinite(top) ? `Peak ${format(top).value} ${format(top).unit}` : null;
+  };
+  // Power and torque get a full-width graph each; the rest share rows.
+  const wideGraphs = [
+    {
+      key: 'power',
+      label: 'Power',
+      value: power?.value ?? '—',
+      unit: powerUnits(0, u.units).unit,
+      pick: (p: HistoryPoint) => p.power,
+      color: c.purple,
+      peak: peak((p) => p.power, (n) => powerUnits(n, u.units)),
+      show: seen((p) => p.power),
+    },
+    {
+      key: 'torque',
+      label: 'Torque',
+      value: torque?.value ?? '—',
+      unit: torqueUnits(0, u.units).unit,
+      pick: (p: HistoryPoint) => p.torque,
+      color: c.blue,
+      peak: peak((p) => p.torque, (n) => torqueUnits(n, u.units)),
+      show: seen((p) => p.torque),
+    },
+  ].filter((g) => g.show);
   const graphs = [
     {key: 'rpm', label: 'RPM', value: values.rpm ? String(Math.round(values.rpm.v)) : '—', unit: 'rpm', pick: (p: HistoryPoint) => p.rpm, color: c.accent, show: true},
-    {key: 'power', label: 'Power', value: power?.value ?? '—', unit: powerUnits(0, u.units).unit, pick: (p: HistoryPoint) => p.power, color: c.purple, show: seen((p) => p.power)},
     {key: 'flow', label: 'Fuel flow', value: flow?.value ?? '—', unit: fuelFlowUnits(0, u.units).unit, pick: (p: HistoryPoint) => p.fuelFlow, color: c.cyan, show: seen((p) => p.fuelFlow)},
     {
       key: 'accel',
@@ -186,6 +213,9 @@ export default function TelemetryScreen() {
           redline={redline}
         />
         <ThisDriveCard />
+        {wideGraphs.map((g) => (
+          <Sparkline key={g.key} label={g.label} value={g.value} unit={g.unit} points={spark(g.pick)} color={g.color} height={72} peak={g.peak} />
+        ))}
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
           {graphs.map((g) => (
             <View key={g.key} style={{flexBasis: '48%', flexGrow: 1}}>
