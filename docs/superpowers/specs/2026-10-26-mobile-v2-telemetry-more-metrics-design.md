@@ -1,4 +1,4 @@
-# Telemetry: more engine metrics, graphs, cluster engine page, odometer
+# Telemetry: more engine metrics, graphs, cluster power view, odometer
 
 Date: 2026-10-26 · App: `drive-sense-v2` · Builds on: 2026-10-25 telemetry OBD, telemetry sources, cluster specs.
 
@@ -31,6 +31,8 @@ estimated from engine load or engine size.
 | `odometer` | A6 | 4 | `(A·2²⁴+B·2¹⁶+C·2⁸+D)/10` km | once (and on every reconnect) |
 | `gear` | A4 | 4 | `C >> 4` (0 = neutral); null when byte A bit 0 says unsupported | slow |
 
+- The A4 byte layout is from SAE J1979 and unconfirmed on the test car: the Adapter log records the raw A4 reply,
+  and if its gear disagrees with the RPM ÷ speed estimator over a drive, the estimator stays in use.
 - Flow tier: every 2nd cycle the loop asks for the fuel source (5E, else 9D, else 10) **and** `torquePct` when
   supported. Speed and RPM stay every cycle (~4/s).
 - `odometer` is also re-read every `STATUS_EVERY` cycles so a long drive's end reading is fresh.
@@ -55,7 +57,9 @@ Tiles (existing ones unchanged unless noted):
 - **Engine temp** — the Coolant tile renamed (PID 05; same 105/115 °C warnings).
 - **Fuel remaining** (was Fuel level) — both percent and litres: `29 %` with unit `· 14.3 L` (gal in imperial).
   Litres = fuel level % × the vehicle's tank size (`preferences.tankLitres`); percent alone when no tank size is
-  set, with the existing low-fuel warning below 10 %.
+  set, with the existing low-fuel warning below 10 %. No default tank size: the car only reports a percentage,
+  and a guessed tank (Car Scanner silently assumes 50 L) gives wrong litres. The tank size is entered where it
+  already is (the vehicle's fuel settings, used today for range).
 - **Torque** (Nm; lb-ft imperial), **Power** (kW metric; hp imperial).
 - **Mileage now** (existing), **Mileage this drive** (existing), **Mileage today** (new),
   **Fuel used today** (new).
@@ -94,7 +98,8 @@ This-drive card: adds **Avg speed** = distance ÷ moving seconds (`avgSpeedMps` 
 
 Fuel trims, O₂ sensors, timing advance, catalyst temperature, fuel-rail pressure, pedal positions, coolant
 sensor B, Car Scanner's "power from fuel consumption", torque or fuel estimates for cars that report neither,
-writing the odometer into the server-side vehicle record.
+writing the odometer into the server-side vehicle record. The cluster's fuel gauge looking different in adapter
+and phone-only modes is a separate bug (awaiting screenshots), not part of this work.
 
 ## Testing
 
