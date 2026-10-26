@@ -36,6 +36,14 @@ export const fuelFlowLph = (
 export const economyL100 = (flowLph: number | null, kmh: number | null): number | null =>
   flowLph == null || kmh == null || kmh < ECONOMY_MIN_KMH ? null : (flowLph / kmh) * 100;
 
+/** Engine torque in Nm: the car's actual torque (% of its reference, PID 62) × the reference (PID 63). */
+export const torqueNm = (pct: number | null | undefined, refNm: number | null | undefined): number | null =>
+  pct == null || refNm == null ? null : (pct / 100) * refNm;
+
+/** Power in kW from torque and RPM (P = T × ω). */
+export const powerKw = (nm: number | null | undefined, rpm: number | null | undefined): number | null =>
+  nm == null || rpm == null ? null : (nm * rpm * 2 * Math.PI) / 60 / 1000;
+
 /** Turbo boost in kPa (manifold above outside pressure); null when there is none to show. */
 export const boostKpa = (map: number | null | undefined, baro: number | null | undefined): number | null => {
   if (map == null || baro == null) {

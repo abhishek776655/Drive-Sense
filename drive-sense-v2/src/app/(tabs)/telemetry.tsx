@@ -17,7 +17,7 @@ import {Sparkline} from '../../components/telemetry/Sparkline';
 import {ThisDriveCard} from '../../components/telemetry/ThisDriveCard';
 import {useRange} from '../../hooks/useRange';
 import {useUnits} from '../../hooks/useUnits';
-import {fuelFlow, gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
+import {gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
 import {useObdStore} from '../../stores/obdStore';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useRecordingStore} from '../../stores/recordingStore';
@@ -136,17 +136,9 @@ export default function TelemetryScreen() {
         <ThisDriveCard />
         <View style={{flexDirection: 'row', gap: theme.space.cardGap}}>
           <Sparkline label="RPM" value={values.rpm ? String(Math.round(values.rpm.v)) : '—'} unit="rpm" points={spark((p) => p.rpm)} color={c.accent} />
-          <Sparkline
-            label="Fuel flow"
-            value={derived.fuelFlow != null ? fuelFlow(derived.fuelFlow, u.units).value : '—'}
-            unit={fuelFlow(0, u.units).unit}
-            points={spark((p) => p.fuelFlow)}
-            color={c.cyan}
-          />
         </View>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
-          {/* Fuel flow already has its sparkline above. */}
-          {tiles.filter((t) => t.id !== 'fuelFlow').map((t) => (
+          {tiles.map((t) => (
             <BentoTile
               key={t.id}
               label={t.label}

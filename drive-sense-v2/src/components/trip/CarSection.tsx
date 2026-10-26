@@ -5,7 +5,7 @@ import {getDb} from '../../db';
 import {tripObd} from '../../db/obdRepos';
 import {useUnits} from '../../hooks/useUnits';
 import {formatMoney, fuelCost} from '../../obd/fuel';
-import {economy, economyLabel, fuelFlow, fuelVolume, temperature} from '../../obd/tiles';
+import {economy, economyLabel, fuelVolume, temperature} from '../../obd/tiles';
 import type {ObdSeries} from '../../obd/series';
 import {usePreferencesStore} from '../../stores/preferencesStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
@@ -93,8 +93,6 @@ export function CarSection({startTime}: {startTime: string}) {
     return null;
   }
   const {stats, series} = data;
-  const flows = series.fuelFlow.filter((v): v is number => v != null);
-  const peakFlow = flows.length > 0 ? Math.max(...flows) : null;
   const tiles = [
     stats.fuelUsedL != null ? {label: 'Fuel used', ...fuelVolume(stats.fuelUsedL, u.units), icon: 'water' as const, color: c.cyan} : null,
     fuelCost(stats.fuelUsedL, price) != null ? {label: 'Fuel cost', value: formatMoney(fuelCost(stats.fuelUsedL, price) as number, currency), unit: '', icon: 'pricetag' as const, color: c.green} : null,
@@ -125,7 +123,6 @@ export function CarSection({startTime}: {startTime: string}) {
         color={c.amber}
         peak={stats.maxCoolantC != null ? `Peak ${temperature(stats.maxCoolantC, temperatureUnit).value}${temperature(0, temperatureUnit).unit}` : ''}
       />
-      <ObdChart title="Fuel flow" series={series} pick={(s) => s.fuelFlow} color={c.cyan} peak={peakFlow != null ? `Peak ${fuelFlow(peakFlow, u.units).value} ${fuelFlow(peakFlow, u.units).unit}` : ''} />
       {stats.coverage < 0.9 ? (
         <AppText size={13} weight="semibold" tone="tertiary" style={{textAlign: 'center'}}>
           Car data for {Math.round(stats.coverage * 100)}% of this drive

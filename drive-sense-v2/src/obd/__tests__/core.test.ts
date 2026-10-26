@@ -1,4 +1,4 @@
-import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from '../derive';
+import {boostKpa, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from '../derive';
 import {isNoAnswer, parseReply, parseVin} from '../elm327';
 import {decodeStatus, keyForCode, PIDS} from '../pids';
 import {decodeSupported, SupportTracker} from '../supported';
@@ -85,6 +85,18 @@ describe('derived values', () => {
     expect(fuelFlowLph({fuelRate: 4, fuelRateGs: 0.28, maf: 10}, 'petrol')).toBe(4);
     expect(fuelFlowLph({fuelRateGs: 0.28, maf: 10}, 'petrol')).toBeCloseTo(1.353, 2);
     expect(fuelFlowLph({fuelRateGs: 0.28}, 'electric')).toBeNull();
+  });
+
+  it('works out torque from percent × reference, and power from torque × RPM', () => {
+    expect(PIDS.torquePct.decode([125 + 9])).toBe(9);
+    expect(PIDS.torqueRef.decode([0x00, 0xaf])).toBe(175);
+    expect(torqueNm(9, 175)).toBeCloseTo(15.75);
+    expect(torqueNm(-5, 175)).toBeCloseTo(-8.75); // engine braking
+    expect(torqueNm(9, null)).toBeNull();
+    // 100 Nm at 3000 rpm = 31.4 kW.
+    expect(powerKw(100, 3000)).toBeCloseTo(31.416, 2);
+    expect(powerKw(null, 3000)).toBeNull();
+    expect(powerKw(100, null)).toBeNull();
   });
 
   it('decodes PID 9D engine fuel rate', () => {

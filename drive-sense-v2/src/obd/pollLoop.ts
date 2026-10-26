@@ -185,7 +185,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       return;
     }
     let answeredOnce = false;
-    for (const key of ['baro', 'runTime', 'distSinceClear', 'status'] as PidKey[]) {
+    for (const key of ['baro', 'runTime', 'distSinceClear', 'torqueRef', 'status'] as PidKey[]) {
       if (running && has(key)) {
         answeredOnce = (await read(key)) != null || answeredOnce;
       }
@@ -220,6 +220,9 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
         const flow = (['fuelRate', 'fuelRateGs', 'maf'] as PidKey[]).find(has);
         if (flow) {
           plan.push(flow);
+        }
+        if (has('torquePct')) {
+          plan.push('torquePct');
         }
       }
       const slow = (['coolant', 'intakeTemp', 'map', 'fuelLevel', 'voltage', 'ambient', 'oilTemp'] as PidKey[]).filter(has);

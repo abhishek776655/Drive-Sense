@@ -133,6 +133,20 @@ describe('poll loop', () => {
     expect(sent).not.toContain('015E');
   });
 
+  it('reads reference torque once and actual torque every second cycle, when listed', async () => {
+    // 0160 lists 62 and 63 (byte 0, bits 1 and 2) and nothing beyond.
+    const car = {...CAR, '0120': '41 20 00 02 20 01', '0140': '41 40 00 00 00 01', '0160': '41 60 60 00 00 00', '0162': '41 62 86', '0163': '41 63 00 AF'};
+    const {transport, sent} = fakeAdapter(car);
+    const h = handlers();
+    const loop = createPollLoop(transport, {...h, onValue: (k, v, at) => (h.onValue(k, v, at), h.values.length >= 40 && loop.stop())}, {sleep: never});
+    await loop.start();
+    expect(sent.filter((c) => c === '0163')).toHaveLength(1);
+    expect(h.values).toContainEqual(['torqueRef', 175]);
+    expect(h.values).toContainEqual(['torquePct', 9]);
+    const speeds = sent.filter((c) => c === '010D').length;
+    expect(sent.filter((c) => c === '0162').length).toBeLessThan(speeds);
+  });
+
   it('asks 0100 again when the first try gets no answer', async () => {
     let tries = 0;
     const {transport, sent} = fakeAdapter({...CAR, '0100': () => (++tries === 1 ? null : '41 00 98 19 80 03')});

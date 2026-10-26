@@ -30,9 +30,6 @@ const fixed = (n: number, places: number) => n.toFixed(places);
 
 export const temperature = (c: number, unit: TemperatureUnit) => ({value: String(Math.round(unit === 'f' ? (c * 9) / 5 + 32 : c)), unit: unit === 'f' ? '°F' : '°C'});
 
-export const fuelFlow = (lph: number, units: UnitSystem) =>
-  units === 'imperial' ? {value: fixed(lph / L_PER_US_GAL, 2), unit: 'gal/h'} : {value: fixed(lph, 1), unit: 'L/h'};
-
 export type MileageUnit = 'kmpl' | 'l100';
 
 /** Fuel economy in the chosen unit: km/L ("mileage") or L/100 km in metric, mpg in imperial. */
@@ -54,6 +51,12 @@ export const fuelVolume = (litres: number, units: UnitSystem) => {
   }
   return litres < 1 ? {value: String(Math.round(litres * 1000)), unit: 'mL'} : {value: fixed(litres, litres < 10 ? 2 : 1), unit: 'L'};
 };
+
+/** Torque in Nm, or lb-ft in imperial. */
+export const torqueUnits = (nm: number, units: UnitSystem) => (units === 'imperial' ? {value: String(Math.round(nm * 0.737562)), unit: 'lb-ft'} : {value: String(Math.round(nm)), unit: 'Nm'});
+
+/** Power in kW, or hp in imperial. */
+export const powerUnits = (kw: number, units: UnitSystem) => (units === 'imperial' ? {value: String(Math.round(kw * 1.341022)), unit: 'hp'} : {value: String(Math.round(kw)), unit: 'kW'});
 
 /** Boost in kPa (metric) or psi. */
 export const pressure = (kpa: number, units: UnitSystem) => (units === 'imperial' ? {value: fixed(kpa * 0.145038, 1), unit: 'psi'} : {value: String(Math.round(kpa)), unit: 'kPa'});
@@ -89,8 +92,11 @@ export const obdTiles = (
   if (throttle != null) {
     tiles.push({id: 'throttle', label: 'Throttle', value: String(Math.round(throttle)), unit: '%', icon: 'speedometer', tone: 'normal'});
   }
-  if (derived.fuelFlow != null) {
-    tiles.push({id: 'fuelFlow', label: 'Fuel flow', ...fuelFlow(derived.fuelFlow, opts.units), icon: 'water', tone: 'normal'});
+  if (derived.torqueNm != null) {
+    tiles.push({id: 'torque', label: 'Torque', ...torqueUnits(derived.torqueNm, opts.units), icon: 'sync', tone: 'normal'});
+  }
+  if (derived.powerKw != null) {
+    tiles.push({id: 'power', label: 'Power', ...powerUnits(derived.powerKw, opts.units), icon: 'flash', tone: 'normal'});
   }
   if (derived.economy != null) {
     tiles.push({id: 'economy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} now`, ...economy(derived.economy, opts.units, opts.mileage), icon: 'leaf', tone: 'normal'});

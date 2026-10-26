@@ -18,6 +18,8 @@ export type PidKey =
   | 'oilTemp'
   | 'fuelRate'
   | 'fuelRateGs'
+  | 'torquePct'
+  | 'torqueRef'
   | 'status'
   | 'runTime'
   | 'distSinceClear';
@@ -45,6 +47,9 @@ export const PIDS: Record<PidKey, PidDef> = {
   fuelRate: {code: '5E', bytes: 2, tier: 'flow', decode: (b) => word(b) / 20},
   // Engine fuel rate in g/s (bytes C, D are the whole vehicle's; one engine, same value).
   fuelRateGs: {code: '9D', bytes: 4, tier: 'flow', decode: (b) => word(b) / 50},
+  // Actual engine torque as a percentage of the reference torque (negative while engine braking).
+  torquePct: {code: '62', bytes: 1, tier: 'flow', decode: (b) => b[0] - 125},
+  torqueRef: {code: '63', bytes: 2, tier: 'once', decode: word},
   coolant: {code: '05', bytes: 1, tier: 'slow', decode: celsius},
   intakeTemp: {code: '0F', bytes: 1, tier: 'slow', decode: celsius},
   map: {code: '0B', bytes: 1, tier: 'slow', decode: (b) => b[0]},

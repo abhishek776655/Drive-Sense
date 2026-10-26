@@ -9,7 +9,7 @@ import type {FuelType} from '../services/vehicleService';
 import {logBle} from './bleLog';
 import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink, type BleStatus} from './bleTransport';
 import {BatteryWatch} from './battery';
-import {boostKpa, economyL100, fuelFlowLph, GearEstimator} from './derive';
+import {boostKpa, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from './derive';
 import {createPollLoop} from './pollLoop';
 import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
 import {engineEndAt} from './sourceRules';
@@ -82,11 +82,14 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
   const derive = () => {
     const v = store().values;
     const flow = fuelFlowLph({fuelRate: v.fuelRate?.v, fuelRateGs: v.fuelRateGs?.v, maf: v.maf?.v}, fuel);
+    const torque = torqueNm(v.torquePct?.v, v.torqueRef?.v);
     store().setDerived({
       fuelFlow: flow,
       economy: economyL100(flow, v.speed?.v ?? null),
       boost: boostKpa(v.map?.v, v.baro?.v),
       gear: v.speed?.v === 0 ? 0 : gear.add(v.rpm?.v, v.speed?.v),
+      torqueNm: torque,
+      powerKw: powerKw(torque, v.rpm?.v),
     });
   };
 
@@ -119,7 +122,9 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
         } else if (key === 'rpm') {
           battery.rpm(value, at);
         }
-        if (key === 'speed' || key === 'maf' || key === 'fuelRate' || key === 'fuelRateGs') {
+        // Not on RPM: each call also feeds the gear estimator, which counts readings. Power follows
+        // speed and torque readings, with the latest RPM.
+        if (key === 'speed' || key === 'maf' || key === 'fuelRate' || key === 'fuelRateGs' || key === 'torquePct') {
           derive();
         }
       },

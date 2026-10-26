@@ -1,13 +1,28 @@
-import {economy, economyLabel, fuelFlow, fuelVolume, gearLabel, obdTiles} from '../tiles';
+import {economy, economyLabel, fuelVolume, gearLabel, obdTiles} from '../tiles';
 
-const NONE = {fuelFlow: null, economy: null, boost: null, gear: null};
+const NONE = {fuelFlow: null, economy: null, boost: null, gear: null, torqueNm: null, powerKw: null};
 const metric = {units: 'metric' as const, temperature: 'c' as const, engineRunning: true};
 
 describe('OBD tiles', () => {
   it('shows only what the car reports', () => {
     expect(obdTiles({}, NONE, metric)).toEqual([]);
-    const ids = obdTiles({coolant: {v: 90}, voltage: {v: 14.1}}, {...NONE, fuelFlow: 4}, metric).map((t) => t.id);
-    expect(ids).toEqual(['coolant', 'fuelFlow', 'voltage']);
+    const ids = obdTiles({coolant: {v: 90}, voltage: {v: 14.1}}, NONE, metric).map((t) => t.id);
+    expect(ids).toEqual(['coolant', 'voltage']);
+  });
+
+  it('shows torque and power only when worked out, in the chosen units', () => {
+    const d = {...NONE, torqueNm: 150, powerKw: 50};
+    const tiles = obdTiles({}, d, metric);
+    expect(tiles.find((t) => t.id === 'torque')).toMatchObject({value: '150', unit: 'Nm'});
+    expect(tiles.find((t) => t.id === 'power')).toMatchObject({value: '50', unit: 'kW'});
+    const imp = obdTiles({}, d, {...metric, units: 'imperial'});
+    expect(imp.find((t) => t.id === 'torque')).toMatchObject({value: '111', unit: 'lb-ft'});
+    expect(imp.find((t) => t.id === 'power')).toMatchObject({value: '67', unit: 'hp'});
+    expect(obdTiles({}, NONE, metric).map((t) => t.id)).not.toContain('torque');
+  });
+
+  it('has no fuel flow tile: it only feeds mileage and fuel used', () => {
+    expect(obdTiles({}, {...NONE, fuelFlow: 4}, metric).map((t) => t.id)).not.toContain('fuelFlow');
   });
 
   it('flags a hot engine and a battery not charging', () => {
@@ -22,7 +37,6 @@ describe('OBD tiles', () => {
   it('uses the chosen units', () => {
     const [t] = obdTiles({coolant: {v: 100}}, NONE, {...metric, temperature: 'f'});
     expect(t).toMatchObject({value: '212', unit: '°F'});
-    expect(fuelFlow(3.785411784, 'imperial')).toEqual({value: '1.00', unit: 'gal/h'});
     expect(economy(10, 'imperial')).toEqual({value: '23.5', unit: 'mpg'});
     expect(economy(6.5, 'metric')).toEqual({value: '6.5', unit: 'L/100 km'});
   });
