@@ -2,15 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useUnits } from '../../hooks/useUnits';
 import { FONT } from '../../theme/theme';
-import { economy, temperature } from '../../obd/tiles';
+import { economy, powerUnits, temperature, torqueUnits } from '../../obd/tiles';
+import type { HistoryPoint } from '../../stores/obdStore';
 import { usePreferencesStore } from '../../stores/preferencesStore';
 import { kmhInUnits } from '../../utils/units';
-import { CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, DIAL_VIEWS, GAUGE_STYLES, PHONE_DIAL_NAMES, PHONE_DIALS, type DialView, type PhoneDial } from '../accents';
+import { CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, DIAL_VIEWS, PHONE_DIAL_NAMES, PHONE_DIALS, type DialView, type PhoneDial } from '../accents';
 import type { ClusterData } from '../clusterData';
 import { dialMax, gPoint, redlineHeat } from '../motion';
 import { ArcDial } from '../parts/ArcDial';
@@ -23,16 +24,18 @@ import { SpeedGraphDial } from '../parts/SpeedGraphDial';
 import { usePhoneTrace } from '../usePhoneTrace';
 import { LoadBars } from '../parts/LoadBars';
 import { LoadMeter } from '../parts/LoadMeter';
-import { SideArc } from '../parts/SideArc';
 import { MapPage } from '../parts/MapPage';
 import { CarPage, TripPage } from '../parts/pages';
-import { AllTimePage, DrivingTotalsPage, GraphPage, PowerPage } from '../parts/statPages';
+import { AllTimePage, DrivingTotalsPage, EngineGraphPage, GraphPage } from '../parts/statPages';
 import { VerticalPager } from '../parts/VerticalPager';
 
 const STRIP_H = 36;
 /** Names shown when a dial is swiped to another view (its own gauge is named per dial). */
 const VIEW_NAMES: Record<Exclude<DialView, 'main'>, string> = PHONE_DIAL_NAMES;
 const COOLANT_RANGE = [40, 130];
+// Stable, so the engine graphs don't redraw their paths on every render.
+const pickPower = (p: HistoryPoint) => p.power;
+const pickTorque = (p: HistoryPoint) => p.torque;
 
 /** Local time, refreshed each minute, for the strip. */
 function useClock(): string {
@@ -176,14 +179,12 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
   const mileage = usePreferencesStore((s) => s.mileageUnit);
   const speedStyle = usePreferencesStore((s) => s.clusterSpeedDial);
   const revStyle = usePreferencesStore((s) => s.clusterRevDial);
-  const gaugeStyle = usePreferencesStore((s) => s.clusterGaugeStyle);
   const phoneDial = usePreferencesStore((s) => s.clusterPhoneDial);
   const leftView = usePreferencesStore((s) => s.clusterLeftView);
   const rightView = usePreferencesStore((s) => s.clusterRightView);
   // The phone's compass only runs while a dial is showing it.
   const trace = usePhoneTrace(leftView === 'compass' || (d.mode === 'adapter' ? rightView === 'compass' : phoneDial === 'compass'));
   const setPrefs = usePreferencesStore((s) => s.set);
-  const nextGauge = () => void setPrefs({ clusterGaugeStyle: GAUGE_STYLES[(GAUGE_STYLES.indexOf(gaugeStyle) + 1) % GAUGE_STYLES.length] });
   const rowH = height - STRIP_H;
   // Big dials that reach into the centre; the centre sits behind them and fades out under their rims.
   const dial = Math.min(rowH * 0.94, width * 0.38);
@@ -206,6 +207,41 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
   const instant = d.instantL100km != null ? economy(d.instantL100km, u.units, mileage) : null;
   const coolant = d.coolantC != null ? temperature(d.coolantC, tempUnit) : null;
 
+  const power = d.powerKw != null ? powerUnits(d.powerKw, u.units) : null;
+  const torque = d.torqueNm != null ? torqueUnits(d.torqueNm, u.units) : null;
+  // Power and torque, one graph each, swiping up from the CAR page.
+  const engineGraphs = [
+    {
+      key: 'power',
+      node: (
+        <EngineGraphPage
+          title="POWER"
+          value={power?.value ?? '–'}
+          unit={powerUnits(0, u.units).unit}
+          peak={(top) => `Peak ${powerUnits(top, u.units).value} ${powerUnits(0, u.units).unit}`}
+          pick={pickPower}
+          step={10}
+          clearWidth={clearW}
+          color={accent}
+        />
+      ),
+    },
+    {
+      key: 'torque',
+      node: (
+        <EngineGraphPage
+          title="TORQUE"
+          value={torque?.value ?? '–'}
+          unit={torqueUnits(0, u.units).unit}
+          peak={(top) => `Peak ${torqueUnits(top, u.units).value} ${torqueUnits(0, u.units).unit}`}
+          pick={pickTorque}
+          step={50}
+          clearWidth={clearW}
+          color={accent}
+        />
+      ),
+    },
+  ];
   const inset = (node: ReactNode) => <View style={{ flex: 1, paddingHorizontal: under }}>{node}</View>;
   // Trip and Engine each have more views, a swipe up or down away.
   const pages = [
@@ -249,7 +285,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           views={[
             { key: 'now', node: <CarPage d={d} /> },
             // Power and torque, one swipe up, for cars that report torque.
-            ...(d.powerKw != null || d.torqueNm != null ? [{ key: 'power', node: <PowerPage clearWidth={clearW} accent={accent} powerKw={d.powerKw} torqueNm={d.torqueNm} /> }] : []),
+            ...(d.powerKw != null || d.torqueNm != null ? engineGraphs : []),
             { key: 'all', node: <AllTimePage /> },
           ]}
         />,
@@ -260,10 +296,6 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
 
   const coolantShare = d.coolantC == null ? null : Math.min(1, Math.max(0, (d.coolantC - COOLANT_RANGE[0]) / (COOLANT_RANGE[1] - COOLANT_RANGE[0])));
   const outside = d.outsideC != null ? temperature(d.outsideC, tempUnit) : null;
-  // Fuel and coolant are the car's: without the adapter there is nothing to show.
-  const carGauges = d.mode === 'adapter';
-  const arcs = carGauges && gaugeStyle === 'arc';
-  const stripGauge = !carGauges || gaugeStyle === 'arc' ? null : gaugeStyle;
   const fuelColor = d.alerts.lowFuel ? CLUSTER_INK.amber : accent;
   // The bar shows no figure of its own: percent (and range, when known) beside it.
   const fuelCaption = d.fuelGaugePct == null ? null : `${Math.round(d.fuelGaugePct)}%${range ? ` · ${range}` : ''}`;
@@ -371,11 +403,6 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
             ) : null}
           </View>
         ) : null}
-        {arcs ? (
-          <>
-            <SideArc size={dial} left={groupX} top={dialTop} side="left" share={coolantShare} color={coolantColor} icon="thermometer" value={coolant ? `${coolant.value}${coolant.unit}` : null} onPress={nextGauge} />
-          </>
-        ) : null}
         <DialSwitch
           style={{ ...styles.dial, left: groupX, top: dialTop }}
           size={dial}
@@ -404,11 +431,8 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
       </View>
       <View style={[styles.strip, { height: STRIP_H }]}>
         <View style={styles.stripSide}>
-          {stripGauge ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
-              <BarGauge icon="thermometer" share={coolantShare} color={coolantColor} caption={null} value={coolant ? `${coolant.value}${coolant.unit}` : null} variant={stripGauge} />
-            </Pressable>
-          ) : null}
+          {/* Engine temperature as a bar along the bottom, mirroring fuel on the right. */}
+          {coolant ? <BarGauge icon="thermometer" share={coolantShare} color={coolantColor} caption={`${coolant.value}${coolant.unit}`} value={null} variant="bar" /> : null}
           {d.voltage != null ? (
             <View style={styles.infoItem}>
               <Ionicons name="battery-half" size={14} color={d.alerts.lowBattery ? CLUSTER_INK.amber : CLUSTER_INK.textDim} />
