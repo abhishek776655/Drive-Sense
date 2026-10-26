@@ -122,7 +122,11 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
     }
     store().setLink('connecting');
     let unsupported = false;
-    const dropped = new Promise<void>((resolve) => link?.onDisconnect(resolve));
+    // Removed when this session ends, or every reconnect would add another listener for the adapter.
+    let stopWatching: (() => void) | undefined;
+    const dropped = new Promise<void>((resolve) => {
+      stopWatching = link?.onDisconnect(resolve);
+    });
     const loop = createPollLoop(link, {
       onValue: (key, value, at) => {
         store().putValue(key, value, at);
@@ -166,6 +170,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
     stopLoop = loop.stop;
     await Promise.race([loop.start(), dropped]);
     loop.stop();
+    stopWatching?.();
     stopLoop = null;
     saveLastState(adapter);
     await link.disconnect();
