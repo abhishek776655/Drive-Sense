@@ -72,6 +72,12 @@ describe('cluster data', () => {
     expect(clusterData(base).fuelGaugePct).toBeNull();
   });
 
+  it('shows reverse as R', () => {
+    const d = clusterData({...base, values: {speed: v(5), rpm: v(1200)}, derived: {economy: null, boost: null, gear: 15}});
+    expect(d.gear).toBe('R');
+    expect(d.shiftUp).toBeNull();
+  });
+
   it('shows coasting with the throttle closed while rolling', () => {
     const d = clusterData({...base, values: {speed: v(60), rpm: v(1500), throttle: v(15)}, closedThrottle: 14});
     expect(d.coasting).toBe(true);

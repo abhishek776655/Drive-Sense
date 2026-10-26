@@ -99,6 +99,8 @@ describe('OBD tiles', () => {
   it('labels gears', () => {
     expect(gearLabel(0)).toBe('N');
     expect(gearLabel(3)).toBe('3');
+    // The car's gear field sends reverse as 15 (0xF).
+    expect(gearLabel(15)).toBe('R');
     expect(gearLabel(null)).toBeNull();
   });
 });

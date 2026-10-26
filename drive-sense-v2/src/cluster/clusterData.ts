@@ -2,7 +2,7 @@ import {DIP_LOW_V} from '../obd/battery';
 import {fuelCost} from '../obd/fuel';
 import type {PidKey} from '../obd/pids';
 import {carState, type CarState} from '../obd/sourceRules';
-import {COOLANT_ALERT_C, VOLTAGE_LOW_RUNNING} from '../obd/tiles';
+import {COOLANT_ALERT_C, gearLabel, VOLTAGE_LOW_RUNNING} from '../obd/tiles';
 import {compassPoint, isCoasting, shiftUpHint} from './motion';
 
 /** Readings older than this are not shown (the adapter has gone quiet). */
@@ -100,7 +100,7 @@ export const clusterData = (i: ClusterInput): ClusterData => {
   const coolantC = adapter ? fresh('coolant') : null;
   const voltage = adapter ? fresh('voltage') : null;
   const fuelPct = adapter ? fresh('fuelLevel') : null;
-  const gear = i.derived.gear == null || !adapter ? null : i.derived.gear === 0 ? 'N' : String(i.derived.gear);
+  const gear = adapter ? gearLabel(i.derived.gear) : null;
   return {
     mode,
     speedKmh,

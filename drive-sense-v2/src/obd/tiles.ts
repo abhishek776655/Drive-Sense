@@ -71,7 +71,10 @@ export const powerUnits = (kw: number, _units: UnitSystem) => ({value: String(Ma
 /** Boost in kPa (metric) or psi. */
 export const pressure = (kpa: number, units: UnitSystem) => (units === 'imperial' ? {value: fixed(kpa * 0.145038, 1), unit: 'psi'} : {value: String(Math.round(kpa)), unit: 'kPa'});
 
-export const gearLabel = (gear: number | null): string | null => (gear == null ? null : gear === 0 ? 'N' : String(gear));
+/** The car's gear field (PID A4, one nibble) sends reverse as its top value. */
+export const REVERSE_GEAR = 15;
+
+export const gearLabel = (gear: number | null): string | null => (gear == null ? null : gear === 0 ? 'N' : gear === REVERSE_GEAR ? 'R' : String(gear));
 
 /**
  * The live tiles, in display order, for what the car actually reports (spec 2026-10-25, telemetry,
