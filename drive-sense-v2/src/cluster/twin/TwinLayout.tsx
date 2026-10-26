@@ -197,6 +197,8 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
   const under = dial * 0.28;
   const layerW = panelW + under * 2;
   const fadeW = under + overlap + 40;
+  // The centre clear of the dial rims, with half the edge fade allowed (the load meter keeps to it).
+  const clearW = panelW - overlap * 2 - 40;
   const imperial = u.units === 'imperial';
   const speed = d.speedKmh == null ? null : kmhInUnits(d.speedKmh, u.units);
   const speedMax = dialMax(imperial ? 140 : 220, 20, speed);
@@ -231,7 +233,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           height={panelH}
           accent={accent}
           views={[
-            { key: 'arc', node: <LoadMeter width={panelW} height={panelH - 14} {...engine} /> },
+            { key: 'arc', node: <LoadMeter width={panelW} height={panelH - 14} clearWidth={clearW} {...engine} /> },
             { key: 'bars', node: <LoadBars width={panelW} height={panelH - 30} vertical={false} {...engine} /> },
             { key: 'columns', node: <LoadBars width={panelW} height={panelH - 30} vertical {...engine} /> },
           ]}

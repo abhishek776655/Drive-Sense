@@ -1,4 +1,4 @@
-import {angleAt, arcPath, compassPoint, dialMax, fraction, gFrom, gPoint, gradePct, isCoasting, loadHeat, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
+import {angleAt, arcPath, compassPoint, dialMax, fraction, gFrom, gPoint, gradePct, isCoasting, loadHeat, meterRadius, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
 
 describe('cluster motion maths', () => {
   it('maps values onto the 270° dial', () => {
@@ -96,5 +96,15 @@ describe('cluster motion maths', () => {
     const flatThenDown = [...Array.from({length: 10}, (_, i) => ({d: i * 20, alt: 50})), ...Array.from({length: 10}, (_, i) => ({d: 200 + i * 15, alt: 50 - i * 1.2}))];
     expect(gradePct(flatThenDown)).toBeCloseTo(-8, 0);
     expect(gradePct([{d: 0, alt: 1}, {d: 10, alt: 2}, {d: 20, alt: 3}])).toBeNull();
+  });
+
+  it('sizes the load meter to the clear gap between the dials, not the whole centre panel', () => {
+    // Phone in landscape: the panel is 268 wide but only 162 of it is clear of the dials and fades.
+    const r = meterRadius(268, 240, 162);
+    expect(r * 2 + 14).toBeLessThanOrEqual(162); // arc plus its stroke fits the gap
+    // A roomy gap keeps the old proportions.
+    expect(meterRadius(268, 240, 400)).toBeCloseTo(268 * 0.36);
+    // Never smaller than readable.
+    expect(meterRadius(268, 240, 40)).toBe(40);
   });
 });

@@ -5,7 +5,7 @@ import {interpolateColor, useDerivedValue, useFrameCallback, useSharedValue, wit
 import {useReduceMotion} from '../../components/onboarding/motion';
 import {FONT} from '../../theme/theme';
 import {CLUSTER_INK} from '../accents';
-import {angleAt, arcPath, fraction, loadHeat, METER_START, METER_SWEEP, particleSpeed, polar} from '../motion';
+import {angleAt, arcPath, fraction, loadHeat, METER_START, METER_SWEEP, meterRadius, particleSpeed, polar} from '../motion';
 
 const PARTICLES = 16;
 /** Load trace length. */
@@ -42,6 +42,7 @@ function Particle({i, phase, lit, cx, cy, r, color}: {i: number; phase: SharedVa
 export function LoadMeter({
   width,
   height,
+  clearWidth,
   loadPct,
   throttlePct,
   coasting,
@@ -50,6 +51,8 @@ export function LoadMeter({
 }: {
   width: number;
   height: number;
+  /** The part of `width` not covered by the dials and edge fades. */
+  clearWidth?: number;
   loadPct: number | null;
   throttlePct: number | null;
   coasting: boolean;
@@ -58,7 +61,7 @@ export function LoadMeter({
 }) {
   const reduce = useReduceMotion();
   const cx = width / 2;
-  const r = Math.min(width * 0.36, height * 0.52);
+  const r = meterRadius(width, height, clearWidth);
   const cy = r + 18;
   const meter = useMemo(() => Skia.Path.MakeFromSVGString(arcPath(cx, cy, r, 0, 1, METER_START, METER_SWEEP))!, [cx, cy, r]);
   const inner = useMemo(() => Skia.Path.MakeFromSVGString(arcPath(cx, cy, r - 16, 0, 1, METER_START, METER_SWEEP))!, [cx, cy, r]);

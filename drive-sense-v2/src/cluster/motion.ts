@@ -63,6 +63,17 @@ export const redlineHeat = (rpm: number | null | undefined, redline: number): nu
 /** Particle speed along the engine-load meter, in meter-lengths per second: a trickle at cruise, a rush flat out. */
 export const particleSpeed = (loadPct: number | null | undefined): number => 0.08 + 0.9 * fraction(loadPct, 100) ** 1.5;
 
+/** Half the load meter's stroke: the arc's ends reach this far past its radius. */
+const METER_HALF_STROKE = 7;
+const METER_MIN_R = 40;
+
+/**
+ * The load meter's radius: its usual share of the page, but no wider than `clearWidth`, the part of
+ * the centre between the dial rims and the edge fades (the arc's ends otherwise run under them).
+ */
+export const meterRadius = (width: number, height: number, clearWidth: number = width): number =>
+  Math.max(METER_MIN_R, Math.min(width * 0.36, height * 0.52, clearWidth / 2 - METER_HALF_STROKE));
+
 /** Coasting: rolling (over 5 km/h) with the throttle closed, i.e. within 2 points of its lowest reading. */
 export const isCoasting = (throttlePct: number | null | undefined, closedThrottlePct: number | null, speedKmh: number | null | undefined): boolean =>
   throttlePct != null && closedThrottlePct != null && speedKmh != null && speedKmh > 5 && throttlePct <= closedThrottlePct + 2;
