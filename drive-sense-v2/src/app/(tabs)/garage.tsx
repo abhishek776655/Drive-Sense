@@ -39,7 +39,7 @@ export default function GarageScreen() {
   const vehicleStats = vehicle ? stats[vehicle.id] : undefined;
   // The odometer the paired adapter last read from this car (the store holds the active vehicle's adapter).
   const lastState = useObdStore((s) => (vehicle && s.adapter?.vehicleId === vehicle.id ? s.adapter.lastState : null));
-  const odometer = lastState?.odometerKm != null && lastState.odometerAt ? odometerLabel(lastState.odometerKm, lastState.odometerAt, u.units) : null;
+  const odometer = lastState?.odometerKm != null ? odometerLabel(lastState.odometerKm, u.units) : null;
   const [sheet, setSheet] = useState<Sheet>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -122,8 +122,13 @@ export default function GarageScreen() {
             <View style={{flexDirection: 'row', gap}}>
               <GarageStatTile value={formatInt(vehicleStats?.trip_count)} label="Drives" icon="car-sport" />
               <GarageStatTile value={u.speed(vehicleStats?.avg_speed_mps)} label={`Ø ${u.speedUnit}`} icon="speedometer" />
-              {odometer ? <GarageStatTile value={odometer.value} label={odometer.label} icon="speedometer-outline" /> : null}
             </View>
+            {/* The car's own total distance, a row of its own so the long figure has room. */}
+            {odometer ? (
+              <View style={{flexDirection: 'row'}}>
+                <GarageStatTile value={odometer.value} label={odometer.label} icon="speedometer-outline" />
+              </View>
+            ) : null}
             <View style={{flexDirection: 'row', gap}}>
               <GarageStatTile value={u.distance(vehicleStats?.total_distance_meters)} label={u.distanceUnit} icon="map" />
               <GarageStatTile value={formatDuration(vehicleStats?.drive_time_seconds)} label="Time" icon="hourglass" />
