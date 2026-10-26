@@ -44,6 +44,21 @@ export const torqueNm = (pct: number | null | undefined, refNm: number | null | 
 export const powerKw = (nm: number | null | undefined, rpm: number | null | undefined): number | null =>
   nm == null || rpm == null ? null : (nm * rpm * 2 * Math.PI) / 60 / 1000;
 
+/**
+ * The gear to show: the car's own (PID A4) when it names one; neutral at a standstill; otherwise the
+ * RPM ÷ speed estimate. A 0 from the car while moving means its figure is stuck (some cars always
+ * send 0), so it is ignored. `estimate` is only called when it is used: it feeds the estimator.
+ */
+export const chooseGear = (carGear: number | null | undefined, speedKmh: number | null | undefined, estimate: () => number | null): number | null => {
+  if (carGear != null && carGear >= 1) {
+    return carGear;
+  }
+  if (speedKmh === 0) {
+    return 0;
+  }
+  return estimate();
+};
+
 /** Speed readings this far back count toward acceleration (km/h steps are too coarse for two readings). */
 const ACCEL_WINDOW_MS = 1000;
 const ACCEL_MIN_SPAN_MS = 800;

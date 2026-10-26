@@ -9,7 +9,7 @@ import type {FuelType} from '../services/vehicleService';
 import {logBle} from './bleLog';
 import {bleStatus, cancelConnect, connectAdapter, onBleStatus, type AdapterLink, type BleStatus} from './bleTransport';
 import {BatteryWatch} from './battery';
-import {AccelEstimator, boostKpa, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from './derive';
+import {AccelEstimator, boostKpa, chooseGear, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from './derive';
 import {createPollLoop} from './pollLoop';
 import {createSimAdapter, SIM_DEVICE_ID} from './simAdapter';
 import {engineEndAt} from './sourceRules';
@@ -89,13 +89,11 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
     const v = store().values;
     const flow = fuelFlowLph({fuelRate: v.fuelRate?.v, fuelRateGs: v.fuelRateGs?.v, maf: v.maf?.v}, fuel);
     const torque = torqueNm(v.torquePct?.v, v.torqueRef?.v);
-    // The car's own gear when it reports one (−1: it says it doesn't), else the RPM ÷ speed guess.
-    const carGear = v.gearCar?.v;
     store().setDerived({
       fuelFlow: flow,
       economy: economyL100(flow, v.speed?.v ?? null),
       boost: boostKpa(v.map?.v, v.baro?.v),
-      gear: carGear != null && carGear >= 0 ? carGear : v.speed?.v === 0 ? 0 : gear.add(v.rpm?.v, v.speed?.v),
+      gear: chooseGear(v.gearCar?.v, v.speed?.v, () => gear.add(v.rpm?.v, v.speed?.v)),
       torqueNm: torque,
       powerKw: powerKw(torque, v.rpm?.v),
       accelMps2: latestAccel,

@@ -1,4 +1,4 @@
-import {AccelEstimator, boostKpa, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from '../derive';
+import {AccelEstimator, boostKpa, chooseGear, economyL100, fuelFlowLph, GearEstimator, powerKw, torqueNm} from '../derive';
 import {isNoAnswer, parseReply, parseVin} from '../elm327';
 import {decodeStatus, keyForCode, PIDS} from '../pids';
 import {decodeSupported, SupportTracker} from '../supported';
@@ -119,6 +119,19 @@ describe('derived values', () => {
     d.add(30, 250);
     d.add(31, 500);
     expect(d.add(40, 5000)).toBeNull();
+  });
+
+  it("uses the car's gear only when it says something, else the estimate", () => {
+    // A real gear from the car wins.
+    expect(chooseGear(3, 50, () => 4)).toBe(3);
+    // 0 at a standstill is neutral.
+    expect(chooseGear(0, 0, () => 2)).toBe(0);
+    // 0 while moving: the car's figure is stuck (the test car reports 0 always), so estimate.
+    expect(chooseGear(0, 40, () => 3)).toBe(3);
+    // Not reported (−1) or never read: estimate; standing still is neutral.
+    expect(chooseGear(-1, 40, () => 2)).toBe(2);
+    expect(chooseGear(null, 40, () => null)).toBeNull();
+    expect(chooseGear(null, 0, () => 2)).toBe(0);
   });
 
   it("decodes the car's gear (A4) and odometer (A6)", () => {
