@@ -52,8 +52,9 @@ export const PIDS: Record<PidKey, PidDef> = {
   // Actual engine torque as a percentage of the reference torque (negative while engine braking).
   torquePct: {code: '62', bytes: 1, tier: 'flow', decode: (b) => b[0] - 125},
   torqueRef: {code: '63', bytes: 2, tier: 'once', decode: word},
-  // Byte A bit 0: gear reported; byte C high nibble: the gear (0 = neutral). −1 when not reported.
-  gearCar: {code: 'A4', bytes: 4, tier: 'slow', decode: (b) => ((b[0] & 0x01) === 0 ? -1 : b[2] >> 4)},
+  // Byte A bit 0: gear reported; byte B high nibble: the gear (0 = neutral); C, D: the ratio × 1000.
+  // −1 when not reported.
+  gearCar: {code: 'A4', bytes: 4, tier: 'flow', decode: (b) => ((b[0] & 0x01) === 0 ? -1 : b[1] >> 4)},
   odometer: {code: 'A6', bytes: 4, tier: 'once', decode: (b) => (b[0] * 2 ** 24 + b[1] * 2 ** 16 + b[2] * 256 + b[3]) / 10},
   coolant: {code: '05', bytes: 1, tier: 'slow', decode: celsius},
   intakeTemp: {code: '0F', bytes: 1, tier: 'slow', decode: celsius},

@@ -80,6 +80,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
   let latestAccel: number | null = null;
   // The car's own gear byte layout is unconfirmed on real cars: log the first one to compare.
   let gearLogged = false;
+  let carGearsSeen = false;
   // Resting voltage and the dip at each engine start, kept with the paired adapter (battery health).
   const battery = new BatteryWatch((r) =>
     saveLastState(adapter, {restingV: r.restingV, startDipV: r.startDipV, at: new Date(r.at).toISOString()}),
@@ -93,7 +94,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
       fuelFlow: flow,
       economy: economyL100(flow, v.speed?.v ?? null),
       boost: boostKpa(v.map?.v, v.baro?.v),
-      gear: chooseGear(v.gearCar?.v, v.speed?.v, () => gear.add(v.rpm?.v, v.speed?.v)),
+      gear: chooseGear(v.gearCar?.v, v.speed?.v, () => gear.add(v.rpm?.v, v.speed?.v), carGearsSeen),
       torqueNm: torque,
       powerKw: powerKw(torque, v.rpm?.v),
       accelMps2: latestAccel,
@@ -130,9 +131,13 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
         store().putValue(key, value, at);
         if (key === 'speed') {
           latestAccel = accel.add(value, at);
-        } else if (key === 'gearCar' && !gearLogged) {
-          gearLogged = true;
-          void logBle(`Car gear (A4): ${value}`);
+        } else if (key === 'gearCar') {
+          if (!gearLogged) {
+            gearLogged = true;
+            void logBle(`Car gear (A4): ${value}`);
+          }
+          // A real gear proves the car's figure works, so its 0 can be trusted as neutral from now on.
+          carGearsSeen = carGearsSeen || value >= 1;
         } else if (key === 'odometer') {
           // Kept with the paired adapter, so Garage shows it with the car off.
           saveLastState(adapter);
@@ -144,7 +149,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
         }
         // Not on RPM: each call also feeds the gear estimator, which counts readings. Power follows
         // speed and torque readings, with the latest RPM.
-        if (key === 'speed' || key === 'maf' || key === 'fuelRate' || key === 'fuelRateGs' || key === 'torquePct') {
+        if (key === 'speed' || key === 'maf' || key === 'fuelRate' || key === 'fuelRateGs' || key === 'torquePct' || key === 'gearCar') {
           derive();
         }
       },

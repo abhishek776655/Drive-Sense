@@ -126,8 +126,9 @@ describe('derived values', () => {
     expect(chooseGear(3, 50, () => 4)).toBe(3);
     // 0 at a standstill is neutral.
     expect(chooseGear(0, 0, () => 2)).toBe(0);
-    // 0 while moving: the car's figure is stuck (the test car reports 0 always), so estimate.
+    // 0 while moving: neutral once the car has shown it reports real gears; until then, estimate.
     expect(chooseGear(0, 40, () => 3)).toBe(3);
+    expect(chooseGear(0, 40, () => 3, true)).toBe(0);
     // Not reported (−1) or never read: estimate; standing still is neutral.
     expect(chooseGear(-1, 40, () => 2)).toBe(2);
     expect(chooseGear(null, 40, () => null)).toBeNull();
@@ -135,9 +136,10 @@ describe('derived values', () => {
   });
 
   it("decodes the car's gear (A4) and odometer (A6)", () => {
-    expect(PIDS.gearCar.decode([0x01, 0x00, 0x30, 0x00])).toBe(3);
-    expect(PIDS.gearCar.decode([0x01, 0x00, 0x00, 0x00])).toBe(0);
-    expect(PIDS.gearCar.decode([0x00, 0x00, 0x30, 0x00])).toBe(-1);
+    // A bit 0: supported; B high nibble: the gear; C, D: the gear ratio × 1000 (3.500 = 0D AC here).
+    expect(PIDS.gearCar.decode([0x01, 0x30, 0x0d, 0xac])).toBe(3);
+    expect(PIDS.gearCar.decode([0x01, 0x00, 0x0d, 0xac])).toBe(0);
+    expect(PIDS.gearCar.decode([0x00, 0x30, 0x0d, 0xac])).toBe(-1);
     // 221208 tenths = 22120.8 km, as Car Scanner showed.
     expect(PIDS.odometer.decode([0x00, 0x03, 0x60, 0x18])).toBeCloseTo(22120.8);
   });

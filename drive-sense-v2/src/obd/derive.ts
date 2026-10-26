@@ -46,14 +46,15 @@ export const powerKw = (nm: number | null | undefined, rpm: number | null | unde
 
 /**
  * The gear to show: the car's own (PID A4) when it names one; neutral at a standstill; otherwise the
- * RPM ÷ speed estimate. A 0 from the car while moving means its figure is stuck (some cars always
- * send 0), so it is ignored. `estimate` is only called when it is used: it feeds the estimator.
+ * RPM ÷ speed estimate. A 0 from the car while moving is neutral once the car has shown it reports
+ * real gears (`carGearsSeen`); before that it may just be a car that always sends 0, so it is
+ * ignored. `estimate` is only called when it is used: it feeds the estimator.
  */
-export const chooseGear = (carGear: number | null | undefined, speedKmh: number | null | undefined, estimate: () => number | null): number | null => {
+export const chooseGear = (carGear: number | null | undefined, speedKmh: number | null | undefined, estimate: () => number | null, carGearsSeen = false): number | null => {
   if (carGear != null && carGear >= 1) {
     return carGear;
   }
-  if (speedKmh === 0) {
+  if (speedKmh === 0 || (carGear === 0 && carGearsSeen)) {
     return 0;
   }
   return estimate();

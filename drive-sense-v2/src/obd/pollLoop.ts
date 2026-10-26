@@ -224,8 +224,12 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
         if (has('torquePct')) {
           plan.push('torquePct');
         }
+        // The car's gear, often enough to follow a shift.
+        if (has('gearCar')) {
+          plan.push('gearCar');
+        }
       }
-      const slow = (['coolant', 'intakeTemp', 'map', 'fuelLevel', 'voltage', 'ambient', 'oilTemp', 'gearCar'] as PidKey[]).filter(has);
+      const slow = (['coolant', 'intakeTemp', 'map', 'fuelLevel', 'voltage', 'ambient', 'oilTemp'] as PidKey[]).filter(has);
       if (slow.length > 0) {
         plan.push(slow[slowIndex++ % slow.length]);
       }
