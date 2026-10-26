@@ -1,6 +1,6 @@
 import {parseVoltage} from './battery';
 import {parseDtcReply} from './dtc';
-import {ELM_INIT, isNoAnswer, parseReply, parseVin, pidRequest, PROMPT} from './elm327';
+import {ELM_INIT, isNoAnswer, parseBitmap, parseReply, parseVin, pidRequest, PROMPT} from './elm327';
 import {decodeStatus, keyForCode, PIDS, type PidKey} from './pids';
 import {decodeSupported, SupportTracker} from './supported';
 
@@ -106,7 +106,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
    */
   const askFirstSupported = async (): Promise<number[] | null> => {
     for (let attempt = 0; attempt < FIRST_REQUEST_ATTEMPTS && running; attempt++) {
-      const bytes = parseReply(await ask(pidRequest(SUPPORTED_BASES[0]), PROTOCOL_SEARCH_MS), SUPPORTED_BASES[0], 4);
+      const bytes = parseBitmap(await ask(pidRequest(SUPPORTED_BASES[0]), PROTOCOL_SEARCH_MS), SUPPORTED_BASES[0]);
       if (bytes) {
         return bytes;
       }
@@ -117,7 +117,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
   const readSupported = async (): Promise<PidKey[]> => {
     const codes: string[] = [];
     for (const base of SUPPORTED_BASES) {
-      const bytes = base === SUPPORTED_BASES[0] ? await askFirstSupported() : parseReply(await ask(pidRequest(base)), base, 4);
+      const bytes = base === SUPPORTED_BASES[0] ? await askFirstSupported() : parseBitmap(await ask(pidRequest(base)), base);
       if (!bytes) {
         break;
       }

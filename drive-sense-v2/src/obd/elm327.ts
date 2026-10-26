@@ -38,21 +38,34 @@ const hexBytes = (hex: string): number[] | null => {
   return out;
 };
 
-/**
- * Data bytes of a Mode 01 reply for `code` (`41 0C 1A F8` → `[0x1A, 0xF8]`), or null when the reply
- * has none: `NO DATA`, an echo only, garbage. With several control units answering, the first wins.
- */
-export const parseReply = (raw: string, code: string, bytes: number): number[] | null => {
+/** Data bytes of every control unit's answer to Mode 01 `code`, in the order they arrived. */
+export const parseReplies = (raw: string, code: string, bytes: number): number[][] => {
   const header = `41${code.toUpperCase()}`;
+  const out: number[][] = [];
   for (const line of lines(raw)) {
     if (line.startsWith(header)) {
       const data = hexBytes(line.slice(header.length));
       if (data && data.length >= bytes) {
-        return data.slice(0, bytes);
+        out.push(data.slice(0, bytes));
       }
     }
   }
-  return null;
+  return out;
+};
+
+/**
+ * Data bytes of a Mode 01 reply for `code` (`41 0C 1A F8` → `[0x1A, 0xF8]`), or null when the reply
+ * has none: `NO DATA`, an echo only, garbage. With several control units answering, the first wins.
+ */
+export const parseReply = (raw: string, code: string, bytes: number): number[] | null => parseReplies(raw, code, bytes)[0] ?? null;
+
+/**
+ * A supported-PIDs bitmap merged over every control unit that answered: the engine and the gearbox
+ * each list their own PIDs, and either may answer first.
+ */
+export const parseBitmap = (raw: string, base: string): number[] | null => {
+  const all = parseReplies(raw, base, 4);
+  return all.length === 0 ? null : all.reduce((acc, b) => acc.map((byte, i) => byte | b[i]));
 };
 
 /**

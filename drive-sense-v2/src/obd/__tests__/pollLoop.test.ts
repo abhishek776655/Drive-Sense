@@ -166,6 +166,26 @@ describe('poll loop', () => {
     expect(h.values.find(([k]) => k === 'odometer')?.[1]).toBeCloseTo(22120.8);
   });
 
+  it('merges the supported-PID lists of every control unit that answers', async () => {
+    // Two units answer each bitmap, the gearbox first (as on the test car, 2026-10-26): its 0100
+    // lists 01 04 05 0C 0D 11 20 and its 0120 only 40; the engine's lists 0F, 2F and 33 as well.
+    const car = {
+      ...CAR,
+      '0100': '41 00 98 18 80 01\r41 00 98 3B 80 03',
+      '0120': '41 20 00 00 00 01\r41 20 00 02 20 01',
+      '0140': '41 40 00 00 00 00\r41 40 00 00 00 00',
+      '010F': '41 0F 52',
+    };
+    const {transport, sent} = fakeAdapter(car);
+    const onSupportedCodes = jest.fn();
+    const h = handlers({onSupportedCodes});
+    const loop = createPollLoop(transport, {...h, onValue: (k, v, at) => (h.onValue(k, v, at), h.values.length >= 40 && loop.stop())}, {sleep: never});
+    await loop.start();
+    expect(onSupportedCodes).toHaveBeenCalledWith(expect.arrayContaining(['04', '0C', '0F', '1F', '2F', '33', '40']));
+    expect(sent).toContain('010F');
+    expect(h.values).toContainEqual(['intakeTemp', 42]);
+  });
+
   it('asks 0100 again when the first try gets no answer', async () => {
     let tries = 0;
     const {transport, sent} = fakeAdapter({...CAR, '0100': () => (++tries === 1 ? null : '41 00 98 19 80 03')});
