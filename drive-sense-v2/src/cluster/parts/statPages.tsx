@@ -1,4 +1,4 @@
-import {Canvas, LinearGradient, Path, Skia, vec} from '@shopify/react-native-skia';
+import {Canvas, Line, LinearGradient, Path, Skia, vec} from '@shopify/react-native-skia';
 import {useEffect, useMemo} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useCarStats} from '../../hooks/useCarStats';
@@ -168,15 +168,15 @@ export function GraphPage({width, accent}: {width: number; accent: string}) {
 }
 
 /**
- * One minute of one engine value, full width (cars that report torque get two of these, a swipe up
- * from the CAR page: POWER and TORQUE). The figure is big on top, the line fills the clear width
- * between the dials, and the minute's peak sits under it.
+ * One minute of one engine value, full width, styled like the Speed dial's graph: the figure big on
+ * top, faint grid lines, the area fading down under a glowing line, and the minute's average and top
+ * below. Cars that report torque get POWER and TORQUE in the Engine page's views.
  */
 export function EngineGraphPage({
   title,
   value,
   unit,
-  peak,
+  format,
   pick,
   step,
   clearWidth,
@@ -185,8 +185,8 @@ export function EngineGraphPage({
   title: string;
   value: string;
   unit: string;
-  /** The minute's highest value as text, e.g. "Peak 45 kW". */
-  peak: (top: number) => string;
+  /** A reading as text in the shown unit (the avg and top below the graph). */
+  format: (n: number) => string;
   pick: (p: HistoryPoint) => number | null;
   /** The scale rounds its top up to a multiple of this. */
   step: number;
@@ -204,27 +204,37 @@ export function EngineGraphPage({
     const from = history[0].at;
     const span = Math.max(1, history[history.length - 1].at - from);
     const top = Math.max(...points.map((p) => p.y), 0);
+    const avg = points.reduce((a, p) => a + p.y, 0) / points.length;
     const max = Math.max(step, Math.ceil(top / step) * step);
-    return {fill: linePath(points, w, h, max, from, span, true), line: linePath(points, w, h, max, from, span, false), top};
+    return {fill: linePath(points, w, h, max, from, span, true), line: linePath(points, w, h, max, from, span, false), top, avg};
   }, [history, pick, step, w]);
 
   return (
     <View style={pageStyles.page}>
-      <Text style={pageStyles.title}>{title}</Text>
+      <Text style={pageStyles.title}>{title} · LAST MINUTE</Text>
       <Figure label={title} value={value} unit={unit} big />
-      {graph ? (
-        <>
-          <Canvas style={{width: w, height: h, marginTop: 8}}>
+      <Canvas style={{width: w, height: h, marginTop: 8}}>
+        {[0, 0.5, 1].map((f) => (
+          <Line key={f} p1={vec(0, h * f)} p2={vec(w, h * f)} color={CLUSTER_INK.track} strokeWidth={1} />
+        ))}
+        {graph ? (
+          <>
             <Path path={graph.fill}>
-              <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[withAlpha(color, 0.45), withAlpha(CLUSTER_INK.background, 0)]} />
+              <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[withAlpha(color, 0.5), withAlpha(color, 0)]} />
             </Path>
+            <Path path={graph.line} style="stroke" strokeWidth={6} strokeJoin="round" color={color} opacity={0.25} />
             <Path path={graph.line} style="stroke" strokeWidth={2.4} strokeJoin="round" color={color} />
-          </Canvas>
-          <Text style={[styles.keyText, styles.peak]}>{peak(graph.top)}</Text>
-        </>
-      ) : (
-        <Text style={pageStyles.hint}>Drive to fill the graph</Text>
-      )}
+          </>
+        ) : null}
+      </Canvas>
+      <View style={styles.foot}>
+        <Text style={styles.stat}>
+          avg <Text style={styles.statValue}>{graph ? format(graph.avg) : '–'}</Text>
+        </Text>
+        <Text style={styles.stat}>
+          top <Text style={styles.statValue}>{graph ? format(graph.top) : '–'}</Text>
+        </Text>
+      </View>
     </View>
   );
 }
@@ -283,11 +293,15 @@ export function DualGraphPage({title, first, second, clearWidth}: {title: string
       {graph && (graph.first || graph.second) ? (
         <>
           <Canvas style={{width: w, height: h, marginTop: 8}}>
+            {[0, 0.5, 1].map((f) => (
+              <Line key={f} p1={vec(0, h * f)} p2={vec(w, h * f)} color={CLUSTER_INK.track} strokeWidth={1} />
+            ))}
             {graph.fill ? (
               <Path path={graph.fill}>
-                <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[withAlpha(first.color, 0.35), withAlpha(CLUSTER_INK.background, 0)]} />
+                <LinearGradient start={vec(0, 0)} end={vec(0, h)} colors={[withAlpha(first.color, 0.45), withAlpha(first.color, 0)]} />
               </Path>
             ) : null}
+            {graph.first ? <Path path={graph.first} style="stroke" strokeWidth={6} strokeJoin="round" color={first.color} opacity={0.25} /> : null}
             {graph.first ? <Path path={graph.first} style="stroke" strokeWidth={2.4} strokeJoin="round" color={first.color} /> : null}
             {graph.second ? <Path path={graph.second} style="stroke" strokeWidth={1.8} strokeJoin="round" color={second.color} /> : null}
           </Canvas>
@@ -312,5 +326,7 @@ const styles = StyleSheet.create({
   key: {flexDirection: 'row', alignItems: 'center', gap: 6},
   swatch: {width: 10, height: 3, borderRadius: 2},
   keyText: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 11},
-  peak: {marginTop: 8, fontVariant: ['tabular-nums']},
+  foot: {flexDirection: 'row', justifyContent: 'center', gap: 18, marginTop: 8},
+  stat: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12},
+  statValue: {color: CLUSTER_INK.text, fontFamily: FONT.black, fontSize: 14, fontVariant: ['tabular-nums']},
 });
