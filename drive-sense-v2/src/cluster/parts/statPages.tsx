@@ -240,6 +240,9 @@ export function EngineGraphPage({
   );
 }
 
+/** Each line of the combined graph keeps to this share of its height (the first low, the second high). */
+const BAND = 0.58;
+
 /** One of the two lines on the combined graph, with its own scale (the units differ). */
 interface DualLine {
   label: string;
@@ -252,7 +255,7 @@ interface DualLine {
 
 /**
  * Power and torque together: both figures on top, both lines over the last minute, each scaled to
- * its own peak so the shapes line up (torque leads, power follows the revs).
+ * its own peak, power (filled) in the lower band and torque in the upper, as RPM rides over speed.
  */
 export function DualGraphPage({title, first, second, width}: {title: string; first: DualLine; second: DualLine; width: number}) {
   const history = useObdStore((s) => s.history);
@@ -264,21 +267,21 @@ export function DualGraphPage({title, first, second, width}: {title: string; fir
     }
     const from = history[0].at;
     const span = Math.max(1, history[history.length - 1].at - from);
-    const draw = (l: DualLine) => {
-      const points = series(history, l.pick);
-      if (points.length < 2) {
-        return null;
-      }
+    // Like speed and RPM: the second line rides in the top band, the first (filled) in the lower one,
+    // so the two shapes read apart instead of on top of each other.
+    const scaleTop = (l: DualLine, points: {y: number}[]) => {
       const top = Math.max(...points.map((p) => p.y), 0);
-      return linePath(points, w, h, Math.max(l.step, Math.ceil(top / l.step) * l.step), from, span, false);
+      return Math.max(l.step, Math.ceil(top / l.step) * l.step);
     };
     const firstPoints = series(history, first.pick);
-    const firstTop = Math.max(...firstPoints.map((p) => p.y), 0);
-    const firstMax = Math.max(first.step, Math.ceil(firstTop / first.step) * first.step);
+    const secondPoints = series(history, second.pick);
+    // The first line's top sits at this share of the height from the bottom...
+    const firstMax = scaleTop(first, firstPoints) / BAND;
     return {
       fill: firstPoints.length < 2 ? null : linePath(firstPoints, w, h, firstMax, from, span, true),
-      first: draw(first),
-      second: draw(second),
+      first: firstPoints.length < 2 ? null : linePath(firstPoints, w, h, firstMax, from, span, false),
+      // ...and the second line is drawn into the top share only.
+      second: secondPoints.length < 2 ? null : linePath(secondPoints, w, h * BAND, scaleTop(second, secondPoints), from, span, false),
     };
     // The lines' looks, not their figures: those change every reading and need no new paths.
     // eslint-disable-next-line react-hooks/exhaustive-deps
