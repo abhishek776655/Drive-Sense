@@ -87,7 +87,7 @@ export function SettingsPage({accent}: {accent: string}) {
       </View>
       <ScrollView style={styles.fill} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {screen === 'theme' ? (
-          <View style={styles.themes}>
+          <View style={styles.stack}>
             {THEME_IDS.map((id) => {
               const on = id === theme;
               return (
@@ -105,7 +105,7 @@ export function SettingsPage({accent}: {accent: string}) {
           </View>
         ) : null}
         {screen === 'color' ? (
-          <View style={styles.swatches}>
+          <View style={styles.stack}>
             {(['auto', ...Object.keys(CLUSTER_ACCENTS)] as ClusterAccent[]).map((id) => {
               const on = id === accentId;
               return (
@@ -131,26 +131,27 @@ export function SettingsPage({accent}: {accent: string}) {
 }
 
 const styles = StyleSheet.create({
-  page: {flex: 1, paddingHorizontal: 16, paddingTop: 14},
+  // A narrow column in the middle of the pane, not edge to edge.
+  page: {flex: 1, alignSelf: 'center', width: '100%', maxWidth: 230, paddingTop: 14},
   fill: {flex: 1},
   content: {gap: 4, paddingBottom: 16},
+  // The options' pages: one centred column, top to bottom.
+  stack: {alignItems: 'center', gap: 12},
   title: {alignSelf: 'stretch', textAlign: 'center', color: CLUSTER_INK.textFaint, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 2, marginBottom: 10},
   header: {flexDirection: 'row', alignItems: 'center', marginBottom: 10},
   back: {width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center'},
   headerTitle: {flex: 1, marginBottom: 0},
-  themes: {flexDirection: 'row', gap: 8},
-  theme: {flex: 1, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: CLUSTER_INK.glassEdge, alignItems: 'center', justifyContent: 'center'},
+  theme: {width: 160, height: 36, borderRadius: 17, borderWidth: 1.5, borderColor: CLUSTER_INK.glassEdge, alignItems: 'center', justifyContent: 'center'},
   themeText: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12},
   row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: CLUSTER_INK.glassEdge},
   rowTitle: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 14},
   rowEnd: {flexDirection: 'row', alignItems: 'center', gap: 8},
   count: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
   dot: {width: 14, height: 14, borderRadius: 7},
-  swatches: {flexDirection: 'row', flexWrap: 'wrap', gap: 12},
   swatch: {width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center'},
   auto: {color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 12},
-  checks: {flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 8},
-  check: {flexDirection: 'row', alignItems: 'center', gap: 7, minWidth: 110},
+  checks: {alignSelf: 'center', gap: 14},
+  check: {flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 140},
   box: {width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: CLUSTER_INK.textFaint, alignItems: 'center', justifyContent: 'center'},
   checkLabel: {color: CLUSTER_INK.text, fontFamily: FONT.bold, fontSize: 13},
 });
