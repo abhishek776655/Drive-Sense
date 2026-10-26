@@ -58,6 +58,12 @@ export const PHONE_DIALS = ['g', 'climb', 'compass', 'speed'] as const;
 export type PhoneDial = (typeof PHONE_DIALS)[number];
 export const PHONE_DIAL_NAMES: Record<PhoneDial, string> = {g: 'G-force', climb: 'Climb', compass: 'Compass', speed: 'Speed'};
 
-/** What a cluster dial shows, swiped through left and right: its own gauge, or one of the phone views. */
-export const DIAL_VIEWS = ['main', ...PHONE_DIALS] as const;
+/** Dial views drawn from the adapter (power and torque, fuel use): only offered while the car answers. */
+export const CAR_DIALS = ['power', 'fuel'] as const;
+export type CarDial = (typeof CAR_DIALS)[number];
+export const CAR_DIAL_NAMES: Record<CarDial, string> = {power: 'Power', fuel: 'Fuel'};
+export const isCarDial = (view: string): view is CarDial => (CAR_DIALS as readonly string[]).includes(view);
+
+/** What a cluster dial shows, swiped through left and right: its own gauge, a phone view or a car view. */
+export const DIAL_VIEWS = ['main', ...PHONE_DIALS, ...CAR_DIALS] as const;
 export type DialView = (typeof DIAL_VIEWS)[number];

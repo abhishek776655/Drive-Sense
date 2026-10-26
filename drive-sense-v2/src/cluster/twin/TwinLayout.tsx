@@ -7,13 +7,14 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useUnits } from '../../hooks/useUnits';
 import { FONT } from '../../theme/theme';
-import { economy, powerUnits, temperature, torqueUnits } from '../../obd/tiles';
-import type { HistoryPoint } from '../../stores/obdStore';
+import { economy, fuelFlowUnits, powerUnits, temperature, torqueUnits } from '../../obd/tiles';
+import { useObdStore, type HistoryPoint } from '../../stores/obdStore';
+import { TraceDial } from '../parts/TraceDial';
 import { usePreferencesStore } from '../../stores/preferencesStore';
 import { kmhInUnits } from '../../utils/units';
-import { CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, DIAL_VIEWS, PHONE_DIAL_NAMES, PHONE_DIALS, type DialView, type PhoneDial } from '../accents';
+import { CAR_DIAL_NAMES, CLUSTER_INK, DIAL_STYLE_NAMES, DIAL_STYLES, DIAL_VIEWS, isCarDial, PHONE_DIAL_NAMES, PHONE_DIALS, type CarDial, type DialView, type PhoneDial } from '../accents';
 import type { ClusterData } from '../clusterData';
-import { dialMax, gPoint, redlineHeat } from '../motion';
+import { dialMax, fuelDialHead, gPoint, redlineHeat } from '../motion';
 import { ArcDial } from '../parts/ArcDial';
 import { BarGauge } from '../parts/BarGauge';
 import { CentrePager } from '../parts/CentrePager';
@@ -31,7 +32,7 @@ import { VerticalPager } from '../parts/VerticalPager';
 
 const STRIP_H = 36;
 /** Names shown when a dial is swiped to another view (its own gauge is named per dial). */
-const VIEW_NAMES: Record<Exclude<DialView, 'main'>, string> = PHONE_DIAL_NAMES;
+const VIEW_NAMES: Record<Exclude<DialView, 'main'>, string> = { ...PHONE_DIAL_NAMES, ...CAR_DIAL_NAMES };
 const COOLANT_RANGE = [40, 130];
 // Stable, so the engine graphs don't redraw their paths on every render.
 const pickPower = (p: HistoryPoint) => p.power;
@@ -242,6 +243,8 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
       ),
     },
   ];
+  const history = useObdStore((s) => s.history);
+  const flowLph = useObdStore((s) => s.derived.fuelFlow);
   const inset = (node: ReactNode) => <View style={{ flex: 1, paddingHorizontal: under }}>{node}</View>;
   // Trip and Engine each have more views, a swipe up or down away.
   const pages = [
@@ -374,6 +377,49 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
     ) : (
       <GDial size={dial} g={d.g} accent={accent} />
     );
+  // The car's own views (power and torque, fuel use), from the adapter's last minute.
+  const carView = (view: CarDial) => {
+    const at = (pick: (p: HistoryPoint) => number | null) => history.flatMap((p) => (pick(p) == null ? [] : [{ at: p.at, v: pick(p) as number }]));
+    if (view === 'power') {
+      const peakKw = Math.max(0, ...history.map((p) => p.power ?? 0));
+      return (
+        <TraceDial
+          size={dial}
+          caption="POWER"
+          value={power?.value ?? '–'}
+          unit={powerUnits(0, u.units).unit}
+          lines={[
+            { points: at(pickPower), color: accent, main: true },
+            { points: at(pickTorque), color: CLUSTER_INK.textDim },
+          ]}
+          foot={[
+            { label: 'torque', value: torque ? `${torque.value} ${torque.unit}` : '–' },
+            { label: 'peak', value: peakKw > 0 ? powerUnits(peakKw, u.units).value : '–' },
+          ]}
+        />
+      );
+    }
+    const head = fuelDialHead(d.instantL100km, flowLph, u.units, mileage);
+    const driveEconomy = d.driveL100km != null ? economy(d.driveL100km, u.units, mileage) : null;
+    return (
+      <TraceDial
+        size={dial}
+        caption={head.caption}
+        value={head.value}
+        unit={head.unit}
+        lines={[{ points: at((p) => p.fuelFlow), color: accent, main: true }]}
+        foot={[
+          { label: 'flow', value: flowLph != null ? `${fuelFlowUnits(flowLph, u.units).value} ${fuelFlowUnits(0, u.units).unit}` : '–' },
+          { label: 'drive', value: driveEconomy ? `${driveEconomy.value} ${driveEconomy.unit}` : '–' },
+        ]}
+      />
+    );
+  };
+  // Car views need the car: without it a dial left on one falls back to its own gauge.
+  const adapter = d.mode === 'adapter';
+  const views = adapter ? DIAL_VIEWS : DIAL_VIEWS.filter((v) => !isCarDial(v));
+  const leftShown: DialView = !adapter && isCarDial(leftView) ? 'main' : leftView;
+  const dialView = (view: Exclude<DialView, 'main'>) => (isCarDial(view) ? carView(view) : phoneView(view));
 
   return (
     <View style={{ width, height }}>
@@ -406,9 +452,9 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
         <DialSwitch
           style={{ ...styles.dial, left: groupX, top: dialTop }}
           size={dial}
-          vertical={leftView === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, speedStyle, (next) => void setPrefs({ clusterSpeedDial: next })) : undefined}
-          horizontal={swipeAxis(DIAL_VIEWS, { ...VIEW_NAMES, main: 'Speed' }, leftView, (next) => void setPrefs({ clusterLeftView: next }))}>
-          {leftView === 'main' ? speedGauge : phoneView(leftView)}
+          vertical={leftShown === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, speedStyle, (next) => void setPrefs({ clusterSpeedDial: next })) : undefined}
+          horizontal={swipeAxis(views, { ...VIEW_NAMES, main: 'Speed' }, leftShown, (next) => void setPrefs({ clusterLeftView: next }))}>
+          {leftShown === 'main' ? speedGauge : dialView(leftShown)}
         </DialSwitch>
         {d.mode === 'adapter' ? (
           <DialSwitch
@@ -416,7 +462,7 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
             size={dial}
             vertical={rightView === 'main' ? swipeAxis(DIAL_STYLES, DIAL_STYLE_NAMES, revStyle, (next) => void setPrefs({ clusterRevDial: next })) : undefined}
             horizontal={swipeAxis(DIAL_VIEWS, { ...VIEW_NAMES, main: 'RPM' }, rightView, (next) => void setPrefs({ clusterRightView: next }))}>
-            {rightView === 'main' ? rpmGauge : phoneView(rightView)}
+            {rightView === 'main' ? rpmGauge : dialView(rightView)}
           </DialSwitch>
         ) : (
           // Without the adapter there is no RPM: the right dial rolls between the phone views either way.

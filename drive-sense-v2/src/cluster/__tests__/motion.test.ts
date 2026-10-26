@@ -1,4 +1,4 @@
-import {angleAt, arcPath, compassPoint, dialMax, fraction, gFrom, gPoint, gradePct, isCoasting, loadHeat, meterRadius, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
+import {angleAt, arcPath, compassPoint, dialMax, fraction, fuelDialHead, gFrom, gPoint, gradePct, isCoasting, loadHeat, meterRadius, particleSpeed, redlineHeat, shiftUpHint, ticks} from '../motion';
 
 describe('cluster motion maths', () => {
   it('maps values onto the 270° dial', () => {
@@ -96,6 +96,15 @@ describe('cluster motion maths', () => {
     const flatThenDown = [...Array.from({length: 10}, (_, i) => ({d: i * 20, alt: 50})), ...Array.from({length: 10}, (_, i) => ({d: 200 + i * 15, alt: 50 - i * 1.2}))];
     expect(gradePct(flatThenDown)).toBeCloseTo(-8, 0);
     expect(gradePct([{d: 0, alt: 1}, {d: 10, alt: 2}, {d: 20, alt: 3}])).toBeNull();
+  });
+
+  it('shows mileage on the fuel dial while moving, fuel flow at a standstill', () => {
+    // Moving: instant mileage in the chosen unit.
+    expect(fuelDialHead(6.5, 2.4, 'metric', 'l100')).toEqual({value: '6.5', unit: 'L/100 km', caption: 'ECONOMY NOW'});
+    expect(fuelDialHead(6.5, 2.4, 'metric', 'kmpl')).toEqual({value: '15.4', unit: 'km/L', caption: 'MILEAGE NOW'});
+    // Stopped (no instant economy): the flow, which is what idling costs.
+    expect(fuelDialHead(null, 1.38, 'metric', 'kmpl')).toEqual({value: '1.4', unit: 'L/h', caption: 'FUEL FLOW'});
+    expect(fuelDialHead(null, null, 'metric', 'kmpl')).toEqual({value: '–', unit: 'L/h', caption: 'FUEL FLOW'});
   });
 
   it('sizes the load meter to the clear gap between the dials, not the whole centre panel', () => {

@@ -1,3 +1,6 @@
+import {economy, economyLabel, fuelFlowUnits, type MileageUnit} from '../obd/tiles';
+import type {UnitSystem} from '../utils/units';
+
 /**
  * The cluster's maths (spec 2026-10-25, cluster mode), kept pure so it is tested without a GPU.
  * Angles are in degrees, clockwise from 3 o'clock (Skia's convention, y pointing down).
@@ -62,6 +65,23 @@ export const redlineHeat = (rpm: number | null | undefined, redline: number): nu
 
 /** Particle speed along the engine-load meter, in meter-lengths per second: a trickle at cruise, a rush flat out. */
 export const particleSpeed = (loadPct: number | null | undefined): number => 0.08 + 0.9 * fraction(loadPct, 100) ** 1.5;
+
+/**
+ * The fuel dial's big figure: instant mileage while moving; at a standstill (no economy, it heads to
+ * infinity) the fuel flow, which is what idling costs.
+ */
+export const fuelDialHead = (
+  instantL100km: number | null,
+  flowLph: number | null,
+  units: UnitSystem,
+  mileage: MileageUnit,
+): {value: string; unit: string; caption: string} => {
+  if (instantL100km != null) {
+    return {...economy(instantL100km, units, mileage), caption: `${economyLabel(units, mileage).toUpperCase()} NOW`};
+  }
+  const unit = fuelFlowUnits(0, units).unit;
+  return {value: flowLph != null ? fuelFlowUnits(flowLph, units).value : '–', unit, caption: 'FUEL FLOW'};
+};
 
 /** Half the load meter's stroke: the arc's ends reach this far past its radius. */
 const METER_HALF_STROKE = 7;
