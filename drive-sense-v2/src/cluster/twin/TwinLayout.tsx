@@ -518,11 +518,6 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           {d.fuelGaugePct != null ? (
             <BarGauge icon="color-fill" share={d.fuelGaugePct / 100} color={fuelColor} caption={fuelCaption} value={null} variant="bar" align="right" />
           ) : null}
-          {d.speedLimitKmh != null ? (
-            <View style={styles.limit} accessibilityLabel={`Speed alert at ${kmhInUnits(d.speedLimitKmh, u.units)} ${u.speedUnit}`}>
-              <Text style={styles.limitText}>{kmhInUnits(d.speedLimitKmh, u.units)}</Text>
-            </View>
-          ) : null}
           {/* G as a dot (the G dial already shows it without the adapter). */}
           {d.mode === 'adapter' && d.g ? <GDot g={d.g} accent={accent} /> : null}
         </View>
@@ -549,8 +544,6 @@ const styles = StyleSheet.create({
   stripRight: { justifyContent: 'flex-end' },
   gapLeft: { marginLeft: 6 },
   stripText: { color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums'] },
-  limit: { width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: CLUSTER_INK.red, backgroundColor: CLUSTER_INK.text, alignItems: 'center', justifyContent: 'center' },
-  limitText: { color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 11, fontVariant: ['tabular-nums'] },
   gRing: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: CLUSTER_INK.tick, alignItems: 'center', justifyContent: 'center' },
   gDot: { width: 7, height: 7, borderRadius: 4, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
   gear: { marginTop: 8, minWidth: 34, height: 28, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
