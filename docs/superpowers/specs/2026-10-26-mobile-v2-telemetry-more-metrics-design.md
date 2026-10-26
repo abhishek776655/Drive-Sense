@@ -53,7 +53,9 @@ RPM | Power — Fuel flow (L/h) | Acceleration (m/s², signed).
 
 Tiles (existing ones unchanged unless noted):
 - **Engine temp** — the Coolant tile renamed (PID 05; same 105/115 °C warnings).
-- **Fuel level** — adds litres when the vehicle has a tank size: `29 %` with unit `· 14.3 L`.
+- **Fuel remaining** (was Fuel level) — both percent and litres: `29 %` with unit `· 14.3 L` (gal in imperial).
+  Litres = fuel level % × the vehicle's tank size (`preferences.tankLitres`); percent alone when no tank size is
+  set, with the existing low-fuel warning below 10 %.
 - **Torque** (Nm; lb-ft imperial), **Power** (kW metric; hp imperial).
 - **Mileage now** (existing), **Mileage this drive** (existing), **Mileage today** (new),
   **Fuel used today** (new).
@@ -70,7 +72,8 @@ This-drive card: adds **Avg speed** = distance ÷ moving seconds (`avgSpeedMps` 
 
 - New **ENGINE** centre page (only when the car reports torque or fuel rate): big Power (hp/kW) with torque
   beneath; Fuel flow and Mileage now; a thin 60 s power trace along the bottom.
-- **CAR** page: Coolant row renamed Engine temp; adds Odometer.
+- **CAR** page: Coolant row renamed Engine temp; Fuel row shows `29 % · 14.3 L` like the Telemetry tile; adds
+  Odometer.
 - **THIS DRIVE** page: adds Avg speed (fuel used and mileage start working via §2).
 
 ## 5. Garage odometer (components/garage, db/obdRepos.ts)
@@ -96,7 +99,7 @@ writing the odometer into the server-side vehicle record.
 - pollLoop: scans 80/A0 bitmaps when chained; asks 9D only when 5E is absent; torque only when supported; odometer
   once on connect and at the status interval.
 - derive: g/s → L/h per fuel, torque/power, AccelEstimator (steady, launch, braking, gap, sparse readings).
-- tiles: renamed Engine temp, fuel litres with/without tank size, torque/power units, odometer, today tiles.
+- tiles: renamed Engine temp, fuel remaining % and litres (with/without tank size, imperial gallons), torque/power units, odometer, today tiles.
 - today totals: saved drives + live drive, other vehicles and yesterday excluded.
 - obdRepos: odometer kept in last state; Garage tile formatting.
 
