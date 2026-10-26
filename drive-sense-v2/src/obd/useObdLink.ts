@@ -56,6 +56,8 @@ const saveLastState = (paired: ObdAdapter, battery?: AdapterState['battery']) =>
       readAt: new Date().toISOString(),
       // A quick restart (auto start-stop) has no resting figure: keep the last real one.
       battery: battery ? {...battery, restingV: battery.restingV ?? adapter.lastState?.battery?.restingV ?? null} : adapter.lastState?.battery,
+      odometerKm: values.odometer?.v ?? adapter.lastState?.odometerKm ?? null,
+      odometerAt: values.odometer ? new Date(values.odometer.at).toISOString() : (adapter.lastState?.odometerAt ?? null),
     },
   };
   putAdapter(db, next);
@@ -129,6 +131,9 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
         } else if (key === 'gearCar' && !gearLogged) {
           gearLogged = true;
           void logBle(`Car gear (A4): ${value}`);
+        } else if (key === 'odometer') {
+          // Kept with the paired adapter, so Garage shows it with the car off.
+          saveLastState(adapter);
         }
         if (key === 'voltage') {
           battery.voltage(value, at);

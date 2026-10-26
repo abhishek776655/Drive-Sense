@@ -80,6 +80,14 @@ describe('OBD storage', () => {
     deleteAdapter(db, 'v2');
     expect(listAdapters(db)).toEqual([]);
   });
+
+  it("keeps the car's last odometer reading with the adapter", () => {
+    const db = memoryDb();
+    migrate(db);
+    const lastState = {mil: false, codeCount: 0, fuelLevel: 29, voltage: 12.6, readAt: '2026-10-26T07:32:00.000Z', odometerKm: 22120.8, odometerAt: '2026-10-26T07:32:00.000Z'};
+    putAdapter(db, adapter({lastState}));
+    expect(getAdapter(db, 'v1')?.lastState).toMatchObject({odometerKm: 22120.8, odometerAt: '2026-10-26T07:32:00.000Z'});
+  });
 });
 
 describe('OBD summary', () => {

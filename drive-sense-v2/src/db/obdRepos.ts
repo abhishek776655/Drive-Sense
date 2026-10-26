@@ -63,6 +63,9 @@ export interface AdapterState {
   readAt: string;
   /** Battery health from the last engine start (absent until one is seen). */
   battery?: {restingV: number | null; startDipV: number; at: string};
+  /** The car's odometer (PID A6) when last read, and when; absent on cars without it. */
+  odometerKm?: number | null;
+  odometerAt?: string | null;
 }
 
 export interface ObdAdapter {

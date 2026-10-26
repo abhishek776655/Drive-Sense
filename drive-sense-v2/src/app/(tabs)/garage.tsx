@@ -14,11 +14,13 @@ import {VehicleStrip} from '../../components/garage/VehicleStrip';
 import {StickyHeaderScroll} from '../../components/StickyHeaderScroll';
 import {useTabBarInset} from '../../components/tabBarLayout';
 import {useUnits} from '../../hooks/useUnits';
+import {useObdStore} from '../../stores/obdStore';
 import {useRecordingStore} from '../../stores/recordingStore';
 import {useActiveVehicle, useVehicleStore} from '../../stores/vehicleStore';
 import {withAlpha} from '../../theme/color';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {formatDuration, formatInt} from '../../utils/format';
+import {odometerLabel} from '../../utils/odometerLabel';
 import {pickVehiclePhoto, type PhotoSource} from '../../utils/vehiclePhoto';
 import {ActionButton} from '../../components/ActionButton';
 
@@ -35,6 +37,9 @@ export default function GarageScreen() {
   const {vehicles, activeVehicleId, loading, error, stats, load, setActive, loadStats, create, update, remove, setPhoto} = useVehicleStore();
   const vehicle = useActiveVehicle();
   const vehicleStats = vehicle ? stats[vehicle.id] : undefined;
+  // The odometer the paired adapter last read from this car (the store holds the active vehicle's adapter).
+  const lastState = useObdStore((s) => (vehicle && s.adapter?.vehicleId === vehicle.id ? s.adapter.lastState : null));
+  const odometer = lastState?.odometerKm != null && lastState.odometerAt ? odometerLabel(lastState.odometerKm, lastState.odometerAt, u.units) : null;
   const [sheet, setSheet] = useState<Sheet>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -117,6 +122,7 @@ export default function GarageScreen() {
             <View style={{flexDirection: 'row', gap}}>
               <GarageStatTile value={formatInt(vehicleStats?.trip_count)} label="Drives" icon="car-sport" />
               <GarageStatTile value={u.speed(vehicleStats?.avg_speed_mps)} label={`Ø ${u.speedUnit}`} icon="speedometer" />
+              {odometer ? <GarageStatTile value={odometer.value} label={odometer.label} icon="speedometer-outline" /> : null}
             </View>
             <View style={{flexDirection: 'row', gap}}>
               <GarageStatTile value={u.distance(vehicleStats?.total_distance_meters)} label={u.distanceUnit} icon="map" />
