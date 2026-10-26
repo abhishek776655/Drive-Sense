@@ -7,19 +7,18 @@ import {FONT} from '../../theme/theme';
 import {accentColor, CLUSTER_ACCENTS, CLUSTER_INK, type ClusterAccent} from '../accents';
 import {CAR_STATS, DRIVE_STATS, THEME_IDS, THEME_NAMES, THEMES, themeOf, type StatOption} from '../settings';
 
-/** A tappable row that opens its options underneath; one open at a time is not enforced, so ticking is quick. */
-function Section({title, value, open, onToggle, children}: {title: string; value?: ReactNode; open: boolean; onToggle: () => void; children: ReactNode}) {
+type Screen = 'theme' | 'color' | 'car' | 'drive';
+
+/** One option in the list: its name, what it is set to now, and a chevron into its own page. */
+function Row({title, value, onPress}: {title: string; value: ReactNode; onPress: () => void}) {
   return (
-    <View>
-      <Pressable accessibilityRole="button" accessibilityState={{expanded: open}} accessibilityLabel={title} onPress={onToggle} style={styles.row}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <View style={styles.rowEnd}>
-          {value}
-          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={CLUSTER_INK.textDim} />
-        </View>
-      </Pressable>
-      {open ? <View style={styles.body}>{children}</View> : null}
-    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={styles.row}>
+      <Text style={styles.rowTitle}>{title}</Text>
+      <View style={styles.rowEnd}>
+        {value}
+        <Ionicons name="chevron-forward" size={15} color={CLUSTER_INK.textDim} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -47,9 +46,9 @@ function CheckList({options, chosen, onChange, accent}: {options: StatOption[]; 
 }
 
 /**
- * The cluster's Settings page: a scrollable list. Theme sets the dial styles and accent together
- * (Normal, Vintage, Sports); Color opens the accent swatches; Car and Drive open checkboxes for which
- * stats their pages list.
+ * The cluster's Settings page: a short list of options. Each opens its own page with a back arrow:
+ * Theme (Normal, Vintage, Sports: the dial styles and accent together), Color (the accent swatches),
+ * Car and Drive (checkboxes for which stats their pages list).
  */
 export function SettingsPage({accent}: {accent: string}) {
   const speedDial = usePreferencesStore((s) => s.clusterSpeedDial);
@@ -59,16 +58,35 @@ export function SettingsPage({accent}: {accent: string}) {
   const driveStats = usePreferencesStore((s) => s.clusterDriveStats);
   const setPrefs = usePreferencesStore((s) => s.set);
   const driveAccent = useDriveSettingsStore((s) => s.gaugeAccent);
-  const [open, setOpen] = useState<'color' | 'car' | 'drive' | null>(null);
+  const [screen, setScreen] = useState<Screen | null>(null);
   const theme = themeOf(speedDial, revDial, accentId);
-  const toggle = (id: 'color' | 'car' | 'drive') => setOpen((o) => (o === id ? null : id));
 
+  if (screen == null) {
+    return (
+      <View style={styles.page}>
+        <Text style={styles.title}>SETTINGS</Text>
+        <ScrollView style={styles.fill} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Row title="Theme" value={<Text style={styles.count}>{theme ? THEME_NAMES[theme] : 'Custom'}</Text>} onPress={() => setScreen('theme')} />
+          <Row title="Color" value={<View style={[styles.dot, {backgroundColor: accent}]} />} onPress={() => setScreen('color')} />
+          <Row title="Car" value={<Text style={styles.count}>{`${carStats.length}/${CAR_STATS.length}`}</Text>} onPress={() => setScreen('car')} />
+          <Row title="Drive" value={<Text style={styles.count}>{`${driveStats.length}/${DRIVE_STATS.length}`}</Text>} onPress={() => setScreen('drive')} />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const titles: Record<Screen, string> = {theme: 'THEME', color: 'COLOR', car: 'CAR STATS', drive: 'DRIVE STATS'};
   return (
     <View style={styles.page}>
-      <Text style={styles.title}>SETTINGS</Text>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={() => setScreen(null)} hitSlop={10} style={styles.back}>
+          <Ionicons name="chevron-back" size={18} color={CLUSTER_INK.text} />
+        </Pressable>
+        <Text style={[styles.title, styles.headerTitle]}>{titles[screen]}</Text>
+        <View style={styles.back} />
+      </View>
       <ScrollView style={styles.fill} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View>
-          <Text style={styles.label}>Theme</Text>
+        {screen === 'theme' ? (
           <View style={styles.themes}>
             {THEME_IDS.map((id) => {
               const on = id === theme;
@@ -85,9 +103,8 @@ export function SettingsPage({accent}: {accent: string}) {
               );
             })}
           </View>
-        </View>
-
-        <Section title="Color" open={open === 'color'} onToggle={() => toggle('color')} value={<View style={[styles.dot, {backgroundColor: accent}]} />}>
+        ) : null}
+        {screen === 'color' ? (
           <View style={styles.swatches}>
             {(['auto', ...Object.keys(CLUSTER_ACCENTS)] as ClusterAccent[]).map((id) => {
               const on = id === accentId;
@@ -105,15 +122,9 @@ export function SettingsPage({accent}: {accent: string}) {
               );
             })}
           </View>
-        </Section>
-
-        <Section title="Car" open={open === 'car'} onToggle={() => toggle('car')} value={<Text style={styles.count}>{`${carStats.length}/${CAR_STATS.length}`}</Text>}>
-          <CheckList options={CAR_STATS} chosen={carStats} onChange={(next) => void setPrefs({clusterCarStats: next})} accent={accent} />
-        </Section>
-
-        <Section title="Drive" open={open === 'drive'} onToggle={() => toggle('drive')} value={<Text style={styles.count}>{`${driveStats.length}/${DRIVE_STATS.length}`}</Text>}>
-          <CheckList options={DRIVE_STATS} chosen={driveStats} onChange={(next) => void setPrefs({clusterDriveStats: next})} accent={accent} />
-        </Section>
+        ) : null}
+        {screen === 'car' ? <CheckList options={CAR_STATS} chosen={carStats} onChange={(next) => void setPrefs({clusterCarStats: next})} accent={accent} /> : null}
+        {screen === 'drive' ? <CheckList options={DRIVE_STATS} chosen={driveStats} onChange={(next) => void setPrefs({clusterDriveStats: next})} accent={accent} /> : null}
       </ScrollView>
     </View>
   );
@@ -124,16 +135,17 @@ const styles = StyleSheet.create({
   fill: {flex: 1},
   content: {gap: 4, paddingBottom: 16},
   title: {alignSelf: 'stretch', textAlign: 'center', color: CLUSTER_INK.textFaint, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 2, marginBottom: 10},
-  label: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6},
-  themes: {flexDirection: 'row', gap: 8, marginBottom: 6},
+  header: {flexDirection: 'row', alignItems: 'center', marginBottom: 10},
+  back: {width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center'},
+  headerTitle: {flex: 1, marginBottom: 0},
+  themes: {flexDirection: 'row', gap: 8},
   theme: {flex: 1, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: CLUSTER_INK.glassEdge, alignItems: 'center', justifyContent: 'center'},
   themeText: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12},
-  row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: CLUSTER_INK.glassEdge},
+  row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: CLUSTER_INK.glassEdge},
   rowTitle: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 14},
   rowEnd: {flexDirection: 'row', alignItems: 'center', gap: 8},
   count: {color: CLUSTER_INK.textDim, fontFamily: FONT.bold, fontSize: 12, fontVariant: ['tabular-nums']},
   dot: {width: 14, height: 14, borderRadius: 7},
-  body: {paddingBottom: 8},
   swatches: {flexDirection: 'row', flexWrap: 'wrap', gap: 12},
   swatch: {width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center'},
   auto: {color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 12},
