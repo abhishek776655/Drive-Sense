@@ -70,8 +70,11 @@ This-drive card: adds **Avg speed** = distance ÷ moving seconds (`avgSpeedMps` 
 
 ## 4. Cluster (cluster/parts/pages.tsx, cluster/clusterData.ts)
 
-- New **ENGINE** centre page (only when the car reports torque or fuel rate): big Power (hp/kW) with torque
-  beneath; Fuel flow and Mileage now; a thin 60 s power trace along the bottom.
+- No new centre page (the existing Engine page already holds the load meter). Instead the **CAR** page's vertical
+  pager (today: Now → All time) gains a **POWER** view one swipe up from Now: a 60 s graph of power and torque
+  (two lines, the cluster's accent and a dimmer second colour), with the current Power (hp/kW) big and Torque
+  (Nm/lb-ft) beside it. Only present when the car reports torque. Its graph keeps to the clear width between
+  the dial rims (see the load meter fix, 2026-10-26).
 - **CAR** page: Coolant row renamed Engine temp; Fuel row shows `29 % · 14.3 L` like the Telemetry tile; adds
   Odometer.
 - **THIS DRIVE** page: adds Avg speed (fuel used and mileage start working via §2).
