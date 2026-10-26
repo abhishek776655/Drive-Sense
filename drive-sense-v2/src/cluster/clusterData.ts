@@ -24,6 +24,8 @@ export interface ClusterData {
   boostKpa: number | null;
   coolantC: number | null;
   fuelPct: number | null;
+  /** What the fuel gauge shows: the live reading, else the last one (fuel doesn't change with the car off). */
+  fuelGaugePct: number | null;
   rangeKm: number | null;
   voltage: number | null;
   intakeC: number | null;
@@ -112,6 +114,7 @@ export const clusterData = (i: ClusterInput): ClusterData => {
     boostKpa: adapter ? i.derived.boost : null,
     coolantC,
     fuelPct,
+    fuelGaugePct: fuelPct ?? i.values.fuelLevel?.v ?? null,
     rangeKm: i.rangeKm,
     voltage,
     intakeC: adapter ? fresh('intakeTemp') : null,

@@ -61,6 +61,17 @@ describe('cluster data', () => {
     expect(off).toMatchObject({powerKw: null, torqueNm: null, fuelLitres: null, odometerKm: 22120.8});
   });
 
+  it('keeps the fuel gauge on the last reading when the car stops answering', () => {
+    // Live: the car's reading.
+    expect(clusterData({...base, values: {speed: v(50), rpm: v(2000), fuelLevel: v(40)}}).fuelGaugePct).toBe(40);
+    // Car off (stale reading): fuel hasn't changed, so the gauge still shows it, but no live value or alert.
+    const off = clusterData({...base, values: {fuelLevel: v(8, 600_000)}});
+    expect(off).toMatchObject({mode: 'phoneOnly', fuelPct: null, fuelGaugePct: 8});
+    expect(off.alerts.lowFuel).toBe(false);
+    // Never read: nothing.
+    expect(clusterData(base).fuelGaugePct).toBeNull();
+  });
+
   it('shows coasting with the throttle closed while rolling', () => {
     const d = clusterData({...base, values: {speed: v(60), rpm: v(1500), throttle: v(15)}, closedThrottle: 14});
     expect(d.coasting).toBe(true);

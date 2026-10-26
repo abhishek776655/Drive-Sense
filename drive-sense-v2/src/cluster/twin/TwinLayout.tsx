@@ -265,6 +265,8 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
   const arcs = carGauges && gaugeStyle === 'arc';
   const stripGauge = !carGauges || gaugeStyle === 'arc' ? null : gaugeStyle;
   const fuelColor = d.alerts.lowFuel ? CLUSTER_INK.amber : accent;
+  // The bar shows no figure of its own: percent (and range, when known) beside it.
+  const fuelCaption = d.fuelGaugePct == null ? null : `${Math.round(d.fuelGaugePct)}%${range ? ` · ${range}` : ''}`;
   const coolantColor = d.alerts.hotCoolant ? CLUSTER_INK.red : accent;
   const dialTop = (rowH - dial) / 2;
   const stateLabel = d.carState === 'engineOff' ? 'ENGINE OFF' : d.carState === 'parked' ? 'PARKED' : null;
@@ -372,7 +374,6 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
         {arcs ? (
           <>
             <SideArc size={dial} left={groupX} top={dialTop} side="left" share={coolantShare} color={coolantColor} icon="thermometer" value={coolant ? `${coolant.value}${coolant.unit}` : null} onPress={nextGauge} />
-            <SideArc size={dial} left={width - groupX - dial} top={dialTop} side="right" share={d.fuelPct == null ? null : d.fuelPct / 100} color={fuelColor} icon="color-fill" value={d.fuelPct == null ? null : `${Math.round(d.fuelPct)}%`} onPress={nextGauge} />
           </>
         ) : null}
         <DialSwitch
@@ -433,10 +434,9 @@ export function TwinLayout({ d, width, height, accent }: { d: ClusterData; width
           <Text style={styles.clock}>{clock}</Text>
         </View>
         <View style={[styles.stripSide, styles.stripRight]}>
-          {stripGauge ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Change gauge style" onPress={nextGauge} hitSlop={10}>
-              <BarGauge icon="color-fill" share={d.fuelPct == null ? null : d.fuelPct / 100} color={fuelColor} caption={range} value={d.fuelPct == null ? null : `${Math.round(d.fuelPct)}%`} variant={stripGauge} align="right" />
-            </Pressable>
+          {/* Fuel is always a bar along the bottom, in either mode: the last reading holds with the car off. */}
+          {d.fuelGaugePct != null ? (
+            <BarGauge icon="color-fill" share={d.fuelGaugePct / 100} color={fuelColor} caption={fuelCaption} value={null} variant="bar" align="right" />
           ) : null}
           {d.speedLimitKmh != null ? (
             <View style={styles.limit} accessibilityLabel={`Speed alert at ${kmhInUnits(d.speedLimitKmh, u.units)} ${u.speedUnit}`}>
