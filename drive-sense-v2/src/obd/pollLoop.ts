@@ -16,6 +16,8 @@ export interface PollHandlers {
   onStatus: (status: {mil: boolean; codeCount: number}) => void;
   /** What the car answers; empty means no Mode 01 at all (EV, some hybrids). */
   onSupported: (keys: PidKey[]) => void;
+  /** Every Mode 01 PID the car lists, including ones the app does not read (for diagnosis). */
+  onSupportedCodes?: (codes: string[]) => void;
   onVin: (vin: string) => void;
   /** Stored trouble codes, read whenever the status says there are any (empty when cleared). */
   onCodes?: (codes: string[]) => void;
@@ -128,6 +130,7 @@ export function createPollLoop(transport: Transport, handlers: PollHandlers, opt
       }
     }
     tracker.setSupported(codes);
+    handlers.onSupportedCodes?.(codes);
     return codes.map(keyForCode).filter((k): k is PidKey => k != null);
   };
 

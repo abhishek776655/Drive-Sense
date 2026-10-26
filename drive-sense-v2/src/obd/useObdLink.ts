@@ -134,6 +134,7 @@ function runSession(adapter: ObdAdapter, fuel: FuelType): () => void {
           store().setLink('unsupported');
         }
       },
+      onSupportedCodes: (codes) => void logBle(`Car answers PIDs: ${codes.join(' ') || 'none'}`),
       onVin: (vin) => store().setVin(vin),
       onCodes: (codes) => store().setCodes(codes),
       onEngine: (running) => store().setLink(running ? 'live' : 'engineOff'),

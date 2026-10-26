@@ -104,6 +104,15 @@ describe('poll loop', () => {
     expect(waits['0120']).toBeLessThan(5_000);
   });
 
+  it('reports every PID the car lists, including ones the app does not read', async () => {
+    const {transport} = fakeAdapter(CAR);
+    const onSupportedCodes = jest.fn();
+    const loop = createPollLoop(transport, handlers({onSupportedCodes, onValue: () => loop.stop()}), {sleep: never});
+    await loop.start();
+    // 0100 lists 04 05 0C 0D 10 11 1F (+20, the next bitmap); 0120 lists 2F and 33.
+    expect(onSupportedCodes).toHaveBeenCalledWith(expect.arrayContaining(['04', '05', '0C', '0D', '10', '11', '1F', '2F', '33']));
+  });
+
   it('asks 0100 again when the first try gets no answer', async () => {
     let tries = 0;
     const {transport, sent} = fakeAdapter({...CAR, '0100': () => (++tries === 1 ? null : '41 00 98 19 80 03')});
