@@ -14,10 +14,11 @@ describe('OBD tiles', () => {
     const d = {...NONE, torqueNm: 150, powerKw: 50};
     const tiles = obdTiles({}, d, metric);
     expect(tiles.find((t) => t.id === 'torque')).toMatchObject({value: '150', unit: 'Nm'});
-    expect(tiles.find((t) => t.id === 'power')).toMatchObject({value: '50', unit: 'kW'});
+    // Brake horsepower in both systems (the car's torque is engine torque).
+    expect(tiles.find((t) => t.id === 'power')).toMatchObject({value: '67', unit: 'bhp'});
     const imp = obdTiles({}, d, {...metric, units: 'imperial'});
     expect(imp.find((t) => t.id === 'torque')).toMatchObject({value: '111', unit: 'lb-ft'});
-    expect(imp.find((t) => t.id === 'power')).toMatchObject({value: '67', unit: 'hp'});
+    expect(imp.find((t) => t.id === 'power')).toMatchObject({value: '67', unit: 'bhp'});
     expect(obdTiles({}, NONE, metric).map((t) => t.id)).not.toContain('torque');
   });
 

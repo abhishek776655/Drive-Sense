@@ -62,8 +62,11 @@ export const fuelFlowUnits = (lph: number, units: UnitSystem) =>
 /** Torque in Nm, or lb-ft in imperial. */
 export const torqueUnits = (nm: number, units: UnitSystem) => (units === 'imperial' ? {value: String(Math.round(nm * 0.737562)), unit: 'lb-ft'} : {value: String(Math.round(nm)), unit: 'Nm'});
 
-/** Power in kW, or hp in imperial. */
-export const powerUnits = (kw: number, units: UnitSystem) => (units === 'imperial' ? {value: String(Math.round(kw * 1.341022)), unit: 'hp'} : {value: String(Math.round(kw)), unit: 'kW'});
+/**
+ * Power in brake horsepower, in either unit system: worked out from the car's engine torque, it is
+ * power at the crank, the bhp a car's specification quotes. `_units` keeps the formatters' shape.
+ */
+export const powerUnits = (kw: number, _units: UnitSystem) => ({value: String(Math.round(kw * 1.341022)), unit: 'bhp'});
 
 /** Boost in kPa (metric) or psi. */
 export const pressure = (kpa: number, units: UnitSystem) => (units === 'imperial' ? {value: fixed(kpa * 0.145038, 1), unit: 'psi'} : {value: String(Math.round(kpa)), unit: 'kPa'});
