@@ -109,7 +109,7 @@ export function RpmDial({rpm, speed, speedUnit, gear, parked, redline}: {rpm: nu
           </Circle>
           <Circle cx={tipX} cy={tipY} r={4} color={c.onAccent} />
         </Canvas>
-        {/* Starts below the top ticks; the chips sit in the open gap at the bottom of the arc. */}
+        {/* Starts below the top ticks. */}
         <View style={{position: 'absolute', top: 62, left: 0, right: 0, alignItems: 'center'}}>
           <AppText size={54} weight="black" style={{lineHeight: 58, fontVariant: ['tabular-nums']}}>
             {speed}
@@ -125,11 +125,13 @@ export function RpmDial({rpm, speed, speedUnit, gear, parked, redline}: {rpm: nu
               RPM
             </AppText>
           </View>
-          <View style={{flexDirection: 'row', gap: 8, marginTop: 8}}>
-            <ShiftChip icon="parking" label={parked ? 'Parked' : null} on={parked} />
-            <ShiftChip icon="car-shift-pattern" label={parked ? null : (gear ?? '–')} on={!parked && gear != null} />
-          </View>
         </View>
+      </View>
+      {/* Below the arc, not inside it: a wide chip there ran into the arc's ends. Parked says it all,
+          so the empty gear chip goes while parked. */}
+      <View style={{flexDirection: 'row', gap: 8, marginTop: 2}}>
+        <ShiftChip icon="parking" label={parked ? 'Parked' : null} on={parked} />
+        {parked ? null : <ShiftChip icon="car-shift-pattern" label={gear ?? '–'} on={gear != null} />}
       </View>
     </Card>
   );
