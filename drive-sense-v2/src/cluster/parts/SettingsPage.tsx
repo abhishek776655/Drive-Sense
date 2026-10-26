@@ -128,8 +128,16 @@ export function SettingsPage({accent, clearWidth}: {accent: string; clearWidth: 
             })}
           </View>
         ) : null}
-        {screen === 'car' ? <CheckList options={CAR_STATS} chosen={carStats} onChange={(next) => void setPrefs({clusterCarStats: next})} accent={accent} /> : null}
-        {screen === 'drive' ? <CheckList options={DRIVE_STATS} chosen={driveStats} onChange={(next) => void setPrefs({clusterDriveStats: next})} accent={accent} /> : null}
+        {screen === 'car' ? (
+          <View style={styles.stack}>
+            <CheckList options={CAR_STATS} chosen={carStats} onChange={(next) => void setPrefs({clusterCarStats: next})} accent={accent} />
+          </View>
+        ) : null}
+        {screen === 'drive' ? (
+          <View style={styles.stack}>
+            <CheckList options={DRIVE_STATS} chosen={driveStats} onChange={(next) => void setPrefs({clusterDriveStats: next})} accent={accent} />
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -141,13 +149,13 @@ const styles = StyleSheet.create({
   fill: {flex: 1},
   content: {gap: 4, paddingBottom: 16},
   // The options' pages: one centred column, top to bottom.
-  stack: {alignItems: 'center', gap: 12},
+  stack: {alignItems: 'center', gap: 12, width: '100%'},
   title: {alignSelf: 'stretch', textAlign: 'center', color: CLUSTER_INK.textFaint, fontFamily: FONT.extrabold, fontSize: 11, letterSpacing: 2, marginBottom: 10},
   header: {flexDirection: 'row', alignItems: 'center', marginBottom: 10},
   back: {width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center'},
   // `title` stretches; in the header row it must centre on the back button instead.
   headerTitle: {flex: 1, marginBottom: 0, alignSelf: 'center'},
-  theme: {width: 160, height: 36, borderRadius: 17, borderWidth: 1.5, borderColor: CLUSTER_INK.glassEdge, alignItems: 'center', justifyContent: 'center'},
+  theme: {width: '100%', maxWidth: 160, height: 36, borderRadius: 17, borderWidth: 1.5, borderColor: CLUSTER_INK.glassEdge, alignItems: 'center', justifyContent: 'center'},
   themeText: {color: CLUSTER_INK.textDim, fontFamily: FONT.extrabold, fontSize: 12},
   row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: CLUSTER_INK.glassEdge},
   rowTitle: {color: CLUSTER_INK.text, fontFamily: FONT.extrabold, fontSize: 14},
@@ -156,8 +164,9 @@ const styles = StyleSheet.create({
   dot: {width: 14, height: 14, borderRadius: 7},
   swatch: {width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center'},
   auto: {color: CLUSTER_INK.onSwatch, fontFamily: FONT.black, fontSize: 12},
-  checks: {alignSelf: 'center', gap: 14},
-  check: {flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 140},
+  // Sized to its labels and centred by the stack around it, so it can never be wider than the page.
+  checks: {gap: 14},
+  check: {flexDirection: 'row', alignItems: 'center', gap: 10},
   box: {width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: CLUSTER_INK.textFaint, alignItems: 'center', justifyContent: 'center'},
   checkLabel: {color: CLUSTER_INK.text, fontFamily: FONT.bold, fontSize: 13},
 });
