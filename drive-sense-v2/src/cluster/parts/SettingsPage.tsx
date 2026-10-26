@@ -7,6 +7,9 @@ import {FONT} from '../../theme/theme';
 import {accentColor, CLUSTER_ACCENTS, CLUSTER_INK, type ClusterAccent} from '../accents';
 import {CAR_STATS, DRIVE_STATS, THEME_IDS, THEME_NAMES, THEMES, themeOf, type StatOption} from '../settings';
 
+/** Never wider than this, however much room there is. */
+const MAX_WIDTH = 230;
+
 type Screen = 'theme' | 'color' | 'car' | 'drive';
 
 /** One option in the list: its name, what it is set to now, and a chevron into its own page. */
@@ -48,9 +51,10 @@ function CheckList({options, chosen, onChange, accent}: {options: StatOption[]; 
 /**
  * The cluster's Settings page: a short list of options. Each opens its own page with a back arrow:
  * Theme (Normal, Vintage, Sports: the dial styles and accent together), Color (the accent swatches),
- * Car and Drive (checkboxes for which stats their pages list).
+ * Car and Drive (checkboxes for which stats their pages list). Kept to `clearWidth`, the gap between
+ * the dials: wider, it runs under them and they take the taps.
  */
-export function SettingsPage({accent}: {accent: string}) {
+export function SettingsPage({accent, clearWidth}: {accent: string; clearWidth: number}) {
   const speedDial = usePreferencesStore((s) => s.clusterSpeedDial);
   const revDial = usePreferencesStore((s) => s.clusterRevDial);
   const accentId = usePreferencesStore((s) => s.clusterAccent);
@@ -60,10 +64,11 @@ export function SettingsPage({accent}: {accent: string}) {
   const driveAccent = useDriveSettingsStore((s) => s.gaugeAccent);
   const [screen, setScreen] = useState<Screen | null>(null);
   const theme = themeOf(speedDial, revDial, accentId);
+  const page = [styles.page, {width: Math.max(120, Math.min(clearWidth, MAX_WIDTH))}];
 
   if (screen == null) {
     return (
-      <View style={styles.page}>
+      <View style={page}>
         <Text style={styles.title}>SETTINGS</Text>
         <ScrollView style={styles.fill} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Row title="Theme" value={<Text style={styles.count}>{theme ? THEME_NAMES[theme] : 'Custom'}</Text>} onPress={() => setScreen('theme')} />
@@ -77,7 +82,7 @@ export function SettingsPage({accent}: {accent: string}) {
 
   const titles: Record<Screen, string> = {theme: 'THEME', color: 'COLOR', car: 'CAR STATS', drive: 'DRIVE STATS'};
   return (
-    <View style={styles.page}>
+    <View style={page}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={() => setScreen(null)} hitSlop={10} style={styles.back}>
           <Ionicons name="chevron-back" size={18} color={CLUSTER_INK.text} />
@@ -131,8 +136,8 @@ export function SettingsPage({accent}: {accent: string}) {
 }
 
 const styles = StyleSheet.create({
-  // A narrow column in the middle of the pane, not edge to edge.
-  page: {flex: 1, alignSelf: 'center', width: '100%', maxWidth: 230, paddingTop: 14},
+  // A narrow column in the middle of the pane (its width is set from the gap between the dials).
+  page: {flex: 1, alignSelf: 'center', paddingTop: 14},
   fill: {flex: 1},
   content: {gap: 4, paddingBottom: 16},
   // The options' pages: one centred column, top to bottom.
