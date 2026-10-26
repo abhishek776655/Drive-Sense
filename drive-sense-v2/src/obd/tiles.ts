@@ -73,7 +73,19 @@ export const gearLabel = (gear: number | null): string | null => (gear == null ?
 export const obdTiles = (
   values: Partial<Record<PidKey, {v: number}>>,
   derived: ObdDerived,
-  opts: {units: UnitSystem; temperature: TemperatureUnit; engineRunning: boolean; rangeKm?: number | null; mileage?: MileageUnit; driveL100km?: number | null},
+  opts: {
+    units: UnitSystem;
+    temperature: TemperatureUnit;
+    engineRunning: boolean;
+    rangeKm?: number | null;
+    mileage?: MileageUnit;
+    driveL100km?: number | null;
+    /** This vehicle since midnight, saved drives plus the live one. */
+    todayL100km?: number | null;
+    todayFuelL?: number | null;
+    /** For fuel remaining in litres; none, none shown. */
+    tankLitres?: number | null;
+  },
 ): ObdTile[] => {
   const tiles: ObdTile[] = [];
   const v = (k: PidKey) => values[k]?.v;
@@ -81,7 +93,8 @@ export const obdTiles = (
   if (coolant != null) {
     tiles.push({
       id: 'coolant',
-      label: 'Coolant',
+      // Coolant temperature is what a dashboard's engine temperature gauge shows.
+      label: 'Engine temp',
       ...temperature(coolant, opts.temperature),
       icon: 'thermometer',
       tone: coolant >= COOLANT_ALERT_C ? 'alert' : coolant >= COOLANT_WARN_C ? 'warn' : 'normal',
@@ -111,6 +124,12 @@ export const obdTiles = (
   if (opts.driveL100km != null) {
     tiles.push({id: 'driveEconomy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} this drive`, ...economy(opts.driveL100km, opts.units, opts.mileage), icon: 'speedometer', tone: 'normal'});
   }
+  if (opts.todayL100km != null) {
+    tiles.push({id: 'todayEconomy', label: `${economyLabel(opts.units, opts.mileage ?? 'l100')} today`, ...economy(opts.todayL100km, opts.units, opts.mileage), icon: 'calendar', tone: 'normal'});
+  }
+  if (opts.todayFuelL != null) {
+    tiles.push({id: 'todayFuel', label: 'Fuel today', ...fuelVolume(opts.todayFuelL, opts.units), icon: 'water', tone: 'normal'});
+  }
   const voltage = v('voltage');
   if (voltage != null) {
     const low = voltage < (opts.engineRunning ? VOLTAGE_LOW_RUNNING : VOLTAGE_LOW_OFF);
@@ -118,7 +137,10 @@ export const obdTiles = (
   }
   const fuelLevel = v('fuelLevel');
   if (fuelLevel != null) {
-    tiles.push({id: 'fuelLevel', label: 'Fuel level', value: String(Math.round(fuelLevel)), unit: '%', icon: 'color-fill', tone: fuelLevel < 10 ? 'warn' : 'normal'});
+    // The car only reports a percentage: litres need the tank size, never a guessed one.
+    const litres = opts.tankLitres != null ? (fuelLevel / 100) * opts.tankLitres : null;
+    const left = litres == null ? '' : opts.units === 'imperial' ? ` · ${fixed(litres / L_PER_US_GAL, 1)} gal` : ` · ${fixed(litres, 1)} L`;
+    tiles.push({id: 'fuelLevel', label: 'Fuel remaining', value: String(Math.round(fuelLevel)), unit: `%${left}`, icon: 'color-fill', tone: fuelLevel < 10 ? 'warn' : 'normal'});
   }
   if (opts.rangeKm != null) {
     const miles = opts.units === 'imperial';

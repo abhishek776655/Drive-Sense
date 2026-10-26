@@ -15,7 +15,12 @@ import {RpmDial} from '../../components/telemetry/RpmDial';
 import {CheckEngineCard} from '../../components/telemetry/CheckEngineCard';
 import {Sparkline} from '../../components/telemetry/Sparkline';
 import {ThisDriveCard} from '../../components/telemetry/ThisDriveCard';
+import {getDb} from '../../db';
+import {carDrives} from '../../db/obdRepos';
+import {useDriveFuel} from '../../hooks/useDriveMileage';
 import {useRange} from '../../hooks/useRange';
+import {todayFuel} from '../../stats/todayFuel';
+import {useSyncStore} from '../../sync/syncStore';
 import {useUnits} from '../../hooks/useUnits';
 import {gearLabel, obdTiles, type TileTone} from '../../obd/tiles';
 import {useObdStore} from '../../stores/obdStore';
@@ -77,9 +82,37 @@ export default function TelemetryScreen() {
   const connected = link === 'live' || link === 'engineOff';
   const tones: Record<TileTone, string> = {normal: c.textSecondary, warn: c.amber, alert: c.red};
   const range = useRange(vehicle?.id ?? null, values.fuelLevel?.v);
+  const driveFuel = useDriveFuel();
+  const syncVersion = useSyncStore((s) => s.version);
+  const vehicleId = vehicle?.id ?? null;
+  const today = useMemo(() => {
+    const db = getDb();
+    if (!db || !vehicleId) {
+      return null;
+    }
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    try {
+      return todayFuel(carDrives(db), vehicleId, midnight.getTime(), driveFuel);
+    } catch {
+      return null;
+    }
+    // `syncVersion` is the signal that the saved drives changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId, syncVersion, driveFuel]);
   const tiles = useMemo(
-    () => obdTiles(values, derived, {units: u.units, temperature: temperatureUnit, engineRunning: link === 'live', rangeKm: range.km, mileage}),
-    [values, derived, u.units, temperatureUnit, link, range.km, mileage],
+    () =>
+      obdTiles(values, derived, {
+        units: u.units,
+        temperature: temperatureUnit,
+        engineRunning: link === 'live',
+        rangeKm: range.km,
+        mileage,
+        todayL100km: today?.l100km ?? null,
+        todayFuelL: today?.fuelL ?? null,
+        tankLitres: range.tankLitres,
+      }),
+    [values, derived, u.units, temperatureUnit, link, range.km, range.tankLitres, mileage, today],
   );
   const spark = (pick: (p: (typeof history)[number]) => number | null) =>
     history.flatMap((p) => {

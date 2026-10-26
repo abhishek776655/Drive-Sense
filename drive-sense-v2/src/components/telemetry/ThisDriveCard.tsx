@@ -5,7 +5,7 @@ import {useUnits} from '../../hooks/useUnits';
 import {formatMoney, fuelCost} from '../../obd/fuel';
 import {economy, economyLabel, fuelVolume} from '../../obd/tiles';
 import {usePreferencesStore} from '../../stores/preferencesStore';
-import {useRecordingStore} from '../../stores/recordingStore';
+import {avgSpeedMps, useRecordingStore} from '../../stores/recordingStore';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
@@ -30,7 +30,7 @@ function Stat({label, value, unit}: {label: string; value: string; unit?: string
   );
 }
 
-/** Mileage, fuel and cost of the drive being recorded; nothing when no drive is recording. */
+/** Mileage, fuel, cost and average speed of the drive being recorded; nothing when no drive is recording. */
 export function ThisDriveCard() {
   const c = useAppTheme().colors;
   const u = useUnits();
@@ -38,6 +38,7 @@ export function ThisDriveCard() {
   const price = usePreferencesStore((s) => s.fuelPrice);
   const currency = usePreferencesStore((s) => s.currency);
   const recording = useRecordingStore((s) => s.status === 'recording');
+  const avgSpeed = useRecordingStore((s) => avgSpeedMps(s.stats.distanceM, s.stats.movingSeconds));
   const now = useDriveFuel();
   if (!recording) {
     return null;
@@ -46,6 +47,8 @@ export function ThisDriveCard() {
   const econ = now?.l100km != null ? economy(now.l100km, u.units, mileage) : null;
   const fuel = now?.fuelUsedL != null ? fuelVolume(now.fuelUsedL, u.units) : null;
   const cost = fuelCost(now?.fuelUsedL, price);
+  // Distance over moving time: the same average the drive summary shows at the end.
+  const avg = avgSpeed != null ? <Stat label="Avg speed" value={u.speed(avgSpeed)} unit={u.speedUnit} /> : null;
 
   return (
     <Card style={{padding: 16, gap: 12}}>
@@ -60,11 +63,15 @@ export function ThisDriveCard() {
           <Stat label={economyLabel(u.units, mileage)} value={econ?.value ?? '—'} unit={econ?.unit} />
           <Stat label="Fuel used" value={fuel?.value ?? '—'} unit={fuel?.unit} />
           {cost != null ? <Stat label="Cost" value={formatMoney(cost, currency)} /> : null}
+          {avg}
         </View>
       ) : (
-        <AppText size={13} weight="semibold" tone="secondary">
-          Mileage shows after the first few hundred metres.
-        </AppText>
+        <>
+          {avg ? <View style={{flexDirection: 'row', gap: 12}}>{avg}</View> : null}
+          <AppText size={13} weight="semibold" tone="secondary">
+            Mileage shows after the first few hundred metres.
+          </AppText>
+        </>
       )}
     </Card>
   );

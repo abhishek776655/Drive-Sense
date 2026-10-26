@@ -29,6 +29,21 @@ describe('OBD tiles', () => {
     expect(imp.find((x) => x.id === 'odometer')).toMatchObject({value: '13,745.2', unit: 'mi'});
   });
 
+  it('calls coolant Engine temp, and shows fuel as percent and litres when the tank size is known', () => {
+    expect(obdTiles({coolant: {v: 82}}, NONE, metric)[0]).toMatchObject({id: 'coolant', label: 'Engine temp'});
+    const withTank = obdTiles({fuelLevel: {v: 28.63}}, NONE, {...metric, tankLitres: 50}).find((t) => t.id === 'fuelLevel');
+    expect(withTank).toMatchObject({label: 'Fuel remaining', value: '29', unit: '% · 14.3 L'});
+    const gallons = obdTiles({fuelLevel: {v: 28.63}}, NONE, {...metric, units: 'imperial', tankLitres: 50}).find((t) => t.id === 'fuelLevel');
+    expect(gallons?.unit).toBe('% · 3.8 gal');
+    expect(obdTiles({fuelLevel: {v: 28.63}}, NONE, metric).find((t) => t.id === 'fuelLevel')?.unit).toBe('%');
+  });
+
+  it("shows today's mileage and fuel when known", () => {
+    const t = obdTiles({}, NONE, {...metric, todayL100km: 6, todayFuelL: 1.5});
+    expect(t.find((x) => x.id === 'todayEconomy')).toMatchObject({label: 'Economy today', value: '6.0', unit: 'L/100 km'});
+    expect(t.find((x) => x.id === 'todayFuel')).toMatchObject({label: 'Fuel today', value: '1.50', unit: 'L'});
+  });
+
   it('has no fuel flow tile: it only feeds mileage and fuel used', () => {
     expect(obdTiles({}, {...NONE, fuelFlow: 4}, metric).map((t) => t.id)).not.toContain('fuelFlow');
   });
