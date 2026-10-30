@@ -67,6 +67,11 @@ export default function TripSummaryScreen() {
       leave();
     }
   };
+  // After a failed save: the drive stays in the outbox and uploads when it can.
+  const onGoBack = () => {
+    forget();
+    leave();
+  };
   const onDiscard = () =>
     confirmDiscard(async () => {
       if (await discard()) {
@@ -219,6 +224,18 @@ export default function TripSummaryScreen() {
               <AppText size={13} weight="bold" tone="accent">
                 {error}
               </AppText>
+              {/* The drive is already kept on the phone (it retries from the outbox), so leaving loses nothing. */}
+              {saveStatus === 'error' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back, keep the drive on this phone"
+                  onPress={onGoBack}
+                  style={{alignSelf: 'flex-start', marginTop: 10, backgroundColor: c.control, borderRadius: 99, paddingHorizontal: 16, paddingVertical: 8}}>
+                  <AppText size={13} weight="extrabold">
+                    Go back, save later
+                  </AppText>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
         </Animated.View>
