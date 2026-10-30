@@ -8,6 +8,7 @@ import type {SpeedSample} from '../../utils/tripAnalysis';
 import {kmhInUnits} from '../../utils/units';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
+import {ChartScrub} from './ChartScrub';
 import {linePath} from './chartPath';
 import {clockTime} from './timeOfDay';
 
@@ -22,7 +23,8 @@ export function SpeedChart({samples, peak}: {samples: SpeedSample[]; peak: Speed
   if (samples.length < 2 || !peak) {
     return null;
   }
-  const {line, area, toXY} = linePath(samples.map((s) => ({x: s.t, y: s.kmh})), width, H);
+  const points = samples.map((s) => ({x: s.t, y: s.kmh}));
+  const {line, area, toXY} = linePath(points, width, H);
   const top = Math.max(peak.kmh, 1);
   // Gradient runs bottom (0 km/h) to the peak's height, in chart space, so a colour sits at its speed.
   const stops = [...speedScaleStops(c).filter((s) => s.kmh < top), {kmh: top, color: speedColor(top, c)}];
@@ -44,6 +46,7 @@ export function SpeedChart({samples, peak}: {samples: SpeedSample[]; peak: Speed
             <Circle cx={peakXY.x} cy={peakXY.y} r={5} fill={speedColor(peak.kmh, c)} stroke={c.card} strokeWidth={2} />
           </Svg>
         ) : null}
+        {width > 0 ? <ChartScrub width={width} height={H} points={points} toXY={toXY} color={c.accent} label={(p) => `${kmhInUnits(p.y, u.units)} ${u.speedUnit} · ${clockTime(p.x)}`} /> : null}
       </View>
       <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 6}}>
         <AppText size={13} weight="bold" tone="secondary">

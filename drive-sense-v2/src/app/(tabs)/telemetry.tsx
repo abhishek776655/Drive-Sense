@@ -139,6 +139,7 @@ export default function TelemetryScreen() {
       pick: (p: HistoryPoint) => p.power,
       color: c.purple,
       peak: peak((p) => p.power, (n) => powerUnits(n, u.units)),
+      readout: (n: number) => `${powerUnits(n, u.units).value} bhp`,
       show: seen((p) => p.power),
     },
     {
@@ -149,12 +150,13 @@ export default function TelemetryScreen() {
       pick: (p: HistoryPoint) => p.torque,
       color: c.blue,
       peak: peak((p) => p.torque, (n) => torqueUnits(n, u.units)),
+      readout: (n: number) => `${torqueUnits(n, u.units).value} ${torqueUnits(0, u.units).unit}`,
       show: seen((p) => p.torque),
     },
   ].filter((g) => g.show);
   const graphs = [
-    {key: 'rpm', label: 'RPM', value: values.rpm ? String(Math.round(values.rpm.v)) : '—', unit: 'rpm', pick: (p: HistoryPoint) => p.rpm, color: c.accent, show: true},
-    {key: 'flow', label: 'Fuel flow', value: flow?.value ?? '—', unit: fuelFlowUnits(0, u.units).unit, pick: (p: HistoryPoint) => p.fuelFlow, color: c.cyan, show: seen((p) => p.fuelFlow)},
+    {key: 'rpm', label: 'RPM', value: values.rpm ? String(Math.round(values.rpm.v)) : '—', unit: 'rpm', pick: (p: HistoryPoint) => p.rpm, color: c.accent, show: true, readout: (n: number) => `${Math.round(n)} rpm`},
+    {key: 'flow', label: 'Fuel flow', value: flow?.value ?? '—', unit: fuelFlowUnits(0, u.units).unit, pick: (p: HistoryPoint) => p.fuelFlow, color: c.cyan, show: seen((p) => p.fuelFlow), readout: (n: number) => `${fuelFlowUnits(n, u.units).value} ${fuelFlowUnits(0, u.units).unit}`},
     {
       key: 'accel',
       label: 'Acceleration',
@@ -163,6 +165,7 @@ export default function TelemetryScreen() {
       pick: (p: HistoryPoint) => p.accel,
       color: c.green,
       show: seen((p) => p.accel),
+      readout: (n: number) => `${n.toFixed(1)} m/s²`,
     },
   ].filter((g) => g.show);
 
@@ -214,12 +217,12 @@ export default function TelemetryScreen() {
         />
         <ThisDriveCard />
         {wideGraphs.map((g) => (
-          <Sparkline key={g.key} label={g.label} value={g.value} unit={g.unit} points={spark(g.pick)} color={g.color} height={72} peak={g.peak} />
+          <Sparkline key={g.key} label={g.label} value={g.value} unit={g.unit} points={spark(g.pick)} color={g.color} height={72} peak={g.peak} readout={g.readout} />
         ))}
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.cardGap}}>
           {graphs.map((g) => (
             <View key={g.key} style={{flexBasis: '48%', flexGrow: 1}}>
-              <Sparkline label={g.label} value={g.value} unit={g.unit} points={spark(g.pick)} color={g.color} />
+              <Sparkline label={g.label} value={g.value} unit={g.unit} points={spark(g.pick)} color={g.color} readout={g.readout} />
             </View>
           ))}
         </View>

@@ -4,6 +4,7 @@ import Svg, {Defs, LinearGradient, Path, Stop} from 'react-native-svg';
 import {useAppTheme} from '../../theme/ThemeProvider';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
+import {ChartScrub} from '../trip/ChartScrub';
 import {linePath} from '../trip/chartPath';
 
 const H = 44;
@@ -20,6 +21,7 @@ export function Sparkline({
   color,
   height = H,
   peak,
+  readout,
 }: {
   label: string;
   value: string;
@@ -28,10 +30,13 @@ export function Sparkline({
   color: string;
   height?: number;
   peak?: string | null;
+  /** The value at a touched point, with its unit; the plain number and `unit` when absent. */
+  readout?: (y: number) => string;
 }) {
   const c = useAppTheme().colors;
   const [width, setWidth] = useState(0);
-  const {line, area} = linePath(points, width, height, 2);
+  const {line, area, toXY} = linePath(points, width, height, 2);
+  const lastX = points.length > 0 ? points[points.length - 1].x : 0;
   const fillId = `spark-${label}`;
   return (
     <Card style={{flex: 1, paddingVertical: 12, paddingHorizontal: 14, gap: 6}}>
@@ -55,6 +60,7 @@ export function Sparkline({
       </View>
       <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{height}}>
         {width > 0 && points.length > 1 ? (
+          <>
           <Svg width={width} height={height}>
             {/* The area fades out downward, so the line reads first. */}
             <Defs>
@@ -66,6 +72,15 @@ export function Sparkline({
             <Path d={area} fill={`url(#${fillId})`} />
             <Path d={line} stroke={color} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
           </Svg>
+          <ChartScrub
+            width={width}
+            height={height}
+            points={points}
+            toXY={toXY}
+            color={color}
+            label={(p) => `${readout ? readout(p.y) : `${Math.round(p.y * 10) / 10} ${unit}`} · ${Math.round((lastX - p.x) / 1000)}s ago`}
+          />
+          </>
         ) : (
           <View style={{flex: 1, justifyContent: 'center'}}>
             <View style={{height: 2, borderRadius: 1, backgroundColor: c.separator}} />

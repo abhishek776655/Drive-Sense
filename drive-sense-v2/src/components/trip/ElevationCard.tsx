@@ -7,7 +7,9 @@ import {formatSpan} from '../../utils/format';
 import type {ElevationProfile} from '../../utils/tripAnalysis';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
+import {ChartScrub} from './ChartScrub';
 import {linePath} from './chartPath';
+import {clockTime} from './timeOfDay';
 
 const H = 90;
 /** Flat drives stay flat: the chart always spans at least this many metres. */
@@ -39,7 +41,8 @@ export function ElevationCard({profile}: {profile: ElevationProfile}) {
   const [width, setWidth] = useState(0);
   // Centre a small range in the minimum span rather than drawing it as a cliff.
   const lift = Math.max(0, (MIN_SPAN_M - (profile.maxM - profile.minM)) / 2);
-  const {line, area} = linePath(profile.series.map((s) => ({x: s.t, y: s.m - profile.minM + lift})), width, H, 4, MIN_SPAN_M);
+  const points = profile.series.map((s) => ({x: s.t, y: s.m - profile.minM + lift}));
+  const {line, area, toXY} = linePath(points, width, H, 4, MIN_SPAN_M);
   return (
     <Card style={{padding: 16, gap: 14}}>
       <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{height: H}}>
@@ -49,6 +52,7 @@ export function ElevationCard({profile}: {profile: ElevationProfile}) {
             <Path d={line} fill="none" stroke={c.green} strokeWidth={2.5} strokeLinejoin="round" />
           </Svg>
         ) : null}
+        {width > 0 ? <ChartScrub width={width} height={H} points={points} toXY={toXY} color={c.green} label={(p) => `${Math.round(p.y + profile.minM - lift)} m · ${clockTime(p.x)}`} /> : null}
       </View>
       <View style={{flexDirection: 'row'}}>
         <Figure icon="trending-up" color={c.green} value={String(profile.gainM)} label="Climb" />
