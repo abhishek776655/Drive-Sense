@@ -3,7 +3,7 @@ import {router, useLocalSearchParams} from 'expo-router';
 import {useEffect, useMemo, useState} from 'react';
 import {BlurView} from 'expo-blur';
 import {LinearGradient} from 'expo-linear-gradient';
-import {Alert, Animated, Platform, Share, StyleSheet, View} from 'react-native';
+import {Alert, Animated, InteractionManager, Platform, Share, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {AppText} from '../../components/AppText';
 import {BentoTile} from '../../components/BentoTile';
@@ -133,12 +133,19 @@ export default function TripDetailScreen() {
   const [picking, setPicking] = useState(false);
   const [replaying, setReplaying] = useState(false);
 
+  // The page opens at once on its skeleton; the drive is read and its (heavy) cards built only after
+  // the open transition, so tapping a drive never freezes on the list.
+  const [settled, setSettled] = useState(false);
   useEffect(() => {
     clearActionError();
-    void load(id);
+    const task = InteractionManager.runAfterInteractions(() => {
+      setSettled(true);
+      void load(id);
+    });
+    return () => task.cancel();
   }, [id, load, clearActionError]);
 
-  const detail = entry?.detail ?? null;
+  const detail = settled ? (entry?.detail ?? null) : null;
   const analysis = useMemo(() => (detail ? analyseTrip(detail.location_points) : null), [detail]);
   const breakdown = useMemo(() => (detail ? eventBreakdown(detail.events) : null), [detail]);
   // This phone's own sensor summary of the drive (corners, road, phone use), when it recorded one.
@@ -243,7 +250,7 @@ export default function TripDetailScreen() {
     : '';
 
   const body = (() => {
-    if (!entry || entry.status === 'loading') {
+    if (!settled || !entry || entry.status === 'loading') {
       return <TripDetailSkeleton />;
     }
     if (entry.status === 'missing') {
