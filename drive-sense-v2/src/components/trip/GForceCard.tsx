@@ -7,6 +7,7 @@ import {DASH, formatG} from '../../utils/format';
 import type {GSample} from '../../utils/tripAnalysis';
 import {AppText} from '../AppText';
 import {Card} from '../Card';
+import {ChartScrub} from './ChartScrub';
 import {clockTime} from './timeOfDay';
 
 const H = 110;
@@ -89,6 +90,16 @@ export function GForceCard({samples, peakAccel, peakBrake, sensorMaxG, sensor = 
             <Path d={line} fill="none" stroke={c.textSecondary} strokeWidth={1.5} strokeLinejoin="round" />
             {sensorLine ? <Path d={sensorLine} fill="none" stroke={c.purple} strokeOpacity={0.85} strokeWidth={1.5} strokeLinejoin="round" /> : null}
           </Svg>
+        ) : null}
+        {width > 0 ? (
+          <ChartScrub
+            width={width}
+            height={H}
+            points={samples.map((s) => ({x: s.t, y: s.g}))}
+            toXY={(p) => ({x: x(p.x), y: y(p.y)})}
+            color={c.textSecondary}
+            label={(p) => `${p.y > 0 ? '+' : ''}${p.y.toFixed(2)} G · ${clockTime(p.x)}`}
+          />
         ) : null}
       </View>
       <View style={{flexDirection: 'row'}}>
