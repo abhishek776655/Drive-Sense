@@ -106,8 +106,12 @@ export const summarize = (rows: ObdSampleRow[], driveSeconds: number, highRpm: n
   let idle = 0;
   let idleFuel = 0;
   let hasIdleFuel = false;
+  // A row holds only the PIDs read that second, so distance and fuel each use the latest value seen:
+  // otherwise a row with fuel flow but no speed burns fuel over no distance.
+  let lastSpeed: number | null = null;
   rows.forEach(({ts, row}, i) => {
     const step = i === 0 ? 1 : Math.min(MAX_STEP_S, Math.max(0, (ts - rows[i - 1].ts) / 1000));
+    lastSpeed = row.speed ?? lastSpeed;
     if (row.rpm != null) {
       maxRpm = Math.max(maxRpm ?? 0, row.rpm);
       if (row.rpm > 0) {
@@ -122,10 +126,10 @@ export const summarize = (rows: ObdSampleRow[], driveSeconds: number, highRpm: n
       fuel += (row.fuelFlow / 3600) * step;
       hasFuel = true;
     }
-    if (row.speed != null) {
-      km += (row.speed / 3600) * step;
+    if (lastSpeed != null) {
+      km += (lastSpeed / 3600) * step;
     }
-    if ((row.rpm ?? 0) > 0 && row.speed === 0) {
+    if ((row.rpm ?? 0) > 0 && lastSpeed === 0) {
       idle += step;
       if (row.fuelFlow != null) {
         idleFuel += (row.fuelFlow / 3600) * step;
