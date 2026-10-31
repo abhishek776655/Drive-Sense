@@ -370,9 +370,16 @@ async def apply_track_metrics(db: AsyncSession, trip: Trip) -> None:
             trip.max_g_source = "gps"
 
 
+def end_not_before_start(end_time: datetime, start_time: datetime) -> datetime:
+    """A trip never ends before it starts. The phone stamps a start with its own clock and the last
+    GPS fix can carry an earlier time, which would break the `trips_end_after_start` constraint."""
+    return max(_as_utc(end_time), _as_utc(start_time))
+
+
 async def _close_trip(db: AsyncSession, trip: Trip, *, end_time: datetime) -> Trip:
     """Mark a trip ended. Shared by the normal end call and the abandoned-trip backstop."""
     await apply_track_metrics(db, trip)
+    end_time = end_not_before_start(end_time, trip.start_time)
     trip.end_time = end_time
     trip.state = TripState.ended
     trip.duration_seconds = max(0, int((_as_utc(end_time) - _as_utc(trip.start_time)).total_seconds()))
